@@ -7,5 +7,5 @@ dist-ssr
 
 # tsc -b composite build artifacts
 *.tsbuildinfo
-app/vite.config.js
-app/vite.config.d.ts
+vite.config.js
+vite.config.d.ts
