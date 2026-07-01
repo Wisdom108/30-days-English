@@ -1,16 +1,18 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
+import { Volume2, Loader2, Rabbit } from 'lucide-react'
 import { speak, ttsSupported } from '../lib/speech'
 import { lookupWord, type LookupResult } from '../lib/dictionary'
+import { cn } from '../lib/utils'
 
 // ---- Text-to-speech play button ----
 export function SpeakButton({
   text,
-  label = '🔊',
+  slow = false,
   rate = 1,
-  className = 'btn btn-ghost btn-sm btn-icon',
+  className,
 }: {
   text: string
-  label?: string
+  slow?: boolean
   rate?: number
   className?: string
 }) {
@@ -18,17 +20,26 @@ export function SpeakButton({
   if (!ttsSupported()) return null
   return (
     <button
-      className={className}
-      title="朗读 / Play"
+      className={cn(
+        'inline-grid h-7 w-7 shrink-0 place-items-center rounded-md text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg',
+        className,
+      )}
+      title={slow ? '慢速朗读' : '朗读'}
       disabled={busy}
       onClick={async (e) => {
         e.stopPropagation()
         setBusy(true)
-        await speak(text, rate)
+        await speak(text, slow ? 0.7 : rate)
         setBusy(false)
       }}
     >
-      {busy ? '🔈' : label}
+      {busy ? (
+        <Loader2 size={14} className="animate-spin" />
+      ) : slow ? (
+        <Rabbit size={15} />
+      ) : (
+        <Volume2 size={15} />
+      )}
     </button>
   )
 }
@@ -60,12 +71,11 @@ export function ReadableText({ text }: { text: string }) {
     setPopover((p) => (p && p.word === word ? { ...p, result, loading: false } : p))
   }
 
-  // Split into tokens keeping punctuation/whitespace, so alphabetic words are clickable.
   const tokens = text.split(/(\s+)/)
 
   return (
     <>
-      <div className="rt" onClick={() => setPopover(null)}>
+      <div className="text-[16.5px] leading-[2] text-fg-secondary" onClick={() => setPopover(null)}>
         {tokens.map((tok, i) => {
           if (/^\s+$/.test(tok)) return <span key={i}>{tok}</span>
           const m = tok.match(/^([^A-Za-z']*)([A-Za-z][A-Za-z'-]*)(.*)$/)
@@ -74,7 +84,10 @@ export function ReadableText({ text }: { text: string }) {
           return (
             <span key={i}>
               {pre}
-              <span className="w" onClick={(e) => onWord(e, word)}>
+              <span
+                className="cursor-pointer rounded px-0.5 transition-colors hover:bg-brand/25 hover:text-fg"
+                onClick={(e) => onWord(e, word)}
+              >
                 {word}
               </span>
               {post}
@@ -83,25 +96,31 @@ export function ReadableText({ text }: { text: string }) {
         })}
       </div>
       {popover && (
-        <div className="popover" style={{ left: popover.x, top: popover.y }} onClick={(e) => e.stopPropagation()}>
-          <div className="row spread">
-            <span className="pw">{popover.word}</span>
+        <div
+          className="fixed z-50 max-w-[320px] rounded-xl border border-border bg-elevated p-3.5 shadow-[0_16px_50px_-12px_rgba(0,0,0,0.8)] animate-in-up"
+          style={{ left: popover.x, top: popover.y }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[16px] font-semibold">{popover.word}</span>
             <SpeakButton text={popover.word} />
           </div>
-          {popover.loading && <div className="small muted">查询中…</div>}
+          {popover.loading && <div className="mt-1 text-[13px] text-fg-dim">查询中…</div>}
           {!popover.loading && popover.result && (
             <>
-              {popover.result.phonetic && <div className="pph">{popover.result.phonetic}</div>}
-              {popover.result.meanings.map((m, i) => (
-                <div className="pm small" key={i}>
-                  <span className="pos">{m.partOfSpeech}</span>
-                  {m.definition}
+              {popover.result.phonetic && (
+                <div className="text-[13px] text-warning">{popover.result.phonetic}</div>
+              )}
+              {popover.result.meanings.map((mm, idx) => (
+                <div className="mt-1.5 text-[13px] text-fg-secondary" key={idx}>
+                  <span className="mr-1 italic text-fg-dim">{mm.partOfSpeech}</span>
+                  {mm.definition}
                 </div>
               ))}
             </>
           )}
           {!popover.loading && !popover.result && (
-            <div className="small muted">未找到释义（可能离线或生僻词）。</div>
+            <div className="mt-1 text-[13px] text-fg-dim">未找到释义（可能离线或生僻词）。</div>
           )}
         </div>
       )}
@@ -110,49 +129,62 @@ export function ReadableText({ text }: { text: string }) {
 }
 
 // ---- Circular progress ring ----
-export function ProgressRing({ value, size = 84 }: { value: number; size?: number }) {
-  const stroke = 8
+export function ProgressRing({
+  value,
+  size = 88,
+  children,
+}: {
+  value: number
+  size?: number
+  children?: React.ReactNode
+}) {
+  const stroke = 7
   const r = (size - stroke) / 2
   const c = 2 * Math.PI * r
   const off = c - (value / 100) * c
   return (
-    <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
-      <circle cx={size / 2} cy={size / 2} r={r} stroke="#334155" strokeWidth={stroke} fill="none" />
-      <circle
-        cx={size / 2}
-        cy={size / 2}
-        r={r}
-        stroke="url(#g)"
-        strokeWidth={stroke}
-        fill="none"
-        strokeDasharray={c}
-        strokeDashoffset={off}
-        strokeLinecap="round"
-        style={{ transition: 'stroke-dashoffset .5s ease' }}
-      />
-      <defs>
-        <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#22c55e" />
-          <stop offset="100%" stopColor="#3b82f6" />
-        </linearGradient>
-      </defs>
-    </svg>
+    <div className="relative grid place-items-center" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="-rotate-90">
+        <circle cx={size / 2} cy={size / 2} r={r} stroke="#232427" strokeWidth={stroke} fill="none" />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          stroke="url(#ring)"
+          strokeWidth={stroke}
+          fill="none"
+          strokeDasharray={c}
+          strokeDashoffset={off}
+          strokeLinecap="round"
+          style={{ transition: 'stroke-dashoffset .6s cubic-bezier(0.22,1,0.36,1)' }}
+        />
+        <defs>
+          <linearGradient id="ring" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#5e6ad2" />
+            <stop offset="100%" stopColor="#b57edc" />
+          </linearGradient>
+        </defs>
+      </svg>
+      <div className="absolute inset-0 grid place-items-center">{children}</div>
+    </div>
   )
 }
 
-// ---- Reusable comprehension Q&A with reveal ----
+// ---- Comprehension Q&A with reveal ----
 export function QAItem({ q, a }: { q: string; a: string }) {
   const [show, setShow] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
   return (
-    <div className="shadow-item" ref={ref}>
-      <div className="row spread">
-        <span>{q}</span>
-        <button className="btn btn-ghost btn-sm" onClick={() => setShow((s) => !s)}>
+    <div className="rounded-xl border border-border bg-surface-2 p-3.5">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-[14px] text-fg-secondary">{q}</span>
+        <button
+          className="shrink-0 rounded-md px-2 py-1 text-[12px] text-fg-muted transition-colors hover:bg-elevated hover:text-fg"
+          onClick={() => setShow((s) => !s)}
+        >
           {show ? '隐藏' : '看答案'}
         </button>
       </div>
-      {show && <div className="small" style={{ marginTop: 6, color: '#86efac' }}>{a}</div>}
+      {show && <div className="mt-2 text-[13px] text-success">{a}</div>}
     </div>
   )
 }

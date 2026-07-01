@@ -1,11 +1,12 @@
 import { useState } from 'react'
+import { Download, Upload, CalendarClock, AlertTriangle } from 'lucide-react'
 import { useApp } from '../state'
 import { CURRICULUM, TOTAL_DAYS } from '../data/curriculum'
-import { isDayComplete } from '../lib/storage'
+import { isDayComplete, exportState, parseImport } from '../lib/storage'
 import { BLOCKS, PHASE_INFO } from '../blocks'
 import { todayISO } from '../lib/srs'
 import { buildIcs, downloadIcs } from '../lib/calendar'
-import { exportState, parseImport } from '../lib/storage'
+import { Button, Card, CardBody, Progress as Bar } from './ui'
 
 export default function Progress() {
   const { state, reset, importAll } = useApp()
@@ -27,10 +28,7 @@ export default function Progress() {
     const reader = new FileReader()
     reader.onload = () => {
       const next = parseImport(String(reader.result))
-      if (!next) {
-        alert('导入失败：文件格式不正确。')
-        return
-      }
+      if (!next) return alert('导入失败：文件格式不正确。')
       if (confirm('导入将覆盖当前进度，确定继续？')) importAll(next)
     }
     reader.readAsText(file)
@@ -42,114 +40,136 @@ export default function Progress() {
   const today = todayISO()
   const matured = Object.values(state.cards).filter((c) => c.repetitions >= 2).length
   const dueToday = Object.values(state.cards).filter((c) => c.dueDate <= today).length
-
   const blockCounts = BLOCKS.map((b) => ({
     ...b,
     count: Object.values(state.days).filter((d) => d.completedBlocks[b.key]).length,
   }))
 
   return (
-    <>
-      <div className="card">
-        <h2>📈 学习进度</h2>
-        <div className="row spread wrap" style={{ gap: 12, marginTop: 12 }}>
-          <div className="stat"><div className="v">🔥 {state.streak}</div><div className="k">连续天数</div></div>
-          <div className="stat"><div className="v">{completedDays.length}</div><div className="k">完成天数</div></div>
-          <div className="stat"><div className="v">{Object.keys(state.cards).length}</div><div className="k">词卡总数</div></div>
-          <div className="stat"><div className="v">{matured}</div><div className="k">已掌握词</div></div>
-          <div className="stat"><div className="v">{dueToday}</div><div className="k">今日待复习</div></div>
-        </div>
-        {state.startDate && <p className="small muted" style={{ marginTop: 10 }}>开始日期：{state.startDate}</p>}
-      </div>
-
-      <div className="card">
-        <h2>🧭 各阶段完成度</h2>
-        {Object.entries(PHASE_INFO).map(([k, v]) => {
-          const days = CURRICULUM.filter((l) => l.phase === Number(k)).map((l) => l.day)
-          const doneCount = days.filter((d) => completedDays.includes(d)).length
-          const pct = days.length ? Math.round((doneCount / days.length) * 100) : 0
-          return (
-            <div key={k} style={{ margin: '12px 0' }}>
-              <div className="row spread small">
-                <span><b style={{ color: v.color }}>阶段 {k}</b> {v.name_zh} · {v.range}</span>
-                <span className="muted">{doneCount}/{days.length}</span>
-              </div>
-              <div className="bar" style={{ marginTop: 6 }}><span style={{ width: `${pct}%` }} /></div>
-            </div>
-          )
-        })}
-      </div>
-
-      <div className="card">
-        <h2>🎯 四项技能打卡次数</h2>
-        {blockCounts.map((b) => (
-          <div key={b.key} style={{ margin: '10px 0' }}>
-            <div className="row spread small">
-              <span>{b.icon} {b.title_zh}</span>
-              <span className="muted">{b.count}/{TOTAL_DAYS}</span>
-            </div>
-            <div className="bar" style={{ marginTop: 6 }}>
-              <span style={{ width: `${Math.round((b.count / TOTAL_DAYS) * 100)}%` }} />
-            </div>
+    <div className="space-y-4">
+      <Card className="animate-in-up">
+        <CardBody>
+          <h2 className="text-[16px]">📈 学习进度</h2>
+          <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-5">
+            <Metric v={`🔥 ${state.streak}`} k="连续天数" />
+            <Metric v={completedDays.length} k="完成天数" />
+            <Metric v={Object.keys(state.cards).length} k="词卡总数" />
+            <Metric v={matured} k="已掌握词" />
+            <Metric v={dueToday} k="待复习" />
           </div>
-        ))}
-      </div>
+          {state.startDate && <p className="mt-3 text-[12px] text-fg-dim">开始日期：{state.startDate}</p>}
+        </CardBody>
+      </Card>
 
-      <div className="card">
-        <h2>📅 每日定时陪跑 · 日历提醒</h2>
-        <p className="small muted">
-          导出 30 天每日学习提醒，导入 Google / Apple / Outlook 日历即可每天定时提醒（从你的开始日期
-          {state.startDate ? ` ${state.startDate}` : '（今天）'}起算，共 30 天）。
-        </p>
-        <div className="row wrap" style={{ gap: 10, marginTop: 8 }}>
-          <label className="small muted">提醒时间：</label>
-          <select
-            value={hour}
-            onChange={(e) => setHour(Number(e.target.value))}
-            style={{ background: 'var(--card-2)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 10, padding: '8px 10px' }}
-          >
-            {[6, 7, 8, 9, 12, 18, 20, 21].map((h) => (
-              <option key={h} value={h}>{String(h).padStart(2, '0')}:00</option>
+      <Card className="animate-in-up">
+        <CardBody>
+          <h2 className="text-[16px]">🧭 各阶段完成度</h2>
+          <div className="mt-3 space-y-3.5">
+            {Object.entries(PHASE_INFO).map(([k, v]) => {
+              const days = CURRICULUM.filter((l) => l.phase === Number(k)).map((l) => l.day)
+              const doneCount = days.filter((d) => completedDays.includes(d)).length
+              const pct = days.length ? Math.round((doneCount / days.length) * 100) : 0
+              return (
+                <div key={k}>
+                  <div className="flex items-center justify-between text-[13px]">
+                    <span><b style={{ color: v.color }}>阶段 {k}</b> <span className="text-fg-muted">{v.name_zh} · {v.range}</span></span>
+                    <span className="text-fg-dim">{doneCount}/{days.length}</span>
+                  </div>
+                  <Bar value={pct} className="mt-1.5" />
+                </div>
+              )
+            })}
+          </div>
+        </CardBody>
+      </Card>
+
+      <Card className="animate-in-up">
+        <CardBody>
+          <h2 className="text-[16px]">🎯 四项技能打卡</h2>
+          <div className="mt-3 space-y-3">
+            {blockCounts.map((b) => (
+              <div key={b.key}>
+                <div className="flex items-center justify-between text-[13px]">
+                  <span>{b.icon} {b.title_zh}</span>
+                  <span className="text-fg-dim">{b.count}/{TOTAL_DAYS}</span>
+                </div>
+                <Bar value={Math.round((b.count / TOTAL_DAYS) * 100)} className="mt-1.5" />
+              </div>
             ))}
-          </select>
-          <button
-            onClick={() =>
-              downloadIcs(buildIcs(CURRICULUM, state.startDate || todayISO(), hour))
-            }
-          >
-            ⬇️ 导出日历提醒 (.ics)
-          </button>
-        </div>
-      </div>
+          </div>
+        </CardBody>
+      </Card>
 
-      <div className="card">
-        <h2>💾 进度备份 / 恢复</h2>
-        <p className="small muted">
-          进度保存在本浏览器（localStorage）。换设备或清缓存前，请导出备份；在新设备导入即可继续 30 天旅程。
-        </p>
-        <div className="row wrap" style={{ gap: 10, marginTop: 8 }}>
-          <button className="btn-ghost" onClick={doExport}>⬇️ 导出备份 (.json)</button>
-          <label className="btn btn-ghost" style={{ display: 'inline-block' }}>
-            ⬆️ 导入备份
-            <input
-              type="file"
-              accept="application/json,.json"
-              style={{ display: 'none' }}
-              onChange={(e) => {
-                const f = e.target.files?.[0]
-                if (f) doImport(f)
-                e.target.value = ''
-              }}
-            />
-          </label>
-        </div>
-      </div>
+      <Card className="animate-in-up">
+        <CardBody>
+          <div className="flex items-center gap-2">
+            <CalendarClock size={17} className="text-brand" />
+            <h2 className="text-[16px]">每日定时陪跑 · 日历提醒</h2>
+          </div>
+          <p className="mt-1.5 text-[13px] text-fg-muted">
+            导出 30 天每日提醒，导入 Google / Apple / Outlook 日历即可定时提醒（从
+            {state.startDate ? ` ${state.startDate}` : '今天'} 起 30 天）。
+          </p>
+          <div className="mt-3 flex flex-wrap items-center gap-2.5">
+            <span className="text-[13px] text-fg-muted">提醒时间</span>
+            <select
+              value={hour}
+              onChange={(e) => setHour(Number(e.target.value))}
+              className="rounded-lg border border-border bg-surface-2 px-3 py-2 text-[13px] outline-none focus:border-brand"
+            >
+              {[6, 7, 8, 9, 12, 18, 20, 21].map((h) => (
+                <option key={h} value={h}>{String(h).padStart(2, '0')}:00</option>
+              ))}
+            </select>
+            <Button onClick={() => downloadIcs(buildIcs(CURRICULUM, state.startDate || todayISO(), hour))}>
+              <Download size={15} /> 导出日历 (.ics)
+            </Button>
+          </div>
+        </CardBody>
+      </Card>
 
-      <div className="card center">
-        <button className="btn-ghost btn-sm" onClick={reset} style={{ color: '#fca5a5' }}>
-          ⚠️ 清空全部进度
+      <Card className="animate-in-up">
+        <CardBody>
+          <h2 className="text-[16px]">💾 进度备份 / 恢复</h2>
+          <p className="mt-1.5 text-[13px] text-fg-muted">
+            进度存于本浏览器。换设备或清缓存前请导出备份，在新设备导入即可继续。
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2.5">
+            <Button variant="secondary" onClick={doExport}><Download size={15} /> 导出备份</Button>
+            <label className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-[8px] border border-border bg-surface-2 px-4 text-sm font-medium text-fg transition-colors hover:bg-elevated">
+              <Upload size={15} /> 导入备份
+              <input
+                type="file"
+                accept="application/json,.json"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0]
+                  if (f) doImport(f)
+                  e.target.value = ''
+                }}
+              />
+            </label>
+          </div>
+        </CardBody>
+      </Card>
+
+      <div className="text-center">
+        <button
+          onClick={reset}
+          className="inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-[12px] text-danger/80 transition-colors hover:bg-danger/10 hover:text-danger"
+        >
+          <AlertTriangle size={13} /> 清空全部进度
         </button>
       </div>
-    </>
+    </div>
+  )
+}
+
+function Metric({ v, k }: { v: React.ReactNode; k: string }) {
+  return (
+    <div className="rounded-xl bg-surface-2 px-2 py-2.5 text-center">
+      <div className="text-[18px] font-semibold leading-none">{v}</div>
+      <div className="mt-1 text-[11px] text-fg-dim">{k}</div>
+    </div>
   )
 }
