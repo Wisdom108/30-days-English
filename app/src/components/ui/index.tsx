@@ -1,25 +1,24 @@
 import { cva, type VariantProps } from 'class-variance-authority'
 import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode } from 'react'
+import * as TooltipPrimitive from '@radix-ui/react-tooltip'
+import * as AlertDialogPrimitive from '@radix-ui/react-alert-dialog'
 import { cn } from '../../lib/utils'
 
-// ---- Button (shadcn-style, Linear palette) ----
+// ---- Button ----
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-[8px] text-sm font-medium transition-all duration-150 outline-none focus-visible:ring-2 focus-visible:ring-brand/60 disabled:opacity-45 disabled:pointer-events-none active:scale-[0.98] select-none',
+  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-[8px] font-medium transition-all duration-150 outline-none focus-visible:ring-2 focus-visible:ring-brand/70 focus-visible:ring-offset-2 focus-visible:ring-offset-bg disabled:opacity-45 disabled:pointer-events-none select-none',
   {
     variants: {
       variant: {
-        primary:
-          'bg-brand text-brand-fg hover:bg-brand-hover shadow-[0_1px_0_0_rgba(255,255,255,0.08)_inset,0_2px_8px_-2px_rgba(94,106,210,0.5)]',
-        secondary:
-          'bg-surface-2 text-fg border border-border hover:bg-elevated hover:border-[#2c2e33]',
-        ghost: 'text-fg-muted hover:text-fg hover:bg-surface-2',
-        subtle: 'bg-fg/[0.06] text-fg hover:bg-fg/[0.1]',
-        danger: 'bg-danger/10 text-danger border border-danger/25 hover:bg-danger/20',
-        success: 'bg-success text-black font-semibold hover:brightness-110',
+        primary: 'bg-brand text-brand-fg hover:bg-brand-hover shadow-rest',
+        secondary: 'bg-surface text-fg border border-border hover:bg-hover hover:border-border-strong',
+        ghost: 'text-fg-secondary hover:text-fg hover:bg-hover',
+        soft: 'bg-accent-soft text-brand hover:brightness-[0.97]',
+        danger: 'bg-danger-soft text-danger border border-danger/20 hover:brightness-[0.98]',
       },
       size: {
         sm: 'h-8 px-3 text-[13px]',
-        md: 'h-10 px-4',
+        md: 'h-9 px-4 text-[14px]',
         lg: 'h-11 px-5 text-[15px]',
         icon: 'h-9 w-9',
       },
@@ -37,18 +36,10 @@ export function Button({ className, variant, size, ...props }: ButtonProps) {
 }
 
 // ---- Card ----
-export function Card({
-  className,
-  children,
-  ...props
-}: HTMLAttributes<HTMLDivElement>) {
+export function Card({ className, children, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn(
-        'rounded-[14px] border border-border bg-surface/80 backdrop-blur-xl ring-hairline',
-        'shadow-[0_1px_2px_rgba(0,0,0,0.4),0_12px_40px_-16px_rgba(0,0,0,0.6)]',
-        className,
-      )}
+      className={cn('rounded-[8px] border border-border bg-surface shadow-rest', className)}
       {...props}
     >
       {children}
@@ -61,28 +52,20 @@ export function CardBody({ className, ...props }: HTMLAttributes<HTMLDivElement>
 }
 
 export function SectionLabel({ className, children }: { className?: string; children: ReactNode }) {
-  return (
-    <div
-      className={cn(
-        'text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-dim mb-2 mt-6 first:mt-0',
-        className,
-      )}
-    >
-      {children}
-    </div>
-  )
+  return <div className={cn('label-nd mt-6 mb-2 first:mt-0', className)}>{children}</div>
 }
 
 // ---- Badge ----
 const badgeVariants = cva(
-  'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-medium',
+  'inline-flex items-center gap-1.5 rounded-[4px] border px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.1em]',
   {
     variants: {
       variant: {
-        default: 'border-border bg-surface-2 text-fg-muted',
-        brand: 'border-brand/30 bg-brand/12 text-[#aab2f0]',
-        success: 'border-success/30 bg-success/10 text-success',
-        warning: 'border-warning/25 bg-warning/10 text-warning',
+        default: 'border-border bg-surface-2 text-fg-secondary',
+        accent: 'border-border-strong bg-surface-2 text-fg',
+        success: 'border-border-strong bg-surface-2 text-fg',
+        warning: 'border-border bg-surface-2 text-fg-muted',
+        red: 'border-red/40 bg-red-soft text-red',
       },
     },
     defaultVariants: { variant: 'default' },
@@ -97,17 +80,128 @@ export function Badge({
 }: { className?: string; children: ReactNode; style?: React.CSSProperties } & VariantProps<
   typeof badgeVariants
 >) {
-  return <span className={cn(badgeVariants({ variant }), className)} style={style}>{children}</span>
+  return (
+    <span className={cn(badgeVariants({ variant }), className)} style={style}>
+      {children}
+    </span>
+  )
 }
 
-// ---- Progress bar ----
-export function Progress({ value, className }: { value: number; className?: string }) {
+// ---- Progress (solid single-color bar) ----
+export function Progress({
+  value,
+  color = 'var(--color-brand)',
+  className,
+}: {
+  value: number
+  color?: string
+  className?: string
+}) {
   return (
-    <div className={cn('h-1.5 w-full overflow-hidden rounded-full bg-surface-2', className)}>
+    <div className={cn('h-1.5 w-full overflow-hidden rounded-full bg-border', className)}>
       <div
-        className="h-full rounded-full bg-gradient-to-r from-brand to-[#b57edc] transition-[width] duration-500"
-        style={{ width: `${Math.max(0, Math.min(100, value))}%` }}
+        className="h-full rounded-full transition-[width] duration-500"
+        style={{
+          width: `${Math.max(0, Math.min(100, value))}%`,
+          background: color,
+          transitionTimingFunction: 'cubic-bezier(0.22,1,0.36,1)',
+        }}
       />
     </div>
+  )
+}
+
+// ---- Callout (Notion-style: left accent bar + soft bg) ----
+export function Callout({
+  tone = 'accent',
+  icon,
+  children,
+  className,
+}: {
+  tone?: 'accent' | 'warning' | 'red'
+  icon?: ReactNode
+  children: ReactNode
+  className?: string
+}) {
+  const styles =
+    tone === 'warning'
+      ? { bar: 'var(--color-fg-muted)', bg: 'var(--color-surface-2)' }
+      : tone === 'red'
+      ? { bar: 'var(--color-red)', bg: 'var(--color-red-soft)' }
+      : { bar: 'var(--color-fg)', bg: 'var(--color-accent-soft)' }
+  return (
+    <div
+      className={cn('flex gap-2.5 rounded-[8px] p-3.5', className)}
+      style={{ background: styles.bg, boxShadow: `inset 3px 0 0 0 ${styles.bar}` }}
+    >
+      {icon && <span className="mt-0.5 shrink-0">{icon}</span>}
+      <div className="text-[13px] leading-relaxed text-fg">{children}</div>
+    </div>
+  )
+}
+
+// ---- Tooltip (Radix) ----
+export function Tooltip({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <TooltipPrimitive.Provider delayDuration={200}>
+      <TooltipPrimitive.Root>
+        <TooltipPrimitive.Trigger asChild>{children}</TooltipPrimitive.Trigger>
+        <TooltipPrimitive.Portal>
+          <TooltipPrimitive.Content
+            sideOffset={6}
+            className="z-50 rounded-md border border-border bg-fg px-2 py-1 text-[12px] text-white shadow-[var(--shadow-popover)] data-[state=delayed-open]:animate-in-up"
+          >
+            {label}
+            <TooltipPrimitive.Arrow className="fill-[#37352f]" />
+          </TooltipPrimitive.Content>
+        </TooltipPrimitive.Portal>
+      </TooltipPrimitive.Root>
+    </TooltipPrimitive.Provider>
+  )
+}
+
+// ---- Confirm dialog (AlertDialog) — replaces native confirm() ----
+export function ConfirmDialog({
+  trigger,
+  title,
+  description,
+  confirmLabel = '确定',
+  cancelLabel = '取消',
+  destructive = false,
+  onConfirm,
+}: {
+  trigger: ReactNode
+  title: string
+  description: string
+  confirmLabel?: string
+  cancelLabel?: string
+  destructive?: boolean
+  onConfirm: () => void
+}) {
+  return (
+    <AlertDialogPrimitive.Root>
+      <AlertDialogPrimitive.Trigger asChild>{trigger}</AlertDialogPrimitive.Trigger>
+      <AlertDialogPrimitive.Portal>
+        <AlertDialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/25 backdrop-blur-[1px] data-[state=open]:animate-in-up" />
+        <AlertDialogPrimitive.Content className="fixed left-1/2 top-1/2 z-50 w-[92vw] max-w-[400px] -translate-x-1/2 -translate-y-1/2 rounded-[12px] border border-border bg-surface p-5 shadow-[var(--shadow-popover)] data-[state=open]:animate-in-up">
+          <AlertDialogPrimitive.Title className="text-[16px] font-semibold text-fg">
+            {title}
+          </AlertDialogPrimitive.Title>
+          <AlertDialogPrimitive.Description className="mt-1.5 text-[13px] leading-relaxed text-fg-secondary">
+            {description}
+          </AlertDialogPrimitive.Description>
+          <div className="mt-5 flex justify-end gap-2.5">
+            <AlertDialogPrimitive.Cancel asChild>
+              <Button variant="secondary" size="sm">{cancelLabel}</Button>
+            </AlertDialogPrimitive.Cancel>
+            <AlertDialogPrimitive.Action asChild>
+              <Button variant={destructive ? 'danger' : 'primary'} size="sm" onClick={onConfirm}>
+                {confirmLabel}
+              </Button>
+            </AlertDialogPrimitive.Action>
+          </div>
+        </AlertDialogPrimitive.Content>
+      </AlertDialogPrimitive.Portal>
+    </AlertDialogPrimitive.Root>
   )
 }

@@ -1,92 +1,136 @@
 @import 'tailwindcss';
 @import '@fontsource-variable/inter';
+@import '@fontsource/doto/500.css';
+@import '@fontsource/doto/700.css';
+@import '@fontsource/doto/900.css';
+@import '@fontsource/geist-mono/400.css';
+@import '@fontsource/geist-mono/500.css';
 
-/* ---- Linear-inspired design tokens ---- */
+/* ---- Nothing OS — monochrome, dot-matrix, one red accent ---- */
 @theme {
-  --color-bg: #08090a;
-  --color-surface: #0e0f11;
-  --color-surface-2: #141517;
-  --color-elevated: #1a1b1e;
-  --color-border: #232427;
-  --color-border-soft: #1a1b1e;
+  --color-bg: #000000;
+  --color-surface: #0b0b0b;
+  --color-surface-2: #121212;
+  --color-elevated: #171717;
+  --color-hover: #1c1c1c;
 
-  --color-fg: #f7f8f8;
-  --color-fg-secondary: #d0d3d9;
-  --color-fg-muted: #8a8f98;
-  --color-fg-dim: #6a6f78;
+  --color-border: #262626;
+  --color-border-soft: #191919;
+  --color-border-strong: #383838;
 
-  --color-brand: #5e6ad2;
-  --color-brand-hover: #6e79e0;
-  --color-brand-fg: #ffffff;
+  --color-fg: #ffffff;
+  --color-fg-secondary: #b4b4b4;
+  --color-fg-muted: #7d7d7d;
+  --color-fg-dim: #555555;
 
-  --color-success: #4cb782;
-  --color-warning: #f2c94c;
-  --color-danger: #eb5757;
+  /* mono "ink" accent = white; brand-fg is black (for white buttons) */
+  --color-brand: #ffffff;
+  --color-brand-hover: #e6e6e6;
+  --color-brand-fg: #000000;
+  --color-accent-soft: rgba(255, 255, 255, 0.08);
 
-  --color-phase1: #4cb782;
-  --color-phase2: #5e6ad2;
-  --color-phase3: #b57edc;
+  /* Nothing red — used VERY sparingly (streak, today, record, alerts) */
+  --color-red: #d6001c;
+  --color-red-soft: rgba(214, 0, 28, 0.14);
+
+  --color-success: #ffffff;
+  --color-success-soft: rgba(255, 255, 255, 0.08);
+  --color-warning: #b4b4b4;
+  --color-warning-soft: rgba(255, 255, 255, 0.06);
+  --color-danger: #d6001c;
+  --color-danger-soft: rgba(214, 0, 28, 0.14);
+
+  --color-phase1: #ffffff;
+  --color-phase2: #8a8a8a;
+  --color-phase3: #d6001c;
+
+  --radius: 6px;
+
+  --shadow-rest: 0 0 0 1px rgba(255, 255, 255, 0.02);
+  --shadow-raised: 0 0 0 1px rgba(255, 255, 255, 0.08);
+  --shadow-popover: 0 12px 40px -8px rgba(0, 0, 0, 0.8);
+  --shadow-card: 0 0 0 1px rgba(255, 255, 255, 0.04);
 
   --font-sans: 'Inter Variable', -apple-system, BlinkMacSystemFont, 'PingFang SC',
     'Microsoft YaHei', system-ui, sans-serif;
-
-  --radius: 10px;
+  --font-display: 'Doto', 'Geist Mono', ui-monospace, monospace;
+  --font-mono: 'Geist Mono', ui-monospace, 'SFMono-Regular', monospace;
 }
 
 @layer base {
   * {
     border-color: var(--color-border);
+    -webkit-tap-highlight-color: transparent;
   }
   html {
     -webkit-text-size-adjust: 100%;
+    height: 100%;
   }
   body {
     margin: 0;
-    background:
-      radial-gradient(900px 480px at 50% -8%, color-mix(in oklab, var(--color-brand) 12%, transparent) 0%, transparent 60%),
-      var(--color-bg);
+    background-color: var(--color-bg);
+    /* subtle Nothing dot-grid */
+    background-image: radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+    background-size: 22px 22px;
+    background-position: -1px -1px;
     background-attachment: fixed;
     color: var(--color-fg);
     font-family: var(--font-sans);
-    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    letter-spacing: -0.011em;
+    letter-spacing: -0.006em;
+    overscroll-behavior-y: none;
   }
-  #root {
-    min-height: 100vh;
-  }
-  h1, h2, h3, h4 {
-    letter-spacing: -0.02em;
-    font-weight: 600;
-  }
-  ::selection {
-    background: color-mix(in oklab, var(--color-brand) 40%, transparent);
-  }
-  /* Refined thin scrollbar */
-  ::-webkit-scrollbar { width: 10px; height: 10px; }
-  ::-webkit-scrollbar-thumb {
-    background: var(--color-elevated);
-    border-radius: 999px;
-    border: 2px solid var(--color-bg);
-  }
-  ::-webkit-scrollbar-thumb:hover { background: #2a2b2f; }
+  #root { min-height: 100%; }
+  h1, h2, h3, h4 { font-weight: 600; color: var(--color-fg); }
+  ::selection { background: var(--color-red); color: #fff; }
+
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 999px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--color-border-strong); }
 }
 
 @layer utilities {
-  /* Subtle top-highlight hairline used on cards, à la Linear */
-  .ring-hairline {
-    box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.04);
+  .font-display { font-family: var(--font-display); }
+  .font-mono { font-family: var(--font-mono); }
+
+  /* Nothing-style uppercase mono micro-label */
+  .label-nd {
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    font-size: 10.5px;
+    color: var(--color-fg-muted);
   }
-  .glow-brand {
-    box-shadow: 0 0 0 1px color-mix(in oklab, var(--color-brand) 40%, transparent),
-      0 8px 30px -8px color-mix(in oklab, var(--color-brand) 45%, transparent);
-  }
-  .animate-in-up {
-    animation: inUp 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
-  }
+
+  /* safe-area helpers for iPhone notch / dynamic island / home indicator */
+  .pt-safe { padding-top: env(safe-area-inset-top); }
+  .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+  .top-safe { top: env(safe-area-inset-top); }
+
+  .animate-in-up { animation: inUp 0.35s cubic-bezier(0.22, 1, 0.36, 1) both; }
   @keyframes inUp {
     from { opacity: 0; transform: translateY(6px); }
     to { opacity: 1; transform: translateY(0); }
   }
+  .pulse-red { animation: pulseRed 1.8s ease-in-out infinite; }
+  @keyframes pulseRed {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+  .flip-3d { transform-style: preserve-3d; transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1); }
+  .flip-3d.flipped { transform: rotateY(180deg); }
+  .flip-face { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+  .flip-back { transform: rotateY(180deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .flip-3d { transition: none; }
+  .pulse-red { animation: none; }
 }

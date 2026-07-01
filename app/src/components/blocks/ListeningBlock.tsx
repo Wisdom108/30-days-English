@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Play, Rabbit, FileText } from 'lucide-react'
 import type { DayLesson } from '../../types'
 import { speak } from '../../lib/speech'
-import { QAItem, SpeakButton } from '../shared'
+import { QAItem, RowGroup, SpeakButton } from '../shared'
 import { Badge, Button, Card, CardBody, SectionLabel } from '../ui'
 import { cn } from '../../lib/utils'
 import BlockFooter from './BlockFooter'
@@ -28,8 +28,8 @@ export default function ListeningBlock({
     <Card>
       <CardBody>
         <div className="flex items-center justify-between">
-          <h2 className="text-[17px]">🎧 精听 · {l.title}</h2>
-          <Badge variant="warning">🌅 晨起 30′</Badge>
+          <h2 className="text-[17px] font-semibold">精听 · {l.title}</h2>
+          <Badge variant="warning">晨起 · 30′</Badge>
         </div>
         <p className="mt-1 text-[13px] text-fg-muted">先盲听整段 2–3 遍，再逐句跟读，最后做听写。别急着看原文！</p>
 
@@ -42,39 +42,37 @@ export default function ListeningBlock({
         </div>
 
         {showScript && (
-          <div className="mt-3 rounded-xl border border-border bg-surface-2 p-3.5">
+          <RowGroup>
             {sentences.map((s, i) => (
-              <div key={i} className="flex items-center justify-between gap-2 py-1">
+              <div key={i} className={cn('flex items-center justify-between gap-2 px-3.5 py-2 hover:bg-hover', i > 0 && 'border-t border-border-soft')}>
                 <span className="text-[13px] text-fg-secondary">{s}</span>
                 <SpeakButton text={s} />
               </div>
             ))}
-          </div>
+          </RowGroup>
         )}
 
-        <SectionLabel>✍️ 听写填空</SectionLabel>
+        <SectionLabel>听写填空</SectionLabel>
         <p className="-mt-1 mb-2 text-[13px] text-fg-muted">播放句子，把听到的词填进空格。</p>
-        <div className="space-y-2">
+        <RowGroup>
           {l.dictation.map((d, i) => {
             const ok = checked && norm(answers[i] || '') === norm(d.answer)
             const bad = checked && !ok
             const parts = d.sentence.split('____')
             return (
-              <div key={i} className="rounded-xl border border-border bg-surface-2 p-3">
+              <div key={i} className={cn('px-3.5 py-3 hover:bg-hover', i > 0 && 'border-t border-border-soft')}>
                 <div className="flex flex-wrap items-center gap-2">
                   <SpeakButton text={d.sentence.replace('____', d.answer)} />
                   <span className="text-[14px]">{parts[0]}</span>
                   <input
                     type="text"
                     className={cn(
-                      'w-28 rounded-lg border bg-elevated px-2.5 py-1.5 text-[14px] outline-none focus:border-brand',
-                      ok && 'border-success text-success',
-                      bad && 'border-danger',
-                      !ok && !bad && 'border-border',
+                      'w-24 rounded-md border bg-surface px-2.5 py-1.5 text-[14px] outline-none transition-shadow placeholder:text-fg-dim focus:ring-2 focus:ring-brand/25',
+                      ok ? 'border-success text-success' : bad ? 'border-danger' : 'border-border focus:border-brand',
                     )}
                     value={answers[i] || ''}
                     onChange={(e) => setAnswers((a) => ({ ...a, [i]: e.target.value }))}
-                    placeholder="?"
+                    placeholder="填空"
                   />
                   <span className="text-[14px]">{parts[1]}</span>
                 </div>
@@ -82,17 +80,17 @@ export default function ListeningBlock({
               </div>
             )
           })}
-        </div>
+        </RowGroup>
         <Button variant="secondary" size="sm" className="mt-3" onClick={() => setChecked(true)}>
           检查听写
         </Button>
 
-        <SectionLabel>❓ 听力理解</SectionLabel>
-        <div className="space-y-2">
+        <SectionLabel>听力理解</SectionLabel>
+        <RowGroup>
           {l.comprehension.map((qa, i) => (
             <QAItem key={i} q={qa.q} a={qa.a} />
           ))}
-        </div>
+        </RowGroup>
 
         <BlockFooter done={done} onComplete={onComplete} />
       </CardBody>

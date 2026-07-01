@@ -55,10 +55,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const reset = useCallback(() => {
-    if (confirm('确定要清空全部学习进度吗？此操作不可撤销。')) {
-      localStorage.removeItem('thirty-days-english:v1')
-      setState(loadState())
-    }
+    localStorage.removeItem('thirty-days-english:v1')
+    setState(loadState())
   }, [])
 
   const value = useMemo(

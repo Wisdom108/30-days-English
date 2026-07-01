@@ -5,7 +5,7 @@ import type { DayLesson } from '../../types'
 import { useApp } from '../../state'
 import { dueCards } from '../../lib/srs'
 import { SpeakButton } from '../shared'
-import { Badge, Button, Card, CardBody } from '../ui'
+import { Badge, Button, Card, CardBody, Callout } from '../ui'
 import { cn } from '../../lib/utils'
 import BlockFooter from './BlockFooter'
 
@@ -32,15 +32,17 @@ export default function VocabBlock({
     <Card>
       <CardBody>
         <div className="flex items-center justify-between">
-          <h2 className="text-[17px]">🔤 词汇 · {words.length} 个高频词</h2>
-          <Badge variant="warning">☕ 晨间 20′</Badge>
+          <h2 className="text-[17px] font-semibold">词汇 · {words.length} 个高频词</h2>
+          <Badge variant="warning">晨间 · 20′</Badge>
         </div>
 
         {due > 0 && (
-          <div className="mt-3 flex items-center justify-between rounded-xl border border-warning/20 bg-warning/[0.06] px-3.5 py-3">
-            <span className="text-[13px] text-fg-secondary">🔁 你有 <b className="text-warning">{due}</b> 张到期词卡需间隔复习</span>
-            <Button size="sm" onClick={() => nav('/review')}>去复习</Button>
-          </div>
+          <Callout tone="warning" className="mt-3 items-center">
+            <div className="flex w-full items-center justify-between gap-3">
+              <span>你有 <b className="text-warning">{due}</b> 张到期词卡需间隔复习</span>
+              <Button size="sm" onClick={() => nav('/review')}>去复习</Button>
+            </div>
+          </Callout>
         )}
 
         <div className="mt-3 inline-flex rounded-lg border border-border bg-surface-2 p-1">
@@ -53,7 +55,7 @@ export default function VocabBlock({
                 mode === m ? 'bg-elevated text-fg' : 'text-fg-muted hover:text-fg',
               )}
             >
-              {m === 'browse' ? '📖 浏览学习' : '🎴 卡片自测'}
+              {m === 'browse' ? '浏览学习' : '卡片自测'}
             </button>
           ))}
         </div>
@@ -84,7 +86,7 @@ export default function VocabBlock({
           <>
             <button
               onClick={() => setFlip((f) => !f)}
-              className="mt-4 flex min-h-[240px] w-full flex-col items-center justify-center gap-2.5 rounded-2xl border border-border bg-gradient-to-b from-surface-2 to-surface p-7 text-center"
+              className="mt-4 flex min-h-[240px] w-full flex-col items-center justify-center gap-2.5 rounded-[12px] border border-border bg-surface p-7 text-center shadow-[var(--shadow-card)]"
             >
               {!flip ? (
                 <>

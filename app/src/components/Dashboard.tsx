@@ -1,56 +1,26 @@
 import { useNavigate } from 'react-router-dom'
-import { ChevronRight, Flame, X, ArrowRight, Sparkles } from 'lucide-react'
+import { ChevronRight, Flame, ArrowRight, Sparkles, X, Check, Lock, RotateCcw } from 'lucide-react'
 import { useApp } from '../state'
 import { CURRICULUM, TOTAL_DAYS } from '../data/curriculum'
-import { isDayComplete } from '../lib/storage'
+import { isDayComplete, getDayProgress } from '../lib/storage'
 import { dueCards } from '../lib/srs'
 import { BLOCKS, PHASE_INFO, TOTAL_MINUTES } from '../blocks'
-import { Button, Card, CardBody } from './ui'
-import { ProgressRing } from './shared'
+import { Button, Card, CardBody, Callout, Tooltip, Progress as Bar } from './ui'
+import { BlockIcon } from './blockicons'
 import { cn } from '../lib/utils'
 
 const PRINCIPLES = [
-  { icon: '🎧', title: '先听后说', desc: '每天先盲听 2–3 遍再看原文，磨耳朵；听力是口语的地基。' },
-  { icon: '🔁', title: '影子跟读', desc: '听一句立刻同步模仿语音语调，追节奏和连读，不逐词念。' },
-  { icon: '🃏', title: '间隔重复', desc: '词卡按 SM-2 在遗忘临界点复现（1→3→7→14 天…），先清到期卡。' },
-  { icon: '🗣️', title: '每天开口', desc: '用麦克风跟读打分、完成开口任务；输出才能内化。' },
-  { icon: '✍️', title: '睡前写作', desc: '睡前写几句 + 过一遍新词，睡眠会帮你巩固记忆。' },
-  { icon: '🔥', title: '连续为王', desc: '每天完成五模块保持连胜；稳定投入胜过偶尔猛学。' },
+  { title: '先听后说', desc: '先盲听 2–3 遍再看原文' },
+  { title: '影子跟读', desc: '同步模仿语音语调' },
+  { title: '间隔重复', desc: '在遗忘临界点复现词卡' },
+  { title: '每天开口', desc: '麦克风跟读打分' },
+  { title: '睡前写作', desc: '睡眠帮你巩固记忆' },
+  { title: '连续为王', desc: '稳定投入胜过猛学' },
 ]
 
-function MethodGuide({ onClose }: { onClose: () => void }) {
-  return (
-    <Card className="mb-4 animate-in-up glow-brand">
-      <CardBody>
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-2">
-            <Sparkles size={18} className="text-brand" />
-            <h2 className="text-[17px]">欢迎！30 天怎么练最有效</h2>
-          </div>
-          <button
-            className="grid h-7 w-7 place-items-center rounded-md text-fg-muted hover:bg-surface-2 hover:text-fg"
-            onClick={onClose}
-          >
-            <X size={15} />
-          </button>
-        </div>
-        <p className="mt-2 text-[13px] leading-relaxed text-fg-muted">
-          本计划基于二语习得科学：可理解输入、间隔重复、影子跟读、高频词优先。每天约 2 小时、五个模块按科学时段分布，听说侧重。
-        </p>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          {PRINCIPLES.map((p) => (
-            <div key={p.title} className="flex items-start gap-3">
-              <span className="text-[18px] leading-none">{p.icon}</span>
-              <div className="text-[13px] leading-snug">
-                <span className="font-medium text-fg">{p.title}</span>
-                <span className="text-fg-muted"> — {p.desc}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </CardBody>
-    </Card>
-  )
+function greeting() {
+  const h = new Date().getHours()
+  return h < 11 ? '早上好' : h < 14 ? '中午好' : h < 18 ? '下午好' : '晚上好'
 }
 
 export default function Dashboard() {
@@ -61,144 +31,266 @@ export default function Dashboard() {
     return <div className="py-16 text-center text-fg-muted">课程内容正在生成中…</div>
   }
 
-  const completedDays = Object.keys(state.days).filter((d) => isDayComplete(state, Number(d))).length
-  const overall = Math.round((completedDays / TOTAL_DAYS) * 100)
+  const completedDays = Array.from({ length: TOTAL_DAYS }, (_, i) => i + 1).filter((d) =>
+    isDayComplete(state, d),
+  )
+  const overall = Math.round((completedDays.length / TOTAL_DAYS) * 100)
   const due = dueCards(state.cards).length
   const current = Math.min(state.currentDay, TOTAL_DAYS)
   const lesson = CURRICULUM.find((l) => l.day === current)
+  const today = new Date().toLocaleDateString('zh-CN', { month: 'long', day: 'numeric' })
 
   return (
-    <div className="space-y-4">
-      {!state.guideDismissed && <MethodGuide onClose={dismissGuide} />}
-
-      {/* Hero */}
-      <Card className="animate-in-up">
-        <CardBody className="flex items-center gap-5">
-          <ProgressRing value={overall}>
-            <div className="text-center">
-              <div className="text-[20px] font-semibold leading-none">{overall}%</div>
-              <div className="mt-0.5 text-[10px] text-fg-dim">完成</div>
+    <div className="space-y-7">
+      {!state.guideDismissed && (
+        <Card className="animate-in-up">
+          <CardBody>
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-2">
+                <Sparkles size={16} className="text-brand" />
+                <h2 className="text-[15px] font-semibold">欢迎！30 天怎么练最有效</h2>
+              </div>
+              <button
+                className="grid h-7 w-7 place-items-center rounded-md text-fg-muted hover:bg-hover hover:text-fg"
+                onClick={dismissGuide}
+              >
+                <X size={15} />
+              </button>
             </div>
-          </ProgressRing>
-          <div className="grid flex-1 grid-cols-3 gap-2">
-            <Stat value={<span className="inline-flex items-center gap-1"><Flame size={16} className="text-warning" />{state.streak}</span>} label="连续天数" />
-            <Stat value={`${completedDays}/${TOTAL_DAYS}`} label="已完成日" />
-            <Stat value={Object.keys(state.cards).length} label="词卡总数" />
-          </div>
-        </CardBody>
-        {due > 0 && (
-          <div className="border-t border-border px-5 py-3">
-            <Button variant="secondary" className="w-full" onClick={() => nav('/review')}>
-              🔁 有 {due} 张词卡待复习 — 立即巩固
-            </Button>
-          </div>
-        )}
-      </Card>
+            <div className="mt-3 grid gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
+              {PRINCIPLES.map((p) => (
+                <div key={p.title} className="flex items-baseline gap-2 text-[13px]">
+                  <span className="h-1.5 w-1.5 shrink-0 translate-y-1 rounded-full bg-brand" />
+                  <span>
+                    <b className="font-medium text-fg">{p.title}</b>
+                    <span className="text-fg-muted"> · {p.desc}</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </CardBody>
+        </Card>
+      )}
 
-      {/* Today */}
-      <Card className="animate-in-up">
-        <CardBody>
-          <div className="flex items-center justify-between">
-            <h2 className="text-[16px]">📌 今日任务 · Day {current}</h2>
-            <span className="text-[12px] text-fg-dim">约 {TOTAL_MINUTES} 分钟 · 听说侧重</span>
+      {/* Page header */}
+      <div className="animate-in-up">
+        <h1 className="text-[26px] font-semibold tracking-tight md:text-[28px]">
+          {greeting()} · 今天是 <span className="font-display font-medium">Day {current}</span>
+        </h1>
+        <p className="mt-1 text-[15px] text-fg-muted">
+          还剩 {TOTAL_DAYS - completedDays.length} 天 · {lesson?.title_zh} · {today}
+        </p>
+        <div className="mt-4 border-t border-border" />
+      </div>
+
+      {/* Summary bar — de-carded, hairline-separated columns */}
+      <div className="grid grid-cols-2 overflow-hidden rounded-[8px] border border-border sm:grid-cols-4 sm:divide-x sm:divide-border">
+        <Stat label="总进度" value={`${overall}%`} onClick={() => nav('/progress')} />
+        <Stat
+          label="连续天数"
+          value={<span className="inline-flex items-center gap-1.5"><Flame size={18} className="text-red" />{state.streak}</span>}
+        />
+        <Stat label="已完成天数" value={`${completedDays.length}/${TOTAL_DAYS}`} onClick={() => nav('/progress')} />
+        <Stat
+          label="待复习"
+          value={<span className={due > 0 ? 'text-red' : ''}>{due}</span>}
+          onClick={() => nav('/review')}
+        />
+      </div>
+
+      {/* Two columns */}
+      <div className="grid gap-6 md:grid-cols-12">
+        {/* Today plan */}
+        <section className="animate-in-up md:col-span-7">
+          <div className="flex items-baseline justify-between">
+            <h2 className="text-[16px] font-semibold">今日任务 · Day {current}</h2>
+            <span className="text-[12px] text-fg-muted">约 {TOTAL_MINUTES} 分钟</span>
           </div>
-          {lesson && (
-            <p className="mt-1 text-[13px] text-fg-muted">
-              {lesson.title_zh} · {lesson.title_en}
-            </p>
-          )}
-          <div className="mt-4 space-y-2">
-            {BLOCKS.map((b) => {
-              const done = state.days[current]?.completedBlocks[b.key]
+          <p className="mt-0.5 text-[13px] text-fg-muted">{lesson?.title_zh} · {lesson?.title_en}</p>
+          <div className="mt-3 overflow-hidden rounded-[8px] border border-border">
+            {BLOCKS.map((b, i) => {
+              const done = getDayProgress(state, current).completedBlocks[b.key]
               return (
                 <button
                   key={b.key}
                   onClick={() => nav(`/day/${current}#${b.key}`)}
                   className={cn(
-                    'group flex w-full items-center gap-3.5 rounded-xl border p-3.5 text-left transition-all',
-                    done
-                      ? 'border-success/25 bg-success/[0.06]'
-                      : 'border-border bg-surface-2 hover:border-[#2c2e33] hover:bg-elevated',
+                    'group flex w-full items-center gap-3 px-3.5 py-3 text-left transition-colors duration-200 hover:bg-hover',
+                    i > 0 && 'border-t border-border-soft',
                   )}
                 >
-                  <span className="text-[22px] leading-none">{b.icon}</span>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[11px] text-warning/90">{b.slot}</div>
-                    <div className="text-[14px] font-medium">{b.title_zh}</div>
+                  <span
+                    className={cn(
+                      'grid h-[18px] w-[18px] shrink-0 place-items-center rounded-[5px] border transition-all',
+                      done ? 'border-success bg-success text-white' : 'border-border-strong',
+                    )}
+                  >
+                    {done && <Check size={12} strokeWidth={3} />}
+                  </span>
+                  <BlockIcon k={b.key} size={17} className="shrink-0 text-fg-secondary" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className={cn('text-[14px] font-medium', done && 'text-fg-muted')}>{b.title_zh}</span>
+                      <span className="text-[11px] text-fg-dim">{b.slot.split(' ')[1]}</span>
+                    </div>
                     <div className="truncate text-[12px] text-fg-muted">{b.subtitle_zh}</div>
                   </div>
-                  <div className="flex flex-col items-end gap-1">
-                    <span className="text-[12px] text-fg-dim">{b.minutes}′</span>
-                    {done ? (
-                      <span className="text-[13px] text-success">✓</span>
-                    ) : (
-                      <ChevronRight size={16} className="text-fg-dim transition-transform group-hover:translate-x-0.5" />
-                    )}
-                  </div>
+                  <span className="text-[11px] text-fg-muted">{b.minutes}′</span>
+                  <ChevronRight size={15} className="text-fg-dim opacity-0 transition-all group-hover:translate-x-0.5 group-hover:opacity-100" />
                 </button>
               )
             })}
           </div>
           <Button className="mt-4 w-full" onClick={() => nav(`/day/${current}`)}>
-            进入 Day {current} 学习 <ArrowRight size={16} />
+            进入 Day {current} 学习 <ArrowRight size={15} />
           </Button>
-        </CardBody>
-      </Card>
+        </section>
+
+        {/* Right column */}
+        <div className="space-y-5 md:col-span-5">
+          <section className="animate-in-up">
+            <h2 className="text-[16px] font-semibold">各阶段完成度</h2>
+            <div className="mt-3 space-y-3.5">
+              {Object.entries(PHASE_INFO).map(([k, v]) => {
+                const days = CURRICULUM.filter((l) => l.phase === Number(k)).map((d) => d.day)
+                const doneCount = days.filter((d) => completedDays.includes(d)).length
+                const pct = Math.round((doneCount / days.length) * 100)
+                return (
+                  <div key={k}>
+                    <div className="flex items-center justify-between text-[13px]">
+                      <span className="flex items-center gap-2">
+                        <span className="h-2 w-2 rounded-full" style={{ background: v.color }} />
+                        <span className="text-fg-secondary">{v.name_zh}</span>
+                      </span>
+                      <span className="text-fg-muted">{doneCount}/{days.length}</span>
+                    </div>
+                    <Bar value={pct} color={v.color} className="mt-1.5" />
+                  </div>
+                )
+              })}
+            </div>
+          </section>
+
+          {due > 0 && (
+            <Callout tone="red" className="animate-in-up items-center" icon={<RotateCcw size={15} className="text-red" />}>
+              <div className="flex w-full items-center justify-between gap-3">
+                <span>有 <b className="font-display text-red">{due}</b> 张词卡到期</span>
+                <Button size="sm" onClick={() => nav('/review')}>开始复习</Button>
+              </div>
+            </Callout>
+          )}
+        </div>
+      </div>
 
       {/* 30-day map */}
-      <Card className="animate-in-up">
-        <CardBody>
-          <h2 className="text-[16px]">🗓️ 30 天地图</h2>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {Object.entries(PHASE_INFO).map(([k, v]) => (
-              <span
-                key={k}
-                className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-medium"
-                style={{ borderColor: v.color + '55', background: v.color + '18', color: v.color }}
-              >
-                阶段{k} {v.name_zh} · {v.range}
-              </span>
-            ))}
-          </div>
-          <div className="mt-4 grid grid-cols-5 gap-2 sm:grid-cols-6">
-            {Array.from({ length: TOTAL_DAYS }, (_, i) => i + 1).map((d) => {
-              const done = isDayComplete(state, d)
-              const locked = d > state.currentDay
-              const isCurrent = d === current
-              const phase = CURRICULUM.find((l) => l.day === d)?.phase ?? 1
-              const color = PHASE_INFO[phase]?.color || '#5e6ad2'
-              return (
+      <section className="animate-in-up">
+        <h2 className="text-[16px] font-semibold">30 天地图</h2>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {Object.entries(PHASE_INFO).map(([k, v]) => (
+            <span
+              key={k}
+              className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium"
+              style={{ background: v.softBg, color: v.color }}
+            >
+              <span className="h-1.5 w-1.5 rounded-full" style={{ background: v.color }} />
+              {v.name_zh} {v.range}
+            </span>
+          ))}
+        </div>
+        <div className="mt-4 grid grid-cols-5 gap-2 md:grid-cols-10">
+          {Array.from({ length: TOTAL_DAYS }, (_, i) => i + 1).map((d) => {
+            const done = isDayComplete(state, d)
+            const locked = d > state.currentDay
+            const isCurrent = d === current
+            const phase = CURRICULUM.find((l) => l.day === d)?.phase ?? 1
+            const v = PHASE_INFO[phase]
+            const lz = CURRICULUM.find((l) => l.day === d)?.title_zh ?? ''
+            return (
+              <Tooltip key={d} label={`Day ${d} · ${lz}`}>
                 <button
-                  key={d}
                   disabled={locked}
                   onClick={() => !locked && nav(`/day/${d}`)}
                   className={cn(
-                    'relative grid aspect-square place-items-center rounded-xl border text-center transition-all',
-                    done && 'border-success/40 bg-success/10',
-                    isCurrent && 'ring-2 ring-brand ring-offset-2 ring-offset-surface',
-                    locked ? 'cursor-not-allowed border-border bg-surface-2/50 opacity-40' : 'hover:-translate-y-0.5',
-                    !done && !locked && 'bg-surface-2',
+                    'relative grid aspect-square place-items-center rounded-[6px] border text-center transition-all',
+                    isCurrent && 'ring-2 ring-red ring-offset-2 ring-offset-bg',
+                    locked
+                      ? 'cursor-not-allowed border-border bg-surface-2'
+                      : 'hover:-translate-y-px active:scale-[0.98]',
                   )}
-                  style={!done && !locked ? { borderColor: color + '44' } : undefined}
+                  style={
+                    done
+                      ? { background: v.softBg, borderColor: v.color + '55' }
+                      : !locked
+                      ? { borderColor: v.color + '40' }
+                      : undefined
+                  }
                 >
-                  {done && <span className="absolute right-1.5 top-1.5 text-[10px] text-success">✓</span>}
-                  <span className="text-[17px] font-semibold">{d}</span>
-                  <span className="text-[9px] text-fg-dim">{locked ? '🔒' : `P${phase}`}</span>
+                  {done && (
+                    <span className="absolute right-1 top-1" style={{ color: v.color }}>
+                      <Check size={11} strokeWidth={3} />
+                    </span>
+                  )}
+                  <span
+                    className={cn('font-display text-[17px] font-medium', locked && 'text-fg-dim')}
+                    style={done ? { color: v.color } : undefined}
+                  >
+                    {d}
+                  </span>
+                  {locked ? (
+                    <Lock size={9} className="text-fg-dim" />
+                  ) : (
+                    <span className="text-[9px] text-fg-dim">P{phase}</span>
+                  )}
                 </button>
+              </Tooltip>
+            )
+          })}
+        </div>
+
+        {/* Rhythm strip */}
+        <div className="mt-5 border-t border-border pt-4">
+          <div className="flex items-center justify-between">
+            <span className="text-[12px] font-medium text-fg-secondary">本月节奏</span>
+            <span className="text-[11px] text-fg-muted">已完成 {completedDays.length}/30 天</span>
+          </div>
+          <div className="mt-2 flex flex-wrap gap-1">
+            {Array.from({ length: TOTAL_DAYS }, (_, i) => i + 1).map((d) => {
+              const done = getDayProgress(state, d).completedAt
+              return (
+                <span
+                  key={d}
+                  className="h-2.5 w-2.5 rounded-full"
+                  style={done ? { background: 'var(--color-success)' } : { border: '1px solid var(--color-border-strong)' }}
+                />
               )
             })}
           </div>
-        </CardBody>
-      </Card>
+        </div>
+      </section>
     </div>
   )
 }
 
-function Stat({ value, label }: { value: React.ReactNode; label: string }) {
+function Stat({
+  label,
+  value,
+  onClick,
+}: {
+  label: string
+  value: React.ReactNode
+  onClick?: () => void
+}) {
   return (
-    <div className="rounded-xl bg-surface-2 px-2 py-2.5 text-center">
-      <div className="text-[19px] font-semibold leading-none">{value}</div>
-      <div className="mt-1 text-[11px] text-fg-dim">{label}</div>
-    </div>
+    <button
+      onClick={onClick}
+      disabled={!onClick}
+      className={cn(
+        'bg-surface px-4 py-3.5 text-left transition-colors duration-150',
+        onClick && 'hover:bg-hover',
+      )}
+    >
+      <div className="font-display text-[26px] font-medium leading-none">{value}</div>
+      <div className="label-nd mt-2.5">{label}</div>
+    </button>
   )
 }
