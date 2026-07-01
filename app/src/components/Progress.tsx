@@ -1,11 +1,14 @@
+import { useState } from 'react'
 import { useApp } from '../state'
 import { CURRICULUM, TOTAL_DAYS } from '../data/curriculum'
 import { isDayComplete } from '../lib/storage'
 import { BLOCKS, PHASE_INFO } from '../blocks'
 import { todayISO } from '../lib/srs'
+import { buildIcs, downloadIcs } from '../lib/calendar'
 
 export default function Progress() {
   const { state, reset } = useApp()
+  const [hour, setHour] = useState(7)
 
   const completedDays = Array.from({ length: TOTAL_DAYS }, (_, i) => i + 1).filter((d) =>
     isDayComplete(state, d),
@@ -64,6 +67,33 @@ export default function Progress() {
             </div>
           </div>
         ))}
+      </div>
+
+      <div className="card">
+        <h2>📅 每日定时陪跑 · 日历提醒</h2>
+        <p className="small muted">
+          导出 30 天每日学习提醒，导入 Google / Apple / Outlook 日历即可每天定时提醒（从你的开始日期
+          {state.startDate ? ` ${state.startDate}` : '（今天）'}起算，共 30 天）。
+        </p>
+        <div className="row wrap" style={{ gap: 10, marginTop: 8 }}>
+          <label className="small muted">提醒时间：</label>
+          <select
+            value={hour}
+            onChange={(e) => setHour(Number(e.target.value))}
+            style={{ background: 'var(--card-2)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 10, padding: '8px 10px' }}
+          >
+            {[6, 7, 8, 9, 12, 18, 20, 21].map((h) => (
+              <option key={h} value={h}>{String(h).padStart(2, '0')}:00</option>
+            ))}
+          </select>
+          <button
+            onClick={() =>
+              downloadIcs(buildIcs(CURRICULUM, state.startDate || todayISO(), hour))
+            }
+          >
+            ⬇️ 导出日历提醒 (.ics)
+          </button>
+        </div>
       </div>
 
       <div className="card center">
