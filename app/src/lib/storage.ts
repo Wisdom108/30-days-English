@@ -89,7 +89,11 @@ export function completeBlock(state: AppState, day: number, block: BlockKey): Ap
   return next
 }
 
-/** Undo a block completion (re-lock the day if it was the current day). */
+/**
+ * Undo a block completion. Clears the day's completedAt if it is no longer
+ * fully done. Note: an already-unlocked next day stays unlocked (we never roll
+ * currentDay back — that would strand a learner who had moved on).
+ */
 export function uncompleteBlock(state: AppState, day: number, block: BlockKey): AppState {
   const prev = getDayProgress(state, day)
   const completedBlocks = { ...prev.completedBlocks, [block]: false }

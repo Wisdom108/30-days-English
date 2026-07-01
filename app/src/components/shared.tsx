@@ -22,7 +22,7 @@ export function SpeakButton({
   return (
     <button
       className={cn(
-        'inline-grid h-7 w-7 shrink-0 place-items-center rounded-md text-fg-muted transition-colors hover:bg-hover hover:text-fg',
+        'inline-grid h-9 w-9 shrink-0 place-items-center rounded-md text-fg-muted transition-colors hover:bg-hover hover:text-fg',
         className,
       )}
       title={slow ? '慢速朗读' : '朗读'}

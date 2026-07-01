@@ -40,9 +40,9 @@
   --color-danger: #d6001c;
   --color-danger-soft: rgba(214, 0, 28, 0.14);
 
-  --color-phase1: #ffffff;
-  --color-phase2: #8a8a8a;
-  --color-phase3: #d6001c;
+  /* Phase colors (white→gray→red intensity arc) live in blocks.ts PHASE_INFO —
+     they are consumed as JS strings (inline styles + alpha concatenation + the
+     Bar color prop), which cannot take a CSS var(). Single source: PHASE_INFO. */
 
   --radius: 6px;
 

@@ -58,7 +58,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
               onClick={onNavigate}
               className={({ isActive }) =>
                 cn(
-                  'group relative flex h-8 items-center gap-2 rounded-[6px] px-2 text-[14px] transition-colors duration-150',
+                  'group relative flex h-8 items-center gap-2 rounded-md px-2 text-body transition-colors duration-150',
                   isActive
                     ? 'bg-hover font-medium text-fg'
                     : 'text-fg-secondary hover:bg-hover hover:text-fg',
@@ -75,7 +75,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                     <Icon size={16} strokeWidth={1.9} className={isActive ? 'text-fg' : 'text-fg-muted'} />
                     <span className="flex-1 truncate">{it.label}</span>
                     {it.badge ? (
-                      <span className="rounded-full bg-accent-soft px-1.5 text-[11px] font-medium text-brand">
+                      <span className="rounded-full bg-accent-soft px-1.5 text-label font-medium text-brand">
                         {it.badge}
                       </span>
                     ) : null}
@@ -96,10 +96,10 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
             const days = CURRICULUM.filter((l) => l.phase === Number(k)).map((d) => d.day)
             const done = days.filter((d) => isDayComplete(state, d)).length
             return (
-              <div key={k} className="flex items-center gap-2 rounded-[6px] px-2 py-1 text-[13px]">
+              <div key={k} className="flex items-center gap-2 rounded-md px-2 py-1 text-sm">
                 <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: v.color }} />
                 <span className="flex-1 truncate text-fg-secondary">{v.name_zh}</span>
-                <span className="text-[11px] text-fg-muted">{done}/{days.length}</span>
+                <span className="text-label text-fg-muted">{done}/{days.length}</span>
               </div>
             )
           })}
@@ -107,13 +107,13 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       </div>
 
       <div className="mt-auto p-3">
-        <div className="mb-1 flex items-center gap-1.5 px-2 text-[12px] text-fg-secondary">
-          <Flame size={13} className="text-red" /> <span className="font-display">{streak}</span> 天连续
+        <div className="mb-1 flex items-center gap-1.5 px-2 text-meta text-fg-secondary">
+          <Flame size={13} className="text-red" /> <span className="t-num">{streak}</span> 天连续
         </div>
         <NavLink
           to="/progress"
           onClick={onNavigate}
-          className="flex h-8 items-center gap-2 rounded-[6px] px-2 text-[13px] text-fg-muted transition-colors hover:bg-hover hover:text-fg"
+          className="flex h-8 items-center gap-2 rounded-md px-2 text-sm text-fg-muted transition-colors hover:bg-hover hover:text-fg"
         >
           <Settings size={14} /> 设置 · 备份
         </NavLink>
@@ -144,7 +144,7 @@ export default function App() {
       </aside>
 
       {/* Mobile top header */}
-      <header className="sticky top-0 z-30 flex h-[52px] items-center justify-between border-b border-border bg-bg/85 px-3 backdrop-blur-md md:hidden">
+      <header className="pt-safe sticky top-0 z-30 flex h-[calc(52px+env(safe-area-inset-top))] items-center justify-between border-b border-border bg-bg/85 px-3 backdrop-blur-md md:hidden">
         <Dialog.Root open={sheetOpen} onOpenChange={setSheetOpen}>
           <Dialog.Trigger asChild>
             <button className="grid h-11 w-11 place-items-center rounded-md text-fg-secondary hover:bg-hover" aria-label="菜单">
@@ -165,12 +165,13 @@ export default function App() {
         </div>
         <NavLink
           to="/review"
+          aria-label={due > 0 ? `词卡复习，${due} 张待复习` : '词卡复习'}
           className="grid h-11 min-w-11 place-items-center rounded-md text-fg-secondary hover:bg-hover"
         >
-          <span className="relative">
+          <span className="relative" aria-hidden>
             <RotateCcw size={19} />
             {due > 0 && (
-              <span className="absolute -right-2 -top-2 rounded-full bg-accent-soft px-1 text-[10px] font-medium text-brand">
+              <span className="absolute -right-2 -top-2 rounded-full bg-accent-soft px-1 text-label font-medium text-brand">
                 {due}
               </span>
             )}
@@ -200,7 +201,7 @@ export default function App() {
               end={t.end}
               className={({ isActive }) =>
                 cn(
-                  'flex min-w-16 flex-col items-center gap-0.5 rounded-lg px-2 py-1 text-[11px] transition-colors duration-150',
+                  'flex min-h-11 min-w-16 flex-col items-center justify-center gap-0.5 rounded-lg px-2 py-1 text-label transition-colors duration-150',
                   isActive ? 'text-brand' : 'text-fg-muted',
                 )
               }

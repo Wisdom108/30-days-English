@@ -53,6 +53,7 @@ export default function WritingBlock({
 
         <SectionLabel>我的写作</SectionLabel>
         <Textarea
+          aria-label="我的写作"
           value={text}
           onChange={(e) => {
             setText(e.target.value)

@@ -134,7 +134,7 @@ export function Badge({
 // ---- Kbd (keyboard hint) ----
 export function Kbd({ children }: { children: ReactNode }) {
   return (
-    <kbd className="inline-grid h-5 min-w-5 place-items-center rounded-sm border border-border-strong bg-surface-2 px-1 font-mono text-[10.5px] text-fg-secondary">
+    <kbd className="inline-grid h-5 min-w-5 place-items-center rounded-sm border border-border-strong bg-surface-2 px-1 font-mono text-label text-fg-secondary">
       {children}
     </kbd>
   )

@@ -88,7 +88,7 @@ export default function Review() {
       <div className="[perspective:1200px]">
         <button onClick={() => setFlip((f) => !f)} className={cardFlipCls(flip)} style={{ minHeight: 300 }}>
           <div className="flip-face absolute inset-0 flex flex-col items-center justify-center gap-2.5 rounded-xl border border-border bg-surface p-8 shadow-[var(--shadow-card)]">
-            <div className="t-num text-display font-medium text-fg">{card.word}</div>
+            <div className="text-display font-semibold text-fg">{card.word}</div>
             <div className="font-mono text-h2 text-fg-muted">{card.ipa}</div>
             <SpeakButton text={card.word} />
             <div className="text-meta text-fg-muted">
@@ -115,7 +115,7 @@ export default function Review() {
               )}
             >
               <span className="text-body font-semibold">{g.label}</span>
-              <span className="flex items-center gap-1 text-[11px] opacity-80">
+              <span className="flex items-center gap-1 text-label opacity-80">
                 <Kbd>{g.key}</Kbd> {g.hint}
               </span>
             </button>

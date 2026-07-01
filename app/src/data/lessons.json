@@ -994,7 +994,7 @@
    },
    {
     "word": "half",
-    "ipa": "/hɑːf/",
+    "ipa": "/hæf/",
     "pos": "n.",
     "meaning_zh": "一半；半（点）",
     "example_en": "It's half past ten.",
@@ -1002,7 +1002,7 @@
    },
    {
     "word": "quarter",
-    "ipa": "/ˈkwɔːtər/",
+    "ipa": "/ˈkwɔːrtər/",
     "pos": "n.",
     "meaning_zh": "一刻钟；四分之一",
     "example_en": "It's a quarter past nine.",
@@ -1010,7 +1010,7 @@
    },
    {
     "word": "past",
-    "ipa": "/pɑːst/",
+    "ipa": "/pæst/",
     "pos": "prep.",
     "meaning_zh": "过（几点）",
     "example_en": "It's ten past four.",
@@ -1026,7 +1026,7 @@
    },
    {
     "word": "afternoon",
-    "ipa": "/ˌɑːftəˈnuːn/",
+    "ipa": "/ˌæftərˈnuːn/",
     "pos": "n.",
     "meaning_zh": "下午",
     "example_en": "I have a class in the afternoon.",
@@ -1090,7 +1090,7 @@
    },
    {
     "word": "birthday",
-    "ipa": "/ˈbɜːθdeɪ/",
+    "ipa": "/ˈbɜːrθdeɪ/",
     "pos": "n.",
     "meaning_zh": "生日",
     "example_en": "My birthday is in May.",
@@ -1114,7 +1114,7 @@
    },
    {
     "word": "first",
-    "ipa": "/fɜːst/",
+    "ipa": "/fɜːrst/",
     "pos": "adj.",
     "meaning_zh": "第一（1号）",
     "example_en": "Today is the first of July.",
@@ -1122,7 +1122,7 @@
    },
    {
     "word": "third",
-    "ipa": "/θɜːd/",
+    "ipa": "/θɜːrd/",
     "pos": "adj.",
     "meaning_zh": "第三（3号）",
     "example_en": "The party is on the third.",
@@ -1130,7 +1130,7 @@
    },
    {
     "word": "thirteen",
-    "ipa": "/ˌθɜːˈtiːn/",
+    "ipa": "/ˌθɜːrˈtiːn/",
     "pos": "num.",
     "meaning_zh": "十三（重音在后）",
     "example_en": "She is thirteen years old.",
@@ -1138,7 +1138,7 @@
    },
    {
     "word": "thirty",
-    "ipa": "/ˈθɜːti/",
+    "ipa": "/ˈθɜːrti/",
     "pos": "num.",
     "meaning_zh": "三十（重音在前）",
     "example_en": "My father is thirty.",
@@ -1422,7 +1422,7 @@
    },
    {
     "word": "parents",
-    "ipa": "/ˈpeərənts/",
+    "ipa": "/ˈperənts/",
     "pos": "n.",
     "meaning_zh": "父母",
     "example_en": "My parents live in Beijing.",
@@ -2314,7 +2314,7 @@
    },
    {
     "word": "coffee",
-    "ipa": "/ˈkɑːfi/",
+    "ipa": "/ˈkɔːfi/",
     "pos": "n.",
     "meaning_zh": "咖啡",
     "example_en": "I would like a coffee, please.",
@@ -3620,7 +3620,7 @@
    },
    {
     "word": "reading",
-    "ipa": "/ˈriː.dɪŋ/",
+    "ipa": "/ˈriːdɪŋ/",
     "pos": "n./v.",
     "meaning_zh": "阅读，读书",
     "example_en": "Reading is good for you.",
@@ -3636,7 +3636,7 @@
    },
    {
     "word": "dancing",
-    "ipa": "/ˈdɑːnsɪŋ/",
+    "ipa": "/ˈdænsɪŋ/",
     "pos": "n./v.",
     "meaning_zh": "跳舞",
     "example_en": "He loves dancing with friends.",
@@ -3644,7 +3644,7 @@
    },
    {
     "word": "singing",
-    "ipa": "/ˈsɪŋ.ɪŋ/",
+    "ipa": "/ˈsɪŋɪŋ/",
     "pos": "n./v.",
     "meaning_zh": "唱歌",
     "example_en": "Singing makes me happy.",
@@ -3676,7 +3676,7 @@
    },
    {
     "word": "music",
-    "ipa": "/ˈmjuː.zɪk/",
+    "ipa": "/ˈmjuːzɪk/",
     "pos": "n.",
     "meaning_zh": "音乐",
     "example_en": "I listen to music on the bus.",
@@ -3692,7 +3692,7 @@
    },
    {
     "word": "sport",
-    "ipa": "/spɔːt/",
+    "ipa": "/spɔːrt/",
     "pos": "n.",
     "meaning_zh": "运动，体育",
     "example_en": "My favorite sport is football.",
@@ -4070,7 +4070,7 @@
    },
    {
     "word": "cost",
-    "ipa": "/kɑːst/",
+    "ipa": "/kɔːst/",
     "pos": "v.",
     "meaning_zh": "花费；价钱是",
     "example_en": "How much does it cost?",
@@ -4118,7 +4118,7 @@
    },
    {
     "word": "card",
-    "ipa": "/kɑːd/",
+    "ipa": "/kɑːrd/",
     "pos": "n.",
     "meaning_zh": "卡；银行卡",
     "example_en": "I want to pay by card.",
@@ -4134,7 +4134,7 @@
    },
    {
     "word": "shirt",
-    "ipa": "/ʃɜːt/",
+    "ipa": "/ʃɜːrt/",
     "pos": "n.",
     "meaning_zh": "衬衫",
     "example_en": "This shirt is very nice.",
@@ -4198,7 +4198,7 @@
    },
    {
     "word": "market",
-    "ipa": "/ˈmɑːkɪt/",
+    "ipa": "/ˈmɑːrkɪt/",
     "pos": "n.",
     "meaning_zh": "市场",
     "example_en": "The fruit at the market is cheap.",
@@ -4484,7 +4484,7 @@
    },
    {
     "word": "corner",
-    "ipa": "/ˈkɔːnər/",
+    "ipa": "/ˈkɔːrnər/",
     "pos": "n.",
     "meaning_zh": "拐角,街角",
     "example_en": "The shop is on the corner.",
@@ -4516,7 +4516,7 @@
    },
    {
     "word": "turn",
-    "ipa": "/tɜːn/",
+    "ipa": "/tɜːrn/",
     "pos": "v.",
     "meaning_zh": "转弯,拐弯",
     "example_en": "Turn right after the school.",
@@ -4524,7 +4524,7 @@
    },
    {
     "word": "cross",
-    "ipa": "/krɑːs/",
+    "ipa": "/krɔːs/",
     "pos": "v.",
     "meaning_zh": "穿过,横穿",
     "example_en": "Cross the street at the lights.",
@@ -4532,7 +4532,7 @@
    },
    {
     "word": "past",
-    "ipa": "/pɑːst/",
+    "ipa": "/pæst/",
     "pos": "prep.",
     "meaning_zh": "经过,路过",
     "example_en": "Walk past the hospital.",
@@ -4540,7 +4540,7 @@
    },
    {
     "word": "along",
-    "ipa": "/əˈlɑːŋ/",
+    "ipa": "/əˈlɔːŋ/",
     "pos": "prep.",
     "meaning_zh": "沿着",
     "example_en": "Go along this road.",
@@ -4548,7 +4548,7 @@
    },
    {
     "word": "across",
-    "ipa": "/əˈkrɑːs/",
+    "ipa": "/əˈkrɔːs/",
     "pos": "prep.",
     "meaning_zh": "穿过,在……对面",
     "example_en": "The bank is across the road.",
@@ -4572,7 +4572,7 @@
    },
    {
     "word": "near",
-    "ipa": "/nɪər/",
+    "ipa": "/nɪr/",
     "pos": "adj./prep.",
     "meaning_zh": "在……附近,近的",
     "example_en": "Is there a bank near here?",
@@ -4604,7 +4604,7 @@
    },
    {
     "word": "park",
-    "ipa": "/pɑːk/",
+    "ipa": "/pɑːrk/",
     "pos": "n.",
     "meaning_zh": "公园",
     "example_en": "We can walk in the park.",
@@ -4628,7 +4628,7 @@
    },
    {
     "word": "lost",
-    "ipa": "/lɑːst/",
+    "ipa": "/lɔːst/",
     "pos": "adj.",
     "meaning_zh": "迷路的",
     "example_en": "I am lost. Can you help me?",
@@ -4636,7 +4636,7 @@
    },
    {
     "word": "far",
-    "ipa": "/fɑː/",
+    "ipa": "/fɑːr/",
     "pos": "adj./adv.",
     "meaning_zh": "远的,远地",
     "example_en": "Is it far from here?",
@@ -5050,7 +5050,7 @@
    },
    {
     "word": "last night",
-    "ipa": "/lɑːst naɪt/",
+    "ipa": "/læst naɪt/",
     "pos": "phr.",
     "meaning_zh": "昨晚",
     "example_en": "I slept early last night.",
@@ -5074,7 +5074,7 @@
    },
    {
     "word": "tired",
-    "ipa": "/ˈtaɪəd/",
+    "ipa": "/ˈtaɪərd/",
     "pos": "adj.",
     "meaning_zh": "累的",
     "example_en": "I was very tired at night.",
@@ -5380,7 +5380,7 @@
    },
    {
     "word": "park",
-    "ipa": "/pɑːk/",
+    "ipa": "/pɑːrk/",
     "pos": "n.",
     "meaning_zh": "公园",
     "example_en": "The park was very quiet.",
@@ -5484,7 +5484,7 @@
    },
    {
     "word": "tired",
-    "ipa": "/ˈtaɪəd/",
+    "ipa": "/ˈtaɪərd/",
     "pos": "adj.",
     "meaning_zh": "累的",
     "example_en": "I was tired on Sunday night.",
@@ -5500,7 +5500,7 @@
    },
    {
     "word": "last",
-    "ipa": "/lɑːst/",
+    "ipa": "/læst/",
     "pos": "adj.",
     "meaning_zh": "上一个的",
     "example_en": "Last weekend was great.",
@@ -5870,7 +5870,7 @@
    },
    {
     "word": "warm",
-    "ipa": "/wɔːm/",
+    "ipa": "/wɔːrm/",
     "pos": "adj.",
     "meaning_zh": "温暖的",
     "example_en": "The room is nice and warm.",
@@ -6287,7 +6287,7 @@
    },
    {
     "word": "hurt",
-    "ipa": "/hɜːt/",
+    "ipa": "/hɜːrt/",
     "pos": "v.",
     "meaning_zh": "疼，使受伤",
     "example_en": "My leg hurts when I walk.",
@@ -6319,7 +6319,7 @@
    },
    {
     "word": "cough",
-    "ipa": "/kɑːf/",
+    "ipa": "/kɔːf/",
     "pos": "n./v.",
     "meaning_zh": "咳嗽",
     "example_en": "He has a bad cough.",
@@ -6391,7 +6391,7 @@
    },
    {
     "word": "tired",
-    "ipa": "/ˈtaɪəd/",
+    "ipa": "/ˈtaɪərd/",
     "pos": "adj.",
     "meaning_zh": "累的，疲倦的",
     "example_en": "I feel tired every night.",
@@ -6772,7 +6772,7 @@
    },
    {
     "word": "tired",
-    "ipa": "/ˈtaɪəd/",
+    "ipa": "/ˈtaɪərd/",
     "pos": "adj.",
     "meaning_zh": "疲倦的",
     "example_en": "I feel very tired today.",
@@ -7095,7 +7095,7 @@
    },
    {
     "word": "office",
-    "ipa": "/ˈɑːfɪs/",
+    "ipa": "/ˈɔːfɪs/",
     "pos": "n.",
     "meaning_zh": "办公室",
     "example_en": "My office is near the station.",
@@ -7103,7 +7103,7 @@
    },
    {
     "word": "boss",
-    "ipa": "/bɑːs/",
+    "ipa": "/bɔːs/",
     "pos": "n.",
     "meaning_zh": "老板，上司",
     "example_en": "My boss is very kind.",
@@ -7151,7 +7151,7 @@
    },
    {
     "word": "class",
-    "ipa": "/klɑːs/",
+    "ipa": "/klæs/",
     "pos": "n.",
     "meaning_zh": "课，班级",
     "example_en": "The class starts at nine.",
@@ -7167,7 +7167,7 @@
    },
    {
     "word": "homework",
-    "ipa": "/ˈhoʊmwɜːk/",
+    "ipa": "/ˈhoʊmwɜːrk/",
     "pos": "n.",
     "meaning_zh": "家庭作业",
     "example_en": "I'm doing my homework.",
@@ -7183,7 +7183,7 @@
    },
    {
     "word": "learn",
-    "ipa": "/lɜːn/",
+    "ipa": "/lɜːrn/",
     "pos": "v.",
     "meaning_zh": "学会，学习",
     "example_en": "We learn new words every day.",
@@ -7215,7 +7215,7 @@
    },
    {
     "word": "report",
-    "ipa": "/rɪˈpɔːt/",
+    "ipa": "/rɪˈpɔːrt/",
     "pos": "n.",
     "meaning_zh": "报告",
     "example_en": "She's writing a report now.",
@@ -7239,7 +7239,7 @@
    },
    {
     "word": "answer",
-    "ipa": "/ˈɑːnsər/",
+    "ipa": "/ˈænsər/",
     "pos": "n./v.",
     "meaning_zh": "回答，答案",
     "example_en": "He's answering the phone.",
@@ -7521,7 +7521,7 @@
    },
    {
     "word": "transport",
-    "ipa": "/ˈtrænspɔːt/",
+    "ipa": "/ˈtrænspɔːrt/",
     "pos": "n.",
     "meaning_zh": "交通（工具）",
     "example_en": "Public transport here is cheap.",
@@ -7577,7 +7577,7 @@
    },
    {
     "word": "airport",
-    "ipa": "/ˈeəpɔːt/",
+    "ipa": "/ˈerpɔːrt/",
     "pos": "n.",
     "meaning_zh": "机场",
     "example_en": "We take a taxi to the airport.",
@@ -7585,7 +7585,7 @@
    },
    {
     "word": "platform",
-    "ipa": "/ˈplætfɔːm/",
+    "ipa": "/ˈplætfɔːrm/",
     "pos": "n.",
     "meaning_zh": "站台，月台",
     "example_en": "The train leaves from platform three.",
@@ -7641,7 +7641,7 @@
    },
    {
     "word": "get off",
-    "ipa": "/ˌɡet ˈɑːf/",
+    "ipa": "/ˌɡet ˈɔːf/",
     "pos": "phr.v.",
     "meaning_zh": "下（车/机）",
     "example_en": "Get off at the next stop.",
@@ -7681,7 +7681,7 @@
    },
    {
     "word": "return",
-    "ipa": "/rɪˈtɜːn/",
+    "ipa": "/rɪˈtɜːrn/",
     "pos": "n./adj.",
     "meaning_zh": "往返的；返回",
     "example_en": "I want a return ticket, please.",
@@ -8041,7 +8041,7 @@
    },
    {
     "word": "learn",
-    "ipa": "/lɜːn/",
+    "ipa": "/lɜːrn/",
     "pos": "v.",
     "meaning_zh": "学习，学会",
     "example_en": "She's going to learn to cook.",
@@ -8097,7 +8097,7 @@
    },
    {
     "word": "party",
-    "ipa": "/ˈpɑːti/",
+    "ipa": "/ˈpɑːrti/",
     "pos": "n.",
     "meaning_zh": "聚会，派对",
     "example_en": "We're going to have a party on Saturday.",
@@ -8508,7 +8508,7 @@
    },
    {
     "word": "wrong",
-    "ipa": "/rɑːŋ/",
+    "ipa": "/rɔːŋ/",
     "pos": "adj.",
     "meaning_zh": "错的",
     "example_en": "Sorry, you have the wrong number.",
@@ -8548,7 +8548,7 @@
    },
    {
     "word": "confirm",
-    "ipa": "/kənˈfɜːm/",
+    "ipa": "/kənˈfɜːrm/",
     "pos": "v.",
     "meaning_zh": "确认",
     "example_en": "Let me confirm the date.",
@@ -8911,7 +8911,7 @@
    },
    {
     "word": "tired",
-    "ipa": "/ˈtaɪəd/",
+    "ipa": "/ˈtaɪərd/",
     "pos": "adj.",
     "meaning_zh": "累的，疲惫的",
     "example_en": "I am tired after work.",
@@ -8919,7 +8919,7 @@
    },
    {
     "word": "bored",
-    "ipa": "/bɔːd/",
+    "ipa": "/bɔːrd/",
     "pos": "adj.",
     "meaning_zh": "无聊的，觉得没意思",
     "example_en": "The film is long, and I am bored.",
@@ -8951,7 +8951,7 @@
    },
    {
     "word": "scared",
-    "ipa": "/skeəd/",
+    "ipa": "/skerd/",
     "pos": "adj.",
     "meaning_zh": "害怕的",
     "example_en": "The dog is big, and I am scared.",
@@ -8959,7 +8959,7 @@
    },
    {
     "word": "nervous",
-    "ipa": "/ˈnɜːvəs/",
+    "ipa": "/ˈnɜːrvəs/",
     "pos": "adj.",
     "meaning_zh": "紧张的",
     "example_en": "I feel nervous before I speak.",
@@ -9007,7 +9007,7 @@
    },
    {
     "word": "wrong",
-    "ipa": "/rɑːŋ/",
+    "ipa": "/rɔːŋ/",
     "pos": "adj.",
     "meaning_zh": "错的，不对的",
     "example_en": "Sorry, I was wrong.",
@@ -9031,7 +9031,7 @@
    },
    {
     "word": "word",
-    "ipa": "/wɜːd/",
+    "ipa": "/wɜːrd/",
     "pos": "n.",
     "meaning_zh": "词，单词",
     "example_en": "I don't know this word.",
@@ -9284,7 +9284,7 @@
   "vocabulary": [
    {
     "word": "compare",
-    "ipa": "/kəmˈpeə/",
+    "ipa": "/kəmˈper/",
     "pos": "v.",
     "meaning_zh": "比较",
     "example_en": "Let's compare the two phones before we buy.",
@@ -9340,7 +9340,7 @@
    },
    {
     "word": "fast",
-    "ipa": "/fɑːst/",
+    "ipa": "/fæst/",
     "pos": "adj./adv.",
     "meaning_zh": "快的；快地",
     "example_en": "The train is very fast.",
@@ -9348,7 +9348,7 @@
    },
    {
     "word": "faster",
-    "ipa": "/ˈfɑːstər/",
+    "ipa": "/ˈfæstər/",
     "pos": "adj.",
     "meaning_zh": "更快的（比较级）",
     "example_en": "A plane is faster than a car.",
@@ -9380,7 +9380,7 @@
    },
    {
     "word": "worse",
-    "ipa": "/wɜːs/",
+    "ipa": "/wɜːrs/",
     "pos": "adj.",
     "meaning_zh": "更差的（bad 的比较级）",
     "example_en": "The weather today is worse than yesterday.",
@@ -9388,7 +9388,7 @@
    },
    {
     "word": "worst",
-    "ipa": "/wɜːst/",
+    "ipa": "/wɜːrst/",
     "pos": "adj.",
     "meaning_zh": "最差的（bad 的最高级）",
     "example_en": "That was the worst film of the year.",
@@ -9436,7 +9436,7 @@
    },
    {
     "word": "important",
-    "ipa": "/ɪmˈpɔːtənt/",
+    "ipa": "/ɪmˈpɔːrtənt/",
     "pos": "adj.",
     "meaning_zh": "重要的",
     "example_en": "Health is more important than money.",
@@ -10220,7 +10220,7 @@
    },
    {
     "word": "party",
-    "ipa": "/ˈpɑːti/",
+    "ipa": "/ˈpɑːrti/",
     "pos": "n.",
     "meaning_zh": "派对；聚会",
     "example_en": "There is a party at my house tonight.",
@@ -10340,7 +10340,7 @@
    },
    {
     "word": "perfect",
-    "ipa": "/ˈpɜːfɪkt/",
+    "ipa": "/ˈpɜːrfɪkt/",
     "pos": "adj.",
     "meaning_zh": "完美的；正好",
     "example_en": "Six o'clock? Perfect!",
@@ -11069,7 +11069,7 @@
    },
    {
     "word": "transport",
-    "ipa": "/ˈtrænspɔːt/",
+    "ipa": "/ˈtrænspɔːrt/",
     "pos": "n.",
     "meaning_zh": "交通（工具）",
     "example_en": "Public transport here is fast and cheap.",
@@ -11125,7 +11125,7 @@
    },
    {
     "word": "compare",
-    "ipa": "/kəmˈpeə/",
+    "ipa": "/kəmˈper/",
     "pos": "v.",
     "meaning_zh": "比较",
     "example_en": "Let's compare the two hotels.",
@@ -11165,7 +11165,7 @@
    },
    {
     "word": "tired",
-    "ipa": "/ˈtaɪəd/",
+    "ipa": "/ˈtaɪərd/",
     "pos": "adj.",
     "meaning_zh": "累的",
     "example_en": "I feel tired after a long day.",
@@ -11504,7 +11504,7 @@
    },
    {
     "word": "wrong",
-    "ipa": "/rɑːŋ/",
+    "ipa": "/rɔːŋ/",
     "pos": "adj.",
     "meaning_zh": "错的；不对的",
     "example_en": "You gave me the wrong size.",
@@ -11528,7 +11528,7 @@
    },
    {
     "word": "refund",
-    "ipa": "/ˈriː.fʌnd/",
+    "ipa": "/ˈriːfʌnd/",
     "pos": "n.",
     "meaning_zh": "退款",
     "example_en": "I would like a refund, please.",
@@ -11576,7 +11576,7 @@
    },
    {
     "word": "charge",
-    "ipa": "/tʃɑːdʒ/",
+    "ipa": "/tʃɑːrdʒ/",
     "pos": "n./v.",
     "meaning_zh": "收费；费用",
     "example_en": "You charged me twice.",
@@ -11905,7 +11905,7 @@
   "vocabulary": [
    {
     "word": "experience",
-    "ipa": "/ɪkˈspɪəriəns/",
+    "ipa": "/ɪkˈspɪriəns/",
     "pos": "n.",
     "meaning_zh": "经历，体验",
     "example_en": "Living abroad was a great experience.",
@@ -12025,7 +12025,7 @@
    },
    {
     "word": "adventure",
-    "ipa": "/ədˈventʃə/",
+    "ipa": "/ədˈventʃər/",
     "pos": "n.",
     "meaning_zh": "冒险，历险",
     "example_en": "Our trip was a real adventure.",
@@ -12041,7 +12041,7 @@
    },
    {
     "word": "scary",
-    "ipa": "/ˈskeəri/",
+    "ipa": "/ˈskeri/",
     "pos": "adj.",
     "meaning_zh": "吓人的，可怕的",
     "example_en": "The ride was a little scary.",
@@ -12810,7 +12810,7 @@
    },
    {
     "word": "journey",
-    "ipa": "/ˈdʒɜːni/",
+    "ipa": "/ˈdʒɜːrni/",
     "pos": "n.",
     "meaning_zh": "旅程；历程",
     "example_en": "My English journey was hard but fun.",
@@ -12818,7 +12818,7 @@
    },
    {
     "word": "learn",
-    "ipa": "/lɜːn/",
+    "ipa": "/lɜːrn/",
     "pos": "v.",
     "meaning_zh": "学习；学会",
     "example_en": "I learn something new every day.",
@@ -12922,7 +12922,7 @@
    },
    {
     "word": "example",
-    "ipa": "/ɪɡˈzɑːmpl/",
+    "ipa": "/ɪɡˈzæmpl/",
     "pos": "n.",
     "meaning_zh": "例子",
     "example_en": "Can you give me an example?",
@@ -12962,7 +12962,7 @@
    },
    {
     "word": "important",
-    "ipa": "/ɪmˈpɔːtənt/",
+    "ipa": "/ɪmˈpɔːrtənt/",
     "pos": "adj.",
     "meaning_zh": "重要的",
     "example_en": "Practice is very important.",

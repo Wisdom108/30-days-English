@@ -43,13 +43,24 @@ GA_IPA = {
     "water": "/ˈwɔːtər/", "weekend": "/ˈwiːkend/", "work": "/wɜːrk/",
 }
 
+# Merge the reviewed GA override table (rhoticity / BATH / CLOTH corrections),
+# generated into scripts/ga-overrides.json. Keyed by lowercase word; authoritative.
+_OVR = os.path.join(HERE, "ga-overrides.json")
+if os.path.exists(_OVR):
+    _extra = json.load(open(_OVR, encoding="utf-8"))
+    GA_IPA.update({k.strip().lower(): v for k, v in _extra.items()})
+    print(f"(loaded {len(_extra)} GA overrides from ga-overrides.json)")
+
 
 def normalize_ipa(word, ipa):
     orig = ipa
     # safe global GA shifts
     s = ipa.replace("əʊ", "oʊ").replace("ɒ", "ɑː")
-    # remove syllable dots inside the transcription (keep the outer slashes)
-    s = re.sub(r"(?<=[a-zɐ-ʯˈˌ])\.(?=[a-zɐ-ʯ])", "", s)
+    # remove syllable dots inside the transcription (keep the outer slashes).
+    # Dots are only ever syllable separators here, so strip all interior dots —
+    # a char-class approach misses IPA symbols like ː, ŋ, ð, θ.
+    if s.startswith("/") and s.endswith("/") and len(s) > 2:
+        s = "/" + s[1:-1].replace(".", "") + "/"
     # word-final rhoticity for headwords spelled with a final 'r'
     w = word.strip().lower()
     if w.endswith("r"):

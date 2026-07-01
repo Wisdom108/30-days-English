@@ -67,7 +67,7 @@ export function Logo({
         <div className="font-mono text-sm font-semibold uppercase tracking-[0.14em] text-fg">
           30&nbsp;DAYS
         </div>
-        {subtitle && <div className="text-[11px] text-fg-muted">{subtitle}</div>}
+        {subtitle && <div className="text-label text-fg-muted">{subtitle}</div>}
       </div>
     </div>
   )

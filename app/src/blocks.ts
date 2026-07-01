@@ -47,6 +47,10 @@ export const BLOCKS: BlockMeta[] = [
 
 export const TOTAL_MINUTES = BLOCKS.reduce((s, b) => s + b.minutes, 0)
 
+// Phase colors mirror the brand mono+red palette (fg white → fg-muted gray →
+// red) as a white→gray→red intensity arc = increasing difficulty. Kept as JS
+// hex (not CSS vars) because they are consumed in inline styles, alpha
+// concatenation, and the <Progress> Bar color prop, none of which accept var().
 export const PHASE_INFO: Record<
   number,
   { name_zh: string; range: string; color: string; softBg: string; dot: string }

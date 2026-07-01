@@ -106,7 +106,7 @@ export default function DayView() {
             <span className="hidden md:block" />
             <Badge variant="accent">阶段 {lesson.phase} · Day {lesson.day}/30</Badge>
           </div>
-          <h1 className="mt-3 flex items-center gap-2 font-display text-title font-medium">
+          <h1 className="mt-3 flex items-center gap-2 text-title font-semibold">
             {lesson.title_en} <SpeakButton text={lesson.title_en} />
           </h1>
           <p className="text-sm text-fg-muted">{lesson.title_zh} · {lesson.theme}</p>
@@ -146,7 +146,7 @@ export default function DayView() {
               aria-label={`${b.title_zh}${isDone ? ' · 已完成' : ''}`}
               onClick={() => setActive(b.key)}
               className={cn(
-                'flex min-w-11 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-2.5 text-sm font-medium transition-all duration-200',
+                'flex min-h-11 min-w-11 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-2.5 text-sm font-medium transition-all duration-200',
                 isActive ? 'bg-elevated text-fg shadow-rest' : 'text-fg-muted hover:text-fg',
               )}
             >
@@ -158,7 +158,7 @@ export default function DayView() {
         })}
       </div>
 
-      <div className="animate-in-up" role="tabpanel">
+      <div key={dayNum} className="animate-in-up" role="tabpanel">
         {active === 'listening' && (
           <ListeningBlock lesson={lesson} done={done('listening')} onComplete={() => complete('listening')} onUndo={() => uncomplete('listening')} />
         )}
@@ -184,7 +184,9 @@ export default function DayView() {
               <PartyPopper size={20} className="text-fg" />
             </div>
             <div>
-              <div className="font-display text-h1 text-fg">Day {dayNum} 全部完成</div>
+              <div className="text-h1 font-semibold text-fg">
+                <span className="t-num">Day {dayNum}</span> 全部完成
+              </div>
               <p className="mt-1 text-sm text-fg-muted">
                 连胜 <span className="t-num text-fg">{displayStreak(state)}</span> 天 · 保持节奏，明天见
               </p>

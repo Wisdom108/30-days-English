@@ -1,65 +1,78 @@
-# 🚀 30 Days English · 30 天英语指数级提升计划
+# 30 Days English · 30 天英语听说强化
 
-一个面向 **零/低基础中文母语者** 的 30 天英语强化 Web App，听说读写全覆盖，**听力与口语侧重**，基于二语习得科学方法设计，离线优先、无需登录。
+面向**有一定基础、想系统提升听说的中文母语者**的 30 天英语强化 Web App。听说读写全覆盖、**听力与口语侧重**，基于二语习得科学方法设计，**离线优先、无需登录、纯前端**。Nothing 风格极简界面。
 
 ## ✨ 特点
 
-- **科学方法驱动**：可理解输入 (i+1)、间隔重复 (SM-2)、影子跟读、高频词优先、推动性输出、睡眠巩固。
-- **每日科学时段安排**：晨起精听 → 晨间词卡复习 → 午间口语跟读 → 傍晚阅读 → 睡前写作，利用间隔效应与记忆巩固窗口。
+- **科学方法驱动**：可理解输入 (i+1)、SM-2 间隔重复、影子跟读、高频词优先、推动性输出、睡眠巩固。
+- **每日五模块 · 科学时段**：晨起精听 → 晨间词卡 → 午间口语跟读 → 傍晚阅读 → 睡前写作，顺应间隔效应与记忆巩固窗口。
 - **听说侧重**：每日听 30′ + 说 40′，占比最高。
-- **抗遗忘**：SM-2 间隔重复词卡（1天→3天→1周→2周→1月），每日复习队列自动排程 + 每课"回顾焦点"。
-- **全部内建，零付费**：
-  - 🔊 发音朗读：浏览器 **Web Speech API** (TTS)
-  - 🎤 跟读打分：浏览器语音识别 (STT) + 相似度评分
-  - 📖 点词查义：**Free Dictionary API**（`dictionaryapi.dev`）
-  - 💾 进度持久化：`localStorage`（打卡、连胜、词卡、写作）
+- **抗遗忘**：SM-2 间隔重复词卡（1天→3天→1周→2周→1月…），到期队列自动排程 + 每课「回顾焦点」。
+- **全部内建，零付费、零后端**：
+  - 🔊 朗读 (TTS)：浏览器 **Web Speech API**
+  - 🎤 跟读匹配 (STT)：浏览器语音识别 + 词匹配度（反映识别听清了多少，非口音评分）
+  - 📖 点词查义：优先命中当课词库（离线可用），联网时补 **Free Dictionary API** 音标与英文释义
+  - 💾 进度持久化：`localStorage`（打卡、连胜、词卡、写作）+ 导入/导出备份 + 日历 (.ics) 定时提醒
 
 ## 📚 30 天课程弧线
 
-| 阶段 | 天数 | 主题 |
-|---|---|---|
-| 阶段一 · 生存基础 | Day 1–10 | 音标问候、自我介绍、数字时间、家庭、日常作息、饮食购物… |
-| 阶段二 · 日常生活 | Day 11–20 | 问路、过去时、周末、天气、健康、工作、出行、将来时、电话… |
-| 阶段三 · 流利冲刺 | Day 21–30 | 观点表达、比较、讲故事、邀约、描述、现在完成时、长对话、总复盘 |
+| 阶段 | 天数 | 主题 | 强度 |
+|---|---|---|---|
+| 阶段一 · 生存基础 | Day 1–10 | 问候、自我介绍、数字时间、家庭、作息、饮食购物… | 白（打底/巩固） |
+| 阶段二 · 日常生活 | Day 11–20 | 问路、过去时、周末、天气、健康、工作、出行、将来时、电话… | 灰（进阶） |
+| 阶段三 · 流利冲刺 | Day 21–30 | 观点、比较、讲故事、邀约、描述、现在完成时、长对话、总复盘… | 红（冲刺） |
 
-每天含五大模块：🎧 精听+听写 · 🔤 词汇 SRS · 🗣️ 影子跟读+发音打分 · 📖 分级阅读点词 · ✍️ 写作+范文自查。
+每天五模块：🎧 精听+听写 · 🔤 词汇 SRS · 🗣️ 影子跟读+跟读匹配 · 📖 分级阅读点词 · ✍️ 写作+范文自查。
+共 30 天 · 714 词条（511 唯一词头）· CEFR 弧线约 A2→B1。
+
+> 内容标准：全部词汇音标 (IPA) 与英文拼写统一为 **General American（美音/美式拼写）**，词性标签枚举化。`npm run validate`（见 `app/scripts/validate-lessons.mjs`）防内容回归。
+
+## 🎨 设计
+
+Nothing 风格极简设计语言：纯黑底 + 单色灰阶 + **一抹 Nothing 红**，点阵字 (Doto) 用于数字/编号/品牌，Inter 排正文，Geist Mono 排技术微标签。点阵「30」+红点句号为品牌记号（贯穿 favicon / PWA 图标 / 应用内）。完整规范见 [`DESIGN.md`](./DESIGN.md)。组件层沿用 shadcn 变体约定（cva + `cn`），底层为 Radix 无障碍原语。
 
 ## 🛠️ 技术栈
 
-Vite + React + TypeScript，纯静态、离线优先。课程内容 (`app/src/data/lessons.json`) 于构建时打包。
+Vite + React + TypeScript + Tailwind v4，纯静态、离线优先、可安装 PWA。课程内容 (`app/src/data/lessons.json`) 构建时打包。
 
 ## 🚀 运行
 
 ```bash
 cd app
 npm install
-npm run dev      # 本地开发
-npm run build    # 产出 dist/ 静态文件
-npm run preview  # 预览构建产物
+npm run dev       # 本地开发 (http://localhost:5173)
+npm run build     # 产出 dist/ 静态文件
+npm run preview   # 预览构建产物
+node scripts/validate-lessons.mjs   # 校验课程内容
+python3 scripts/gen-icons.py        # 重新生成品牌图标（需 Pillow）
+python3 scripts/normalize-content.py [--apply]   # 内容规范化（IPA/拼写/词性）
 ```
 
-用 Chrome / Edge 打开体验最佳（Web Speech API 支持最完整）。
+用 Chrome / Edge 体验最佳（Web Speech API 支持最完整）。
 
 ### 📲 安装到手机（PWA）
 
-本应用是 **可安装的 PWA**：构建/部署后用手机浏览器打开，选择"添加到主屏幕"即可像原生 App 一样离线使用（课程内容、词卡、发音、进度全部离线可用；查过的生词释义也会缓存）。
+构建/部署后用手机浏览器打开，「添加到主屏幕」即可像原生 App 一样离线使用（课程、词卡、发音、进度全离线；查过的生词也缓存）。iOS 状态栏 / 安全区已适配。
 
 ## 📁 结构
 
 ```
+DESIGN.md                              # 设计系统唯一事实来源
 app/
   src/
     data/curriculum.ts, lessons.json   # 30 天课程内容
-    lib/  srs.ts (SM-2) · speech.ts (语音) · dictionary.ts (查词) · storage.ts (进度)
-    components/  Dashboard · DayView · Review · Progress · blocks/*
-    blocks.ts    # 每日五模块时段配置
+    lib/  srs.ts (SM-2) · speech.ts (语音) · dictionary.ts (查词) · storage.ts (进度) · calendar.ts (.ics)
+    components/  Dashboard · DayView · Review · Progress · shared · blocks/*
+                 ui/  index.tsx (原语) · toast.tsx · brand.tsx (Logo)
+    blocks.ts    # 每日五模块时段配置 + 阶段色
     types.ts     # 内容与进度类型
+  scripts/  validate-lessons.mjs · normalize-content.py · gen-icons.py
 ```
 
 ## 🧠 方法论来源（研究支撑）
 
-- 间隔重复 (Spaced Repetition) — 96%+ 研究证实的高效记忆法
+- 间隔重复 (Spaced Repetition) — 高效长时记忆
 - 可理解输入 (Comprehensible Input, Krashen i+1) — 材料 90–98% 可懂时习得最优
 - 影子跟读 (Shadowing) — 同步提升听力与口语节奏语调
-- 高频词优先 — NGSL 2809 词覆盖日常英语约 92%
+- 高频词优先 — NGSL 高频覆盖日常英语约 92%
 - 推动性输出 + 反馈 — 把输入转化为产出能力
