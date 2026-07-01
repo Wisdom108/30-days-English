@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, RotateCcw, Lightbulb } from 'lucide-react'
+import { ArrowLeft, RotateCcw, Lightbulb, Check } from 'lucide-react'
+import { BlockIcon } from './blockicons'
 import { useApp } from '../state'
 import { getLesson } from '../data/curriculum'
 import { BLOCKS } from '../blocks'
@@ -64,7 +65,7 @@ export default function DayView() {
           </h1>
           <p className="text-[13px] text-fg-muted">{lesson.title_zh} · {lesson.theme}</p>
 
-          <div className="mt-5 text-[11px] font-semibold uppercase tracking-[0.06em] text-fg-muted">🎯 今日目标</div>
+          <div className="mt-5 text-[11px] font-semibold uppercase tracking-[0.06em] text-fg-muted">今日目标</div>
           <ul className="mt-2 space-y-1.5">
             {lesson.goals.map((g, i) => (
               <li key={i} className="flex gap-2 text-[13px] text-fg-secondary">
@@ -92,9 +93,9 @@ export default function DayView() {
               active === b.key ? 'bg-surface text-fg shadow-rest' : 'text-fg-muted hover:text-fg',
             )}
           >
-            <span>{b.icon}</span>
+            <BlockIcon k={b.key} size={15} className={active === b.key ? 'text-fg' : 'text-fg-muted'} />
             <span className="hidden sm:inline">{b.title_zh.split(/[ +]/)[0]}</span>
-            {done(b.key) && <span className="text-success">✓</span>}
+            {done(b.key) && <Check size={13} className="text-success" />}
           </button>
         ))}
       </div>

@@ -1,8 +1,9 @@
 import { Play } from 'lucide-react'
 import type { DayLesson } from '../../types'
 import { speak } from '../../lib/speech'
-import { QAItem, ReadableText } from '../shared'
+import { QAItem, ReadableText, RowGroup } from '../shared'
 import { Badge, Button, Card, CardBody, SectionLabel } from '../ui'
+import { cn } from '../../lib/utils'
 import BlockFooter from './BlockFooter'
 
 export default function ReadingBlock({
@@ -19,8 +20,8 @@ export default function ReadingBlock({
     <Card>
       <CardBody>
         <div className="flex items-center justify-between">
-          <h2 className="text-[17px]">📖 阅读 · {r.title}</h2>
-          <Badge variant="warning">🌆 傍晚 25′</Badge>
+          <h2 className="text-[17px] font-semibold">阅读 · {r.title}</h2>
+          <Badge variant="warning">傍晚 · 25′</Badge>
         </div>
         <p className="mt-1 text-[13px] text-fg-muted">
           先通读理解大意，遇到生词 <b className="text-fg-secondary">点一下</b> 即可查释义并听发音。
@@ -30,26 +31,26 @@ export default function ReadingBlock({
           <Play size={14} /> 朗读全文
         </Button>
 
-        <div className="mt-3 rounded-xl border border-border bg-surface-2 p-4">
+        <div className="mt-3 rounded-[8px] border border-border p-4">
           <ReadableText text={r.passage} />
         </div>
 
-        <SectionLabel>📌 重点词汇</SectionLabel>
-        <div className="grid gap-1.5 sm:grid-cols-2">
+        <SectionLabel>重点词汇</SectionLabel>
+        <RowGroup>
           {r.glossary.map((g, i) => (
-            <div key={i} className="flex items-center justify-between border-b border-border/70 py-1.5 text-[13px]">
+            <div key={i} className={cn('flex items-center justify-between px-3.5 py-2 text-[13px] hover:bg-hover', i > 0 && 'border-t border-border-soft')}>
               <b className="font-medium">{g.word}</b>
               <span className="text-fg-muted">{g.meaning_zh}</span>
             </div>
           ))}
-        </div>
+        </RowGroup>
 
-        <SectionLabel>❓ 阅读理解</SectionLabel>
-        <div className="space-y-2">
+        <SectionLabel>阅读理解</SectionLabel>
+        <RowGroup>
           {r.comprehension.map((qa, i) => (
             <QAItem key={i} q={qa.q} a={qa.a} />
           ))}
-        </div>
+        </RowGroup>
 
         <BlockFooter done={done} onComplete={onComplete} />
       </CardBody>

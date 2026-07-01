@@ -25,10 +25,10 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const { state } = useApp()
 
   const items = [
-    { to: '/', end: true, icon: <Home size={16} />, emoji: '🏠', label: '首页' },
-    { to: `/day/${current}`, icon: <BookOpen size={16} />, emoji: '📅', label: `今日 · Day ${current}` },
-    { to: '/review', icon: <RotateCcw size={16} />, emoji: '🔁', label: '词卡复习', badge: due },
-    { to: '/progress', icon: <TrendingUp size={16} />, emoji: '📊', label: '学习进度' },
+    { to: '/', end: true, icon: Home, label: '首页' },
+    { to: `/day/${current}`, icon: BookOpen, label: `今日 · Day ${current}` },
+    { to: '/review', icon: RotateCcw, label: '词卡复习', badge: due },
+    { to: '/progress', icon: TrendingUp, label: '学习进度' },
   ]
 
   return (
@@ -60,20 +60,23 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                 )
               }
             >
-              {({ isActive }) => (
-                <>
-                  {isActive && (
-                    <span className="absolute -left-0 top-1/2 h-4 -translate-y-1/2 rounded-full bg-brand" style={{ width: 3 }} />
-                  )}
-                  <span className="text-[15px] leading-none">{it.emoji}</span>
-                  <span className="flex-1 truncate">{it.label}</span>
-                  {it.badge ? (
-                    <span className="rounded-full bg-accent-soft px-1.5 text-[11px] font-medium text-brand">
-                      {it.badge}
-                    </span>
-                  ) : null}
-                </>
-              )}
+              {({ isActive }) => {
+                const Icon = it.icon
+                return (
+                  <>
+                    {isActive && (
+                      <span className="absolute left-0 top-1/2 h-4 -translate-y-1/2 rounded-r-full bg-brand" style={{ width: 3 }} />
+                    )}
+                    <Icon size={16} strokeWidth={1.9} className={isActive ? 'text-fg' : 'text-fg-muted'} />
+                    <span className="flex-1 truncate">{it.label}</span>
+                    {it.badge ? (
+                      <span className="rounded-full bg-accent-soft px-1.5 text-[11px] font-medium text-brand">
+                        {it.badge}
+                      </span>
+                    ) : null}
+                  </>
+                )
+              }}
             </NavLink>
           ))}
         </nav>

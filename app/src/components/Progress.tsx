@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Download, Upload, CalendarClock, AlertTriangle } from 'lucide-react'
+import { Download, Upload, CalendarClock, AlertTriangle, Flame } from 'lucide-react'
+import { BlockIcon } from './blockicons'
 import * as AlertDialogPrimitive from '@radix-ui/react-alert-dialog'
 import { useApp } from '../state'
 import { CURRICULUM, TOTAL_DAYS } from '../data/curriculum'
@@ -50,8 +51,8 @@ export default function Progress() {
     count: Object.values(state.days).filter((d) => d.completedBlocks[b.key]).length,
   }))
 
-  const metrics = [
-    { k: '连续天数', v: `🔥 ${state.streak}` },
+  const metrics: { k: string; v: React.ReactNode }[] = [
+    { k: '连续天数', v: <span className="inline-flex items-center gap-1"><Flame size={17} className="text-warning" />{state.streak}</span> },
     { k: '完成天数', v: completedDays.length },
     { k: '词卡总数', v: Object.keys(state.cards).length },
     { k: '已掌握', v: matured },
@@ -60,7 +61,7 @@ export default function Progress() {
 
   return (
     <div className="space-y-2 animate-in-up">
-      <h1 className="text-[26px] font-semibold tracking-tight">📊 学习进度</h1>
+      <h1 className="text-[26px] font-semibold tracking-tight">学习进度</h1>
       <div className="border-b border-border pb-1" />
 
       {/* Metrics strip */}
@@ -75,7 +76,7 @@ export default function Progress() {
       {state.startDate && <p className="pt-1 text-[12px] text-fg-muted">开始日期：{state.startDate}</p>}
 
       {/* Phase progress */}
-      <SectionLabel>🧭 各阶段完成度</SectionLabel>
+      <SectionLabel>各阶段完成度</SectionLabel>
       <div className="space-y-3.5">
         {Object.entries(PHASE_INFO).map(([k, v]) => {
           const days = CURRICULUM.filter((l) => l.phase === Number(k)).map((l) => l.day)
@@ -84,7 +85,11 @@ export default function Progress() {
           return (
             <div key={k}>
               <div className="flex items-center justify-between text-[13px]">
-                <span><b style={{ color: v.color }}>阶段 {k}</b> <span className="text-fg-muted">{v.name_zh} · {v.range}</span></span>
+                <span className="flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full" style={{ background: v.color }} />
+                  <span className="font-medium text-fg">阶段 {k}</span>
+                  <span className="text-fg-muted">{v.name_zh} · {v.range}</span>
+                </span>
                 <span className="text-fg-muted">{doneCount}/{days.length}</span>
               </div>
               <Bar value={pct} color={v.color} className="mt-1.5" />
@@ -94,12 +99,15 @@ export default function Progress() {
       </div>
 
       {/* Skill progress */}
-      <SectionLabel>🎯 四项技能打卡</SectionLabel>
+      <SectionLabel>四项技能打卡</SectionLabel>
       <div className="space-y-3">
         {blockCounts.map((b) => (
           <div key={b.key}>
             <div className="flex items-center justify-between text-[13px]">
-              <span>{b.icon} {b.title_zh}</span>
+              <span className="flex items-center gap-2">
+                <BlockIcon k={b.key} size={15} className="text-fg-secondary" />
+                {b.title_zh}
+              </span>
               <span className="text-fg-muted">{b.count === TOTAL_DAYS ? '✓ ' : ''}{b.count}/{TOTAL_DAYS}</span>
             </div>
             <Bar value={Math.round((b.count / TOTAL_DAYS) * 100)} className="mt-1.5" />
@@ -108,7 +116,7 @@ export default function Progress() {
       </div>
 
       {/* Calendar companion */}
-      <SectionLabel>📅 每日定时陪跑 · 日历提醒</SectionLabel>
+      <SectionLabel>每日定时陪跑 · 日历提醒</SectionLabel>
       <p className="text-[13px] text-fg-muted">
         导出 30 天每日提醒，导入 Google / Apple / Outlook 日历即可定时提醒（从
         {state.startDate ? ` ${state.startDate}` : '今天'} 起 30 天）。
@@ -130,7 +138,7 @@ export default function Progress() {
       </div>
 
       {/* Backup */}
-      <SectionLabel>💾 进度备份 / 恢复</SectionLabel>
+      <SectionLabel>进度备份 / 恢复</SectionLabel>
       <p className="text-[13px] text-fg-muted">
         进度存于本浏览器。换设备或清缓存前请导出备份，在新设备导入即可继续。
       </p>

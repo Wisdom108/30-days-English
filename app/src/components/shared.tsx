@@ -171,11 +171,11 @@ export function ProgressRing({
 export function QAItem({ q, a }: { q: string; a: string }) {
   const [show, setShow] = useState(false)
   return (
-    <div className="rounded-[8px] border border-border-soft bg-surface transition-colors hover:bg-hover">
-      <div className="flex items-center justify-between gap-3 p-3.5">
+    <div className="border-b border-border-soft transition-colors last:border-0 hover:bg-hover">
+      <div className="flex items-center justify-between gap-3 px-3.5 py-3">
         <span className="text-[14px] text-fg">{q}</span>
         <button
-          className="shrink-0 rounded-md px-2 py-1 text-[12px] text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg"
+          className="shrink-0 rounded-md px-1.5 py-0.5 text-[12px] font-medium text-brand transition-colors hover:bg-accent-soft"
           onClick={() => setShow((s) => !s)}
         >
           {show ? '隐藏' : '看答案'}
@@ -184,4 +184,9 @@ export function QAItem({ q, a }: { q: string; a: string }) {
       {show && <div className="px-3.5 pb-3 text-[13px] text-success">{a}</div>}
     </div>
   )
+}
+
+// ---- Wrapper that groups rows into a hairline-bordered list container ----
+export function RowGroup({ children }: { children: React.ReactNode }) {
+  return <div className="overflow-hidden rounded-[8px] border border-border">{children}</div>
 }
