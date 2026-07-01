@@ -47,8 +47,11 @@ export const BLOCKS: BlockMeta[] = [
 
 export const TOTAL_MINUTES = BLOCKS.reduce((s, b) => s + b.minutes, 0)
 
-export const PHASE_INFO: Record<number, { name_zh: string; range: string; color: string }> = {
-  1: { name_zh: '生存基础', range: 'Day 1–10', color: '#22c55e' },
-  2: { name_zh: '日常生活', range: 'Day 11–20', color: '#3b82f6' },
-  3: { name_zh: '流利冲刺', range: 'Day 21–30', color: '#a855f7' },
+export const PHASE_INFO: Record<
+  number,
+  { name_zh: string; range: string; color: string; softBg: string; dot: string }
+> = {
+  1: { name_zh: '生存基础', range: 'Day 1–10', color: '#0e9f6e', softBg: '#e7f5ef', dot: '🟢' },
+  2: { name_zh: '日常生活', range: 'Day 11–20', color: '#2e7cf6', softBg: '#eaf2fe', dot: '🔵' },
+  3: { name_zh: '流利冲刺', range: 'Day 21–30', color: '#9333ea', softBg: '#f3eafb', dot: '🟣' },
 }

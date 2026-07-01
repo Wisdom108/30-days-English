@@ -12,7 +12,7 @@ import SpeakingBlock from './blocks/SpeakingBlock'
 import ReadingBlock from './blocks/ReadingBlock'
 import WritingBlock from './blocks/WritingBlock'
 import { SpeakButton } from './shared'
-import { Badge, Button, Card, CardBody } from './ui'
+import { Badge, Button, Card, CardBody, Callout } from './ui'
 import { cn } from '../lib/utils'
 
 export default function DayView() {
@@ -51,19 +51,20 @@ export default function DayView() {
         <CardBody>
           <div className="flex items-center justify-between">
             <button
-              className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[13px] text-fg-muted hover:bg-surface-2 hover:text-fg"
+              className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[13px] text-fg-muted hover:bg-hover hover:text-fg md:hidden"
               onClick={() => nav('/')}
             >
               <ArrowLeft size={15} /> 首页
             </button>
-            <Badge variant="brand">阶段 {lesson.phase} · Day {lesson.day}/30</Badge>
+            <span className="hidden md:block" />
+            <Badge variant="accent">阶段 {lesson.phase} · Day {lesson.day}/30</Badge>
           </div>
           <h1 className="mt-3 flex items-center gap-1.5 text-[22px] font-semibold">
             {lesson.title_en} <SpeakButton text={lesson.title_en} />
           </h1>
           <p className="text-[13px] text-fg-muted">{lesson.title_zh} · {lesson.theme}</p>
 
-          <div className="mt-5 text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-dim">🎯 今日目标</div>
+          <div className="mt-5 text-[11px] font-semibold uppercase tracking-[0.06em] text-fg-muted">🎯 今日目标</div>
           <ul className="mt-2 space-y-1.5">
             {lesson.goals.map((g, i) => (
               <li key={i} className="flex gap-2 text-[13px] text-fg-secondary">
@@ -73,27 +74,22 @@ export default function DayView() {
             ))}
           </ul>
 
-          <div className="mt-4 flex gap-2.5 rounded-xl border border-warning/20 bg-warning/[0.06] p-3.5">
-            <RotateCcw size={16} className="mt-0.5 shrink-0 text-warning" />
-            <p className="text-[13px] leading-relaxed text-fg-secondary">
-              <span className="font-medium text-warning">抗遗忘复习：</span>
-              {lesson.reviewFocus}
-            </p>
-          </div>
+          <Callout tone="warning" className="mt-4" icon={<RotateCcw size={15} className="text-warning" />}>
+            <span className="font-medium text-warning">抗遗忘复习：</span>
+            {lesson.reviewFocus}
+          </Callout>
         </CardBody>
       </Card>
 
-      {/* Segmented block switcher */}
-      <div className="flex gap-1.5 overflow-x-auto rounded-xl border border-border bg-surface p-1.5">
+      {/* Segmented block switcher (sticky) */}
+      <div className="sticky top-[60px] z-10 flex gap-1 overflow-x-auto rounded-[10px] border border-border bg-surface-2 p-1 md:top-3">
         {BLOCKS.map((b) => (
           <button
             key={b.key}
             onClick={() => setActive(b.key)}
             className={cn(
-              'flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2 text-[13px] font-medium transition-all',
-              active === b.key
-                ? 'bg-elevated text-fg shadow-[0_1px_0_0_rgba(255,255,255,0.05)_inset]'
-                : 'text-fg-muted hover:text-fg',
+              'flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-[7px] px-3 py-2 text-[13px] font-medium transition-all duration-200',
+              active === b.key ? 'bg-surface text-fg shadow-rest' : 'text-fg-muted hover:text-fg',
             )}
           >
             <span>{b.icon}</span>
@@ -122,7 +118,7 @@ export default function DayView() {
       </div>
 
       <Card>
-        <CardBody className="flex items-center justify-center gap-2 py-4 text-center">
+        <CardBody className="flex items-center justify-center gap-2 py-3.5 text-center">
           <Lightbulb size={15} className="shrink-0 text-warning" />
           <span className="text-[13px] text-fg-muted">{lesson.dailyTip_zh}</span>
         </CardBody>

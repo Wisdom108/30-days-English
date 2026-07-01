@@ -21,7 +21,7 @@ export function SpeakButton({
   return (
     <button
       className={cn(
-        'inline-grid h-7 w-7 shrink-0 place-items-center rounded-md text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg',
+        'inline-grid h-7 w-7 shrink-0 place-items-center rounded-md text-fg-muted transition-colors hover:bg-hover hover:text-fg',
         className,
       )}
       title={slow ? '慢速朗读' : '朗读'}
@@ -75,7 +75,7 @@ export function ReadableText({ text }: { text: string }) {
 
   return (
     <>
-      <div className="text-[16.5px] leading-[2] text-fg-secondary" onClick={() => setPopover(null)}>
+      <div className="text-[16.5px] leading-[2] text-fg" onClick={() => setPopover(null)}>
         {tokens.map((tok, i) => {
           if (/^\s+$/.test(tok)) return <span key={i}>{tok}</span>
           const m = tok.match(/^([^A-Za-z']*)([A-Za-z][A-Za-z'-]*)(.*)$/)
@@ -85,7 +85,7 @@ export function ReadableText({ text }: { text: string }) {
             <span key={i}>
               {pre}
               <span
-                className="cursor-pointer rounded px-0.5 transition-colors hover:bg-brand/25 hover:text-fg"
+                className="cursor-pointer rounded px-0.5 transition-colors hover:bg-accent-soft"
                 onClick={(e) => onWord(e, word)}
               >
                 {word}
@@ -97,15 +97,15 @@ export function ReadableText({ text }: { text: string }) {
       </div>
       {popover && (
         <div
-          className="fixed z-50 max-w-[320px] rounded-xl border border-border bg-elevated p-3.5 shadow-[0_16px_50px_-12px_rgba(0,0,0,0.8)] animate-in-up"
+          className="fixed z-50 max-w-[320px] rounded-[10px] border border-border bg-surface p-3.5 shadow-[var(--shadow-popover)] animate-in-up"
           style={{ left: popover.x, top: popover.y }}
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex items-center justify-between gap-2">
-            <span className="text-[16px] font-semibold">{popover.word}</span>
+            <span className="text-[16px] font-semibold text-fg">{popover.word}</span>
             <SpeakButton text={popover.word} />
           </div>
-          {popover.loading && <div className="mt-1 text-[13px] text-fg-dim">查询中…</div>}
+          {popover.loading && <div className="mt-1 text-[13px] text-fg-muted">查询中…</div>}
           {!popover.loading && popover.result && (
             <>
               {popover.result.phonetic && (
@@ -113,14 +113,14 @@ export function ReadableText({ text }: { text: string }) {
               )}
               {popover.result.meanings.map((mm, idx) => (
                 <div className="mt-1.5 text-[13px] text-fg-secondary" key={idx}>
-                  <span className="mr-1 italic text-fg-dim">{mm.partOfSpeech}</span>
+                  <span className="mr-1 italic text-fg-muted">{mm.partOfSpeech}</span>
                   {mm.definition}
                 </div>
               ))}
             </>
           )}
           {!popover.loading && !popover.result && (
-            <div className="mt-1 text-[13px] text-fg-dim">未找到释义（可能离线或生僻词）。</div>
+            <div className="mt-1 text-[13px] text-fg-muted">未找到释义（可能离线或生僻词）。</div>
           )}
         </div>
       )}
@@ -128,29 +128,32 @@ export function ReadableText({ text }: { text: string }) {
   )
 }
 
-// ---- Circular progress ring ----
+// ---- Circular progress ring (solid single-color stroke) ----
 export function ProgressRing({
   value,
   size = 88,
+  stroke = 7,
+  color = 'var(--color-brand)',
   children,
 }: {
   value: number
   size?: number
+  stroke?: number
+  color?: string
   children?: React.ReactNode
 }) {
-  const stroke = 7
   const r = (size - stroke) / 2
   const c = 2 * Math.PI * r
   const off = c - (value / 100) * c
   return (
     <div className="relative grid place-items-center" style={{ width: size, height: size }}>
       <svg width={size} height={size} className="-rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={r} stroke="#232427" strokeWidth={stroke} fill="none" />
+        <circle cx={size / 2} cy={size / 2} r={r} stroke="#ebeae7" strokeWidth={stroke} fill="none" />
         <circle
           cx={size / 2}
           cy={size / 2}
           r={r}
-          stroke="url(#ring)"
+          stroke={color}
           strokeWidth={stroke}
           fill="none"
           strokeDasharray={c}
@@ -158,33 +161,27 @@ export function ProgressRing({
           strokeLinecap="round"
           style={{ transition: 'stroke-dashoffset .6s cubic-bezier(0.22,1,0.36,1)' }}
         />
-        <defs>
-          <linearGradient id="ring" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="#5e6ad2" />
-            <stop offset="100%" stopColor="#b57edc" />
-          </linearGradient>
-        </defs>
       </svg>
       <div className="absolute inset-0 grid place-items-center">{children}</div>
     </div>
   )
 }
 
-// ---- Comprehension Q&A with reveal ----
+// ---- Comprehension Q&A row (Notion database-row hover) ----
 export function QAItem({ q, a }: { q: string; a: string }) {
   const [show, setShow] = useState(false)
   return (
-    <div className="rounded-xl border border-border bg-surface-2 p-3.5">
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-[14px] text-fg-secondary">{q}</span>
+    <div className="rounded-[8px] border border-border-soft bg-surface transition-colors hover:bg-hover">
+      <div className="flex items-center justify-between gap-3 p-3.5">
+        <span className="text-[14px] text-fg">{q}</span>
         <button
-          className="shrink-0 rounded-md px-2 py-1 text-[12px] text-fg-muted transition-colors hover:bg-elevated hover:text-fg"
+          className="shrink-0 rounded-md px-2 py-1 text-[12px] text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg"
           onClick={() => setShow((s) => !s)}
         >
           {show ? '隐藏' : '看答案'}
         </button>
       </div>
-      {show && <div className="mt-2 text-[13px] text-success">{a}</div>}
+      {show && <div className="px-3.5 pb-3 text-[13px] text-success">{a}</div>}
     </div>
   )
 }

@@ -17,7 +17,7 @@ export default function BlockFooter({
       ) : (
         <span className="text-[13px] text-fg-dim">完成后点击右侧打卡</span>
       )}
-      <Button variant={done ? 'secondary' : 'success'} disabled={done} onClick={onComplete}>
+      <Button variant={done ? 'secondary' : 'primary'} disabled={done} onClick={onComplete}>
         {done ? '已打卡 ✓' : '标记完成'}
       </Button>
     </div>

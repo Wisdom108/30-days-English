@@ -84,7 +84,7 @@ export default function VocabBlock({
           <>
             <button
               onClick={() => setFlip((f) => !f)}
-              className="mt-4 flex min-h-[240px] w-full flex-col items-center justify-center gap-2.5 rounded-2xl border border-border bg-gradient-to-b from-surface-2 to-surface p-7 text-center"
+              className="mt-4 flex min-h-[240px] w-full flex-col items-center justify-center gap-2.5 rounded-[12px] border border-border bg-surface p-7 text-center shadow-[var(--shadow-card)]"
             >
               {!flip ? (
                 <>
