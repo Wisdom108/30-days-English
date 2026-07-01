@@ -60,7 +60,7 @@ export default function DayView() {
             <span className="hidden md:block" />
             <Badge variant="accent">阶段 {lesson.phase} · Day {lesson.day}/30</Badge>
           </div>
-          <h1 className="mt-3 flex items-center gap-1.5 text-[22px] font-semibold">
+          <h1 className="mt-3 flex items-center gap-2 font-display text-[24px] font-medium tracking-tight">
             {lesson.title_en} <SpeakButton text={lesson.title_en} />
           </h1>
           <p className="text-[13px] text-fg-muted">{lesson.title_zh} · {lesson.theme}</p>

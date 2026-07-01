@@ -75,7 +75,7 @@ export default function Dashboard() {
       {/* Page header */}
       <div className="animate-in-up">
         <h1 className="text-[26px] font-semibold tracking-tight md:text-[28px]">
-          {greeting()} · 今天是 Day {current}
+          {greeting()} · 今天是 <span className="font-display font-medium">Day {current}</span>
         </h1>
         <p className="mt-1 text-[15px] text-fg-muted">
           还剩 {TOTAL_DAYS - completedDays.length} 天 · {lesson?.title_zh} · {today}
@@ -88,12 +88,12 @@ export default function Dashboard() {
         <Stat label="总进度" value={`${overall}%`} onClick={() => nav('/progress')} />
         <Stat
           label="连续天数"
-          value={<span className="inline-flex items-center gap-1"><Flame size={18} className="text-warning" />{state.streak}</span>}
+          value={<span className="inline-flex items-center gap-1.5"><Flame size={18} className="text-red" />{state.streak}</span>}
         />
         <Stat label="已完成天数" value={`${completedDays.length}/${TOTAL_DAYS}`} onClick={() => nav('/progress')} />
         <Stat
           label="待复习"
-          value={<span className={due > 0 ? 'text-brand' : ''}>{due}</span>}
+          value={<span className={due > 0 ? 'text-red' : ''}>{due}</span>}
           onClick={() => nav('/review')}
         />
       </div>
@@ -172,9 +172,9 @@ export default function Dashboard() {
           </section>
 
           {due > 0 && (
-            <Callout tone="accent" className="animate-in-up items-center" icon={<RotateCcw size={15} className="text-brand" />}>
+            <Callout tone="red" className="animate-in-up items-center" icon={<RotateCcw size={15} className="text-red" />}>
               <div className="flex w-full items-center justify-between gap-3">
-                <span>有 <b className="pulse-once text-brand">{due}</b> 张词卡到期</span>
+                <span>有 <b className="font-display text-red">{due}</b> 张词卡到期</span>
                 <Button size="sm" onClick={() => nav('/review')}>开始复习</Button>
               </div>
             </Callout>
@@ -212,7 +212,7 @@ export default function Dashboard() {
                   onClick={() => !locked && nav(`/day/${d}`)}
                   className={cn(
                     'relative grid aspect-square place-items-center rounded-[6px] border text-center transition-all',
-                    isCurrent && 'ring-2 ring-brand ring-offset-1 ring-offset-bg',
+                    isCurrent && 'ring-2 ring-red ring-offset-2 ring-offset-bg',
                     locked
                       ? 'cursor-not-allowed border-border bg-surface-2'
                       : 'hover:-translate-y-px active:scale-[0.98]',
@@ -231,7 +231,7 @@ export default function Dashboard() {
                     </span>
                   )}
                   <span
-                    className={cn('text-[15px] font-semibold', locked && 'text-fg-dim')}
+                    className={cn('font-display text-[17px] font-medium', locked && 'text-fg-dim')}
                     style={done ? { color: v.color } : undefined}
                   >
                     {d}
@@ -289,8 +289,8 @@ function Stat({
         onClick && 'hover:bg-hover',
       )}
     >
-      <div className="text-[24px] font-semibold leading-none tracking-tight">{value}</div>
-      <div className="mt-2 text-[12px] font-medium text-fg-muted">{label}</div>
+      <div className="font-display text-[26px] font-medium leading-none">{value}</div>
+      <div className="label-nd mt-2.5">{label}</div>
     </button>
   )
 }

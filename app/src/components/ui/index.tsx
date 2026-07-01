@@ -52,28 +52,20 @@ export function CardBody({ className, ...props }: HTMLAttributes<HTMLDivElement>
 }
 
 export function SectionLabel({ className, children }: { className?: string; children: ReactNode }) {
-  return (
-    <div
-      className={cn(
-        'mt-6 mb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-fg-muted first:mt-0',
-        className,
-      )}
-    >
-      {children}
-    </div>
-  )
+  return <div className={cn('label-nd mt-6 mb-2 first:mt-0', className)}>{children}</div>
 }
 
 // ---- Badge ----
 const badgeVariants = cva(
-  'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium',
+  'inline-flex items-center gap-1.5 rounded-[4px] border px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.1em]',
   {
     variants: {
       variant: {
-        default: 'border border-border bg-surface-2 text-fg-secondary',
-        accent: 'bg-accent-soft text-brand',
-        success: 'bg-success-soft text-success',
-        warning: 'bg-warning-soft text-warning',
+        default: 'border-border bg-surface-2 text-fg-secondary',
+        accent: 'border-border-strong bg-surface-2 text-fg',
+        success: 'border-border-strong bg-surface-2 text-fg',
+        warning: 'border-border bg-surface-2 text-fg-muted',
+        red: 'border-red/40 bg-red-soft text-red',
       },
     },
     defaultVariants: { variant: 'default' },
@@ -126,15 +118,17 @@ export function Callout({
   children,
   className,
 }: {
-  tone?: 'accent' | 'warning'
+  tone?: 'accent' | 'warning' | 'red'
   icon?: ReactNode
   children: ReactNode
   className?: string
 }) {
   const styles =
     tone === 'warning'
-      ? { bar: 'var(--color-warning)', bg: 'var(--color-warning-soft)' }
-      : { bar: 'var(--color-brand)', bg: 'var(--color-accent-soft)' }
+      ? { bar: 'var(--color-fg-muted)', bg: 'var(--color-surface-2)' }
+      : tone === 'red'
+      ? { bar: 'var(--color-red)', bg: 'var(--color-red-soft)' }
+      : { bar: 'var(--color-fg)', bg: 'var(--color-accent-soft)' }
   return (
     <div
       className={cn('flex gap-2.5 rounded-[8px] p-3.5', className)}

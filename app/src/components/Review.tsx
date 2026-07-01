@@ -89,8 +89,8 @@ export default function Review() {
           style={{ minHeight: 300 }}
         >
           <div className="flip-face absolute inset-0 flex flex-col items-center justify-center gap-2.5 rounded-[12px] border border-border bg-surface p-8 shadow-[var(--shadow-card)]">
-            <div className="text-[40px] font-semibold text-fg">{card.word}</div>
-            <div className="text-[18px] text-warning">{card.ipa}</div>
+            <div className="font-display text-[44px] font-medium text-fg">{card.word}</div>
+            <div className="font-mono text-[16px] text-fg-muted">{card.ipa}</div>
             <SpeakButton text={card.word} />
             <div className="text-[12px] text-fg-muted">点击回忆释义，再翻面（空格键翻转）</div>
           </div>

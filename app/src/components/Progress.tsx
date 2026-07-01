@@ -52,7 +52,7 @@ export default function Progress() {
   }))
 
   const metrics: { k: string; v: React.ReactNode }[] = [
-    { k: '连续天数', v: <span className="inline-flex items-center gap-1"><Flame size={17} className="text-warning" />{state.streak}</span> },
+    { k: '连续天数', v: <span className="inline-flex items-center gap-1.5"><Flame size={16} className="text-red" />{state.streak}</span> },
     { k: '完成天数', v: completedDays.length },
     { k: '词卡总数', v: Object.keys(state.cards).length },
     { k: '已掌握', v: matured },
@@ -68,8 +68,8 @@ export default function Progress() {
       <div className="grid grid-cols-2 divide-x divide-border rounded-[8px] border border-border bg-surface sm:grid-cols-5">
         {metrics.map((m, i) => (
           <div key={i} className="px-3 py-4 text-center">
-            <div className="text-[20px] font-semibold leading-none">{m.v}</div>
-            <div className="mt-1.5 text-[11px] text-fg-muted">{m.k}</div>
+            <div className="font-display text-[22px] font-medium leading-none">{m.v}</div>
+            <div className="label-nd mt-2">{m.k}</div>
           </div>
         ))}
       </div>

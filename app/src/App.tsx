@@ -35,9 +35,11 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
     <div className="flex h-full flex-col">
       {/* Workspace row */}
       <div className="flex items-center gap-2.5 px-3 py-3">
-        <span className="grid h-7 w-7 place-items-center rounded-[6px] bg-hover text-[15px]">🚀</span>
+        <span className="grid h-7 w-7 place-items-center rounded-[6px] border border-border-strong bg-surface">
+          <span className="h-2.5 w-2.5 rounded-full bg-red" />
+        </span>
         <div className="leading-tight">
-          <div className="text-[14px] font-semibold text-fg">30 天英语</div>
+          <div className="font-mono text-[13px] font-semibold uppercase tracking-[0.08em] text-fg">30 DAYS</div>
           <div className="text-[11px] text-fg-muted">听说侧重 · 离线可用</div>
         </div>
       </div>
@@ -65,7 +67,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                 return (
                   <>
                     {isActive && (
-                      <span className="absolute left-0 top-1/2 h-4 -translate-y-1/2 rounded-r-full bg-brand" style={{ width: 3 }} />
+                      <span className="absolute left-0 top-1/2 h-4 -translate-y-1/2 rounded-r-full bg-red" style={{ width: 3 }} />
                     )}
                     <Icon size={16} strokeWidth={1.9} className={isActive ? 'text-fg' : 'text-fg-muted'} />
                     <span className="flex-1 truncate">{it.label}</span>
@@ -103,7 +105,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 
       <div className="mt-auto p-3">
         <div className="mb-1 flex items-center gap-1.5 px-2 text-[12px] text-fg-secondary">
-          <Flame size={13} className="text-warning" /> {streak} 天连续
+          <Flame size={13} className="text-red" /> <span className="font-display">{streak}</span> 天连续
         </div>
         <NavLink
           to="/progress"
@@ -153,8 +155,8 @@ export default function App() {
             </Dialog.Content>
           </Dialog.Portal>
         </Dialog.Root>
-        <div className="flex items-center gap-1.5 text-[14px] font-semibold">
-          <span>🚀</span> 30 天英语
+        <div className="flex items-center gap-2 font-mono text-[13px] font-semibold uppercase tracking-[0.08em]">
+          <span className="h-2 w-2 rounded-full bg-red" /> 30 DAYS
         </div>
         <NavLink
           to="/review"

@@ -1,113 +1,136 @@
 @import 'tailwindcss';
 @import '@fontsource-variable/inter';
+@import '@fontsource/doto/500.css';
+@import '@fontsource/doto/700.css';
+@import '@fontsource/doto/900.css';
+@import '@fontsource/geist-mono/400.css';
+@import '@fontsource/geist-mono/500.css';
 
-/* ---- Notion Study OS — light, minimal design tokens ---- */
+/* ---- Nothing OS — monochrome, dot-matrix, one red accent ---- */
 @theme {
-  --color-bg: #ffffff;
-  --color-surface: #ffffff;        /* card bg */
-  --color-surface-2: #f7f6f3;      /* warm off-white (sidebar / soft panels) */
-  --color-elevated: #ffffff;
-  --color-hover: #efeee9;          /* Notion row/nav hover */
+  --color-bg: #000000;
+  --color-surface: #0b0b0b;
+  --color-surface-2: #121212;
+  --color-elevated: #171717;
+  --color-hover: #1c1c1c;
 
-  --color-border: #ebeae7;
-  --color-border-soft: #f2f1ed;
-  --color-border-strong: #dcdbd6;
+  --color-border: #262626;
+  --color-border-soft: #191919;
+  --color-border-strong: #383838;
 
-  --color-fg: #37352f;
-  --color-fg-secondary: #5c594f;
-  --color-fg-muted: #9b9a93;
-  --color-fg-dim: #b4b3ac;
+  --color-fg: #ffffff;
+  --color-fg-secondary: #b4b4b4;
+  --color-fg-muted: #7d7d7d;
+  --color-fg-dim: #555555;
 
-  --color-brand: #2e7cf6;
-  --color-brand-hover: #1f6fe5;
-  --color-brand-fg: #ffffff;
-  --color-accent-soft: #eaf2fe;
+  /* mono "ink" accent = white; brand-fg is black (for white buttons) */
+  --color-brand: #ffffff;
+  --color-brand-hover: #e6e6e6;
+  --color-brand-fg: #000000;
+  --color-accent-soft: rgba(255, 255, 255, 0.08);
 
-  --color-success: #0e9f6e;
-  --color-success-soft: #e7f5ef;
-  --color-warning: #d9930a;
-  --color-warning-soft: #fbf3e2;
-  --color-danger: #dc2626;
-  --color-danger-soft: #fcebeb;
+  /* Nothing red — used VERY sparingly (streak, today, record, alerts) */
+  --color-red: #d6001c;
+  --color-red-soft: rgba(214, 0, 28, 0.14);
 
-  --color-phase1: #0e9f6e;
-  --color-phase2: #2e7cf6;
-  --color-phase3: #9333ea;
+  --color-success: #ffffff;
+  --color-success-soft: rgba(255, 255, 255, 0.08);
+  --color-warning: #b4b4b4;
+  --color-warning-soft: rgba(255, 255, 255, 0.06);
+  --color-danger: #d6001c;
+  --color-danger-soft: rgba(214, 0, 28, 0.14);
 
-  --radius: 8px;
+  --color-phase1: #ffffff;
+  --color-phase2: #8a8a8a;
+  --color-phase3: #d6001c;
 
-  --shadow-rest: 0 1px 2px rgba(15, 15, 15, 0.04);
-  --shadow-raised: 0 1px 2px rgba(15, 15, 15, 0.04), 0 4px 12px -6px rgba(15, 15, 15, 0.1);
-  --shadow-popover: 0 4px 12px -2px rgba(15, 15, 15, 0.08), 0 8px 24px -8px rgba(15, 15, 15, 0.12);
-  --shadow-card: 0 1px 2px rgba(15, 15, 15, 0.04), 0 2px 8px -4px rgba(15, 15, 15, 0.06);
+  --radius: 6px;
+
+  --shadow-rest: 0 0 0 1px rgba(255, 255, 255, 0.02);
+  --shadow-raised: 0 0 0 1px rgba(255, 255, 255, 0.08);
+  --shadow-popover: 0 12px 40px -8px rgba(0, 0, 0, 0.8);
+  --shadow-card: 0 0 0 1px rgba(255, 255, 255, 0.04);
 
   --font-sans: 'Inter Variable', -apple-system, BlinkMacSystemFont, 'PingFang SC',
     'Microsoft YaHei', system-ui, sans-serif;
+  --font-display: 'Doto', 'Geist Mono', ui-monospace, monospace;
+  --font-mono: 'Geist Mono', ui-monospace, 'SFMono-Regular', monospace;
 }
 
 @layer base {
   * {
     border-color: var(--color-border);
+    -webkit-tap-highlight-color: transparent;
   }
-  html { -webkit-text-size-adjust: 100%; }
+  html {
+    -webkit-text-size-adjust: 100%;
+    height: 100%;
+  }
   body {
     margin: 0;
-    background: var(--color-bg);
+    background-color: var(--color-bg);
+    /* subtle Nothing dot-grid */
+    background-image: radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+    background-size: 22px 22px;
+    background-position: -1px -1px;
+    background-attachment: fixed;
     color: var(--color-fg);
     font-family: var(--font-sans);
-    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    letter-spacing: -0.011em;
+    letter-spacing: -0.006em;
+    overscroll-behavior-y: none;
   }
-  #root { min-height: 100vh; }
-  h1, h2, h3, h4 {
-    letter-spacing: -0.02em;
-    font-weight: 600;
-    color: var(--color-fg);
-  }
-  ::selection { background: var(--color-accent-soft); }
+  #root { min-height: 100%; }
+  h1, h2, h3, h4 { font-weight: 600; color: var(--color-fg); }
+  ::selection { background: var(--color-red); color: #fff; }
 
-  ::-webkit-scrollbar { width: 10px; height: 10px; }
-  ::-webkit-scrollbar-thumb {
-    background: #e3e2de;
-    border-radius: 999px;
-    border: 3px solid var(--color-bg);
-  }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 999px; }
   ::-webkit-scrollbar-thumb:hover { background: var(--color-border-strong); }
 }
 
 @layer utilities {
-  .animate-in-up {
-    animation: inUp 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+  .font-display { font-family: var(--font-display); }
+  .font-mono { font-family: var(--font-mono); }
+
+  /* Nothing-style uppercase mono micro-label */
+  .label-nd {
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    font-size: 10.5px;
+    color: var(--color-fg-muted);
   }
+
+  /* safe-area helpers for iPhone notch / dynamic island / home indicator */
+  .pt-safe { padding-top: env(safe-area-inset-top); }
+  .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+  .top-safe { top: env(safe-area-inset-top); }
+
+  .animate-in-up { animation: inUp 0.35s cubic-bezier(0.22, 1, 0.36, 1) both; }
   @keyframes inUp {
     from { opacity: 0; transform: translateY(6px); }
     to { opacity: 1; transform: translateY(0); }
   }
-  .pulse-once {
-    animation: pulseOnce 2s ease-in-out 1;
-  }
-  @keyframes pulseOnce {
+  .pulse-red { animation: pulseRed 1.8s ease-in-out infinite; }
+  @keyframes pulseRed {
     0%, 100% { opacity: 1; }
-    50% { opacity: 0.62; }
+    50% { opacity: 0.4; }
   }
-  /* 3D flip card */
   .flip-3d { transform-style: preserve-3d; transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1); }
   .flip-3d.flipped { transform: rotateY(180deg); }
   .flip-face { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
   .flip-back { transform: rotateY(180deg); }
 }
 
-/* Accessibility: honor reduced-motion as a hard requirement */
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
+  *, *::before, *::after {
     animation-duration: 0.001ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
     scroll-behavior: auto !important;
   }
   .flip-3d { transition: none; }
+  .pulse-red { animation: none; }
 }
