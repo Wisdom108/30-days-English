@@ -1,9 +1,49 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { VitePWA } from 'vite-plugin-pwa'
 
 // base: './' keeps asset paths relative so the built app works whether it is
 // served from a domain root, a sub-path (e.g. GitHub Pages), or previewed locally.
 export default defineConfig({
-  plugins: [react()],
   base: './',
+  plugins: [
+    react(),
+    VitePWA({
+      registerType: 'autoUpdate',
+      includeAssets: ['apple-touch-icon.png'],
+      manifest: {
+        name: '30 Days English · 30 天英语提升',
+        short_name: '30天英语',
+        description: '零基础 30 天英语强化：听说侧重，科学间隔重复，离线可用。',
+        theme_color: '#4f46e5',
+        background_color: '#0f172a',
+        display: 'standalone',
+        orientation: 'portrait',
+        lang: 'zh-CN',
+        start_url: './',
+        scope: './',
+        icons: [
+          { src: 'pwa-192.png', sizes: '192x192', type: 'image/png' },
+          { src: 'pwa-512.png', sizes: '512x512', type: 'image/png' },
+          { src: 'maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+        ],
+      },
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,png,svg,woff2}'],
+        // Cache Free Dictionary API lookups so click-to-define keeps working offline
+        // once a word has been looked up.
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/api\.dictionaryapi\.dev\/.*/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'dictionary-api',
+              expiration: { maxEntries: 1000, maxAgeSeconds: 60 * 60 * 24 * 90 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+        ],
+      },
+    }),
+  ],
 })
