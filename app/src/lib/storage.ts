@@ -1,7 +1,8 @@
 import type { AppState, BlockKey, DayProgress, SrsCard } from '../types'
-import { todayISO } from './srs'
+import { todayISO, addDays } from './srs'
 
-const KEY = 'thirty-days-english:v1'
+export const STORAGE_KEY = 'thirty-days-english:v1'
+const KEY = STORAGE_KEY
 
 const emptyBlocks = () => ({
   listening: false,
@@ -70,14 +71,12 @@ export function completeBlock(state: AppState, day: number, block: BlockKey): Ap
   }
 
   // Streak bookkeeping: count a day toward the streak the first time any block
-  // is completed on a new calendar day.
+  // is completed on a new calendar day. Use LOCAL date math (addDays) — the old
+  // toISOString() version computed "yesterday" in UTC, so for UTC+8 learners the
+  // comparison never matched and the streak reset to 1 every single day.
   const today = todayISO()
   if (next.lastStudyDate !== today) {
-    const yesterday = (() => {
-      const d = new Date(today + 'T00:00:00')
-      d.setDate(d.getDate() - 1)
-      return d.toISOString().slice(0, 10)
-    })()
+    const yesterday = addDays(today, -1)
     next.streak = next.lastStudyDate === yesterday ? state.streak + 1 : 1
     next.lastStudyDate = today
   }
@@ -88,6 +87,51 @@ export function completeBlock(state: AppState, day: number, block: BlockKey): Ap
   }
 
   return next
+}
+
+/** Undo a block completion (re-lock the day if it was the current day). */
+export function uncompleteBlock(state: AppState, day: number, block: BlockKey): AppState {
+  const prev = getDayProgress(state, day)
+  const completedBlocks = { ...prev.completedBlocks, [block]: false }
+  const stillComplete = Object.values(completedBlocks).every(Boolean)
+  return {
+    ...state,
+    days: {
+      ...state.days,
+      [day]: {
+        completedBlocks,
+        completedAt: stillComplete ? prev.completedAt : undefined,
+      },
+    },
+  }
+}
+
+/**
+ * The streak that should be DISPLAYED right now. The stored `streak` is only
+ * refreshed when a block is completed, so a learner who skipped a day would see
+ * a stale number until they study again. If the last study day is neither today
+ * nor yesterday, the streak is already broken → show 0.
+ */
+export function displayStreak(state: AppState): number {
+  if (!state.lastStudyDate) return 0
+  const today = todayISO()
+  if (state.lastStudyDate === today || state.lastStudyDate === addDays(today, -1)) {
+    return state.streak
+  }
+  return 0
+}
+
+/** Whether the learner has already studied today (any block completed). */
+export function studiedToday(state: AppState): boolean {
+  return state.lastStudyDate === todayISO()
+}
+
+export function clearState() {
+  try {
+    localStorage.removeItem(KEY)
+  } catch {
+    /* ignore */
+  }
 }
 
 export function upsertCards(state: AppState, cards: SrsCard[]): AppState {
@@ -117,7 +161,11 @@ export function parseImport(raw: string): AppState | null {
   try {
     const obj = JSON.parse(raw)
     if (typeof obj !== 'object' || obj === null) return null
-    if (!('days' in obj) || !('cards' in obj)) return null
+    // Structural validation: days & cards must be plain objects.
+    const okObj = (v: unknown) => typeof v === 'object' && v !== null && !Array.isArray(v)
+    if (!okObj(obj.days) || !okObj(obj.cards)) return null
+    if ('streak' in obj && typeof obj.streak !== 'number') return null
+    if ('currentDay' in obj && typeof obj.currentDay !== 'number') return null
     return { ...defaultState(), ...obj }
   } catch {
     return null

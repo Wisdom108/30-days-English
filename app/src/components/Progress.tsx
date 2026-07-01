@@ -4,12 +4,14 @@ import { BlockIcon } from './blockicons'
 import * as AlertDialogPrimitive from '@radix-ui/react-alert-dialog'
 import { useApp } from '../state'
 import { CURRICULUM, TOTAL_DAYS } from '../data/curriculum'
-import { isDayComplete, exportState, parseImport } from '../lib/storage'
+import { isDayComplete, exportState, parseImport, displayStreak } from '../lib/storage'
 import type { AppState } from '../types'
 import { BLOCKS, PHASE_INFO } from '../blocks'
 import { todayISO } from '../lib/srs'
 import { buildIcs, downloadIcs } from '../lib/calendar'
-import { Button, Progress as Bar, SectionLabel, ConfirmDialog } from './ui'
+import { Button, Progress as Bar, SectionLabel, ConfirmDialog, Select } from './ui'
+
+const REMINDER_HOURS = [6, 7, 8, 9, 12, 18, 20, 21]
 
 export default function Progress() {
   const { state, reset, importAll } = useApp()
@@ -52,7 +54,15 @@ export default function Progress() {
   }))
 
   const metrics: { k: string; v: React.ReactNode }[] = [
-    { k: '连续天数', v: <span className="inline-flex items-center gap-1.5"><Flame size={16} className="text-red" />{state.streak}</span> },
+    {
+      k: '连续天数',
+      v: (
+        <span className="inline-flex items-center justify-center gap-1.5">
+          <Flame size={16} className="text-red" />
+          {displayStreak(state)}
+        </span>
+      ),
+    },
     { k: '完成天数', v: completedDays.length },
     { k: '词卡总数', v: Object.keys(state.cards).length },
     { k: '已掌握', v: matured },
@@ -61,19 +71,26 @@ export default function Progress() {
 
   return (
     <div className="space-y-2 animate-in-up">
-      <h1 className="text-[26px] font-semibold tracking-tight">学习进度</h1>
+      <h1 className="text-title font-semibold">学习进度</h1>
       <div className="border-b border-border pb-1" />
 
-      {/* Metrics strip */}
-      <div className="grid grid-cols-2 divide-x divide-border rounded-[8px] border border-border bg-surface sm:grid-cols-5">
+      {/* Metrics strip — individual bordered cells so the wrapped mobile row stays clean */}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
         {metrics.map((m, i) => (
-          <div key={i} className="px-3 py-4 text-center">
-            <div className="font-display text-[22px] font-medium leading-none">{m.v}</div>
+          <div
+            key={i}
+            className="rounded-md border border-border bg-surface px-3 py-4 text-center shadow-rest"
+          >
+            <div className="t-num text-h1 font-medium leading-none text-fg">{m.v}</div>
             <div className="label-nd mt-2">{m.k}</div>
           </div>
         ))}
       </div>
-      {state.startDate && <p className="pt-1 text-[12px] text-fg-muted">开始日期：{state.startDate}</p>}
+      {state.startDate && (
+        <p className="pt-1 text-meta text-fg-muted">
+          开始日期：<span className="t-num text-fg-secondary">{state.startDate}</span>
+        </p>
+      )}
 
       {/* Phase progress */}
       <SectionLabel>各阶段完成度</SectionLabel>
@@ -84,7 +101,7 @@ export default function Progress() {
           const pct = days.length ? Math.round((doneCount / days.length) * 100) : 0
           return (
             <div key={k}>
-              <div className="flex items-center justify-between text-[13px]">
+              <div className="flex items-center justify-between text-sm">
                 <span className="flex items-center gap-2">
                   <span className="h-2 w-2 rounded-full" style={{ background: v.color }} />
                   <span className="font-medium text-fg">阶段 {k}</span>
@@ -103,8 +120,8 @@ export default function Progress() {
       <div className="space-y-3">
         {blockCounts.map((b) => (
           <div key={b.key}>
-            <div className="flex items-center justify-between text-[13px]">
-              <span className="flex items-center gap-2">
+            <div className="flex items-center justify-between text-sm">
+              <span className="flex items-center gap-2 text-fg">
                 <BlockIcon k={b.key} size={15} className="text-fg-secondary" />
                 {b.title_zh}
               </span>
@@ -117,21 +134,22 @@ export default function Progress() {
 
       {/* Calendar companion */}
       <SectionLabel>每日定时陪跑 · 日历提醒</SectionLabel>
-      <p className="text-[13px] text-fg-muted">
+      <p className="text-sm text-fg-muted">
         导出 30 天每日提醒，导入 Google / Apple / Outlook 日历即可定时提醒（从
         {state.startDate ? ` ${state.startDate}` : '今天'} 起 30 天）。
       </p>
       <div className="mt-2 flex flex-wrap items-center gap-2.5">
-        <span className="text-[13px] text-fg-muted">提醒时间</span>
-        <select
-          value={hour}
-          onChange={(e) => setHour(Number(e.target.value))}
-          className="rounded-[8px] border border-border bg-surface px-3 py-2 text-[13px] outline-none focus:border-brand"
-        >
-          {[6, 7, 8, 9, 12, 18, 20, 21].map((h) => (
-            <option key={h} value={h}>{String(h).padStart(2, '0')}:00</option>
-          ))}
-        </select>
+        <span className="text-sm text-fg-muted">提醒时间</span>
+        <Select
+          ariaLabel="提醒时间"
+          value={String(hour)}
+          onValueChange={(v) => setHour(Number(v))}
+          options={REMINDER_HOURS.map((h) => ({
+            value: String(h),
+            label: `${String(h).padStart(2, '0')}:00`,
+          }))}
+          className="w-24"
+        />
         <Button onClick={() => downloadIcs(buildIcs(CURRICULUM, state.startDate || todayISO(), hour))}>
           <CalendarClock size={15} /> 导出日历 (.ics)
         </Button>
@@ -139,12 +157,12 @@ export default function Progress() {
 
       {/* Backup */}
       <SectionLabel>进度备份 / 恢复</SectionLabel>
-      <p className="text-[13px] text-fg-muted">
+      <p className="text-sm text-fg-muted">
         进度存于本浏览器。换设备或清缓存前请导出备份，在新设备导入即可继续。
       </p>
       <div className="mt-2 flex flex-wrap gap-2.5">
         <Button variant="secondary" onClick={doExport}><Download size={15} /> 导出备份</Button>
-        <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-[8px] border border-border bg-surface px-4 text-[14px] font-medium text-fg transition-colors hover:bg-hover">
+        <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border border-border bg-surface px-4 text-body font-medium text-fg transition-colors hover:border-border-strong hover:bg-hover">
           <Upload size={15} /> 导入备份
           <input
             type="file"
@@ -158,30 +176,30 @@ export default function Progress() {
           />
         </label>
       </div>
-      {importError && <p className="text-[12px] text-danger">{importError}</p>}
+      {importError && <p className="text-meta text-danger">{importError}</p>}
 
-      <div className="pt-4">
-        <ConfirmDialog
-          title="清空全部进度？"
-          description="这将删除所有打卡记录、词卡进度和写作内容，且无法撤销。建议先导出备份。"
-          confirmLabel="确认清空"
-          destructive
-          onConfirm={reset}
-          trigger={
-            <Button variant="ghost" size="sm" className="text-danger hover:bg-danger-soft hover:text-danger">
-              <AlertTriangle size={13} /> 清空全部进度
-            </Button>
-          }
-        />
-      </div>
+      {/* Danger zone */}
+      <SectionLabel>危险操作</SectionLabel>
+      <ConfirmDialog
+        title="清空全部进度？"
+        description="这将删除所有打卡记录、词卡进度和写作内容，且无法撤销。建议先导出备份。"
+        confirmLabel="确认清空"
+        destructive
+        onConfirm={reset}
+        trigger={
+          <Button variant="ghost" size="sm" className="text-danger hover:bg-danger-soft hover:text-danger">
+            <AlertTriangle size={13} /> 清空全部进度
+          </Button>
+        }
+      />
 
       {/* Import confirmation (controlled) */}
       <AlertDialogPrimitive.Root open={!!pendingImport} onOpenChange={(o) => !o && setPendingImport(null)}>
         <AlertDialogPrimitive.Portal>
           <AlertDialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/25 backdrop-blur-[1px] data-[state=open]:animate-in-up" />
-          <AlertDialogPrimitive.Content className="fixed left-1/2 top-1/2 z-50 w-[92vw] max-w-[400px] -translate-x-1/2 -translate-y-1/2 rounded-[12px] border border-border bg-surface p-5 shadow-[var(--shadow-popover)] data-[state=open]:animate-in-up">
-            <AlertDialogPrimitive.Title className="text-[16px] font-semibold">导入备份？</AlertDialogPrimitive.Title>
-            <AlertDialogPrimitive.Description className="mt-1.5 text-[13px] leading-relaxed text-fg-secondary">
+          <AlertDialogPrimitive.Content className="fixed left-1/2 top-1/2 z-50 w-[92vw] max-w-[400px] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow-popover)] data-[state=open]:animate-in-up">
+            <AlertDialogPrimitive.Title className="text-h2 font-semibold text-fg">导入备份？</AlertDialogPrimitive.Title>
+            <AlertDialogPrimitive.Description className="mt-1.5 text-sm leading-relaxed text-fg-secondary">
               导入将覆盖当前所有进度，无法撤销。确定继续？
             </AlertDialogPrimitive.Description>
             <div className="mt-5 flex justify-end gap-2.5">

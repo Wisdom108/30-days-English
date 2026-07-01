@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import * as Dialog from '@radix-ui/react-dialog'
 import { Home, RotateCcw, TrendingUp, BookOpen, Menu, Settings, Flame } from 'lucide-react'
@@ -9,15 +9,24 @@ import Progress from './components/Progress'
 import { useApp } from './state'
 import { CURRICULUM, TOTAL_DAYS } from './data/curriculum'
 import { dueCards } from './lib/srs'
-import { isDayComplete } from './lib/storage'
+import { isDayComplete, displayStreak } from './lib/storage'
 import { PHASE_INFO } from './blocks'
+import { Logo, LogoMark } from './components/ui/brand'
 import { cn } from './lib/utils'
 
 function useNav() {
   const { state } = useApp()
   const current = Math.min(state.currentDay, TOTAL_DAYS)
   const due = dueCards(state.cards).length
-  return { current, due, streak: state.streak }
+  return { current, due, streak: displayStreak(state) }
+}
+
+// Scroll to top on route change so users never land mid-page.
+function useScrollTop() {
+  const { pathname } = useLocation()
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'auto' })
+  }, [pathname])
 }
 
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
@@ -34,18 +43,12 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <div className="flex h-full flex-col">
       {/* Workspace row */}
-      <div className="flex items-center gap-2.5 px-3 py-3">
-        <span className="grid h-7 w-7 place-items-center rounded-[6px] border border-border-strong bg-surface">
-          <span className="h-2.5 w-2.5 rounded-full bg-red" />
-        </span>
-        <div className="leading-tight">
-          <div className="font-mono text-[13px] font-semibold uppercase tracking-[0.08em] text-fg">30 DAYS</div>
-          <div className="text-[11px] text-fg-muted">听说侧重 · 离线可用</div>
-        </div>
+      <div className="px-3 py-3.5">
+        <Logo />
       </div>
 
       <div className="px-3 pt-3">
-        <div className="mb-1 px-2 text-[11px] font-semibold tracking-[0.06em] text-fg-muted">页面</div>
+        <div className="label-nd mb-1 px-2">页面</div>
         <nav className="flex flex-col gap-0.5">
           {items.map((it) => (
             <NavLink
@@ -87,7 +90,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       <div className="mx-3 my-3 border-t border-border" />
 
       <div className="px-3">
-        <div className="mb-1.5 px-2 text-[11px] font-semibold tracking-[0.06em] text-fg-muted">阶段</div>
+        <div className="label-nd mb-1.5 px-2">阶段</div>
         <div className="flex flex-col gap-0.5">
           {Object.entries(PHASE_INFO).map(([k, v]) => {
             const days = CURRICULUM.filter((l) => l.phase === Number(k)).map((d) => d.day)
@@ -131,6 +134,7 @@ export default function App() {
   const { current, due } = useNav()
   const loc = useLocation()
   const onDayRoute = loc.pathname.startsWith('/day/')
+  useScrollTop()
 
   return (
     <div className="min-h-screen">
@@ -155,8 +159,9 @@ export default function App() {
             </Dialog.Content>
           </Dialog.Portal>
         </Dialog.Root>
-        <div className="flex items-center gap-2 font-mono text-[13px] font-semibold uppercase tracking-[0.08em]">
-          <span className="h-2 w-2 rounded-full bg-red" /> 30 DAYS
+        <div className="flex items-center gap-2">
+          <LogoMark size={22} />
+          <span className="font-mono text-sm font-semibold uppercase tracking-[0.14em]">30 DAYS</span>
         </div>
         <NavLink
           to="/review"

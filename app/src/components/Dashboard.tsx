@@ -2,10 +2,10 @@ import { useNavigate } from 'react-router-dom'
 import { ChevronRight, Flame, ArrowRight, Sparkles, X, Check, Lock, RotateCcw } from 'lucide-react'
 import { useApp } from '../state'
 import { CURRICULUM, TOTAL_DAYS } from '../data/curriculum'
-import { isDayComplete, getDayProgress } from '../lib/storage'
+import { isDayComplete, getDayProgress, displayStreak } from '../lib/storage'
 import { dueCards } from '../lib/srs'
 import { BLOCKS, PHASE_INFO, TOTAL_MINUTES } from '../blocks'
-import { Button, Card, CardBody, Callout, Tooltip, Progress as Bar } from './ui'
+import { Button, IconButton, Card, CardBody, Callout, Tooltip, Progress as Bar } from './ui'
 import { BlockIcon } from './blockicons'
 import { cn } from '../lib/utils'
 
@@ -48,18 +48,15 @@ export default function Dashboard() {
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-2">
                 <Sparkles size={16} className="text-brand" />
-                <h2 className="text-[15px] font-semibold">欢迎！30 天怎么练最有效</h2>
+                <h2 className="text-h3 font-semibold">欢迎！30 天怎么练最有效</h2>
               </div>
-              <button
-                className="grid h-7 w-7 place-items-center rounded-md text-fg-muted hover:bg-hover hover:text-fg"
-                onClick={dismissGuide}
-              >
+              <IconButton label="关闭引导" onClick={dismissGuide}>
                 <X size={15} />
-              </button>
+              </IconButton>
             </div>
             <div className="mt-3 grid gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
               {PRINCIPLES.map((p) => (
-                <div key={p.title} className="flex items-baseline gap-2 text-[13px]">
+                <div key={p.title} className="flex items-baseline gap-2 text-sm">
                   <span className="h-1.5 w-1.5 shrink-0 translate-y-1 rounded-full bg-brand" />
                   <span>
                     <b className="font-medium text-fg">{p.title}</b>
@@ -74,21 +71,21 @@ export default function Dashboard() {
 
       {/* Page header */}
       <div className="animate-in-up">
-        <h1 className="text-[26px] font-semibold tracking-tight md:text-[28px]">
-          {greeting()} · 今天是 <span className="font-display font-medium">Day {current}</span>
+        <h1 className="text-title font-semibold">
+          {greeting()} · 今天是 <span className="t-num font-medium">Day {current}</span>
         </h1>
-        <p className="mt-1 text-[15px] text-fg-muted">
+        <p className="mt-1 text-body-lg text-fg-muted">
           还剩 {TOTAL_DAYS - completedDays.length} 天 · {lesson?.title_zh} · {today}
         </p>
         <div className="mt-4 border-t border-border" />
       </div>
 
       {/* Summary bar — de-carded, hairline-separated columns */}
-      <div className="grid grid-cols-2 overflow-hidden rounded-[8px] border border-border sm:grid-cols-4 sm:divide-x sm:divide-border">
+      <div className="grid grid-cols-2 overflow-hidden rounded-lg border border-border sm:grid-cols-4 sm:divide-x sm:divide-border">
         <Stat label="总进度" value={`${overall}%`} onClick={() => nav('/progress')} />
         <Stat
           label="连续天数"
-          value={<span className="inline-flex items-center gap-1.5"><Flame size={18} className="text-red" />{state.streak}</span>}
+          value={<span className="inline-flex items-center gap-1.5"><Flame size={18} className="text-red" />{displayStreak(state)}</span>}
         />
         <Stat label="已完成天数" value={`${completedDays.length}/${TOTAL_DAYS}`} onClick={() => nav('/progress')} />
         <Stat
@@ -103,17 +100,17 @@ export default function Dashboard() {
         {/* Today plan */}
         <section className="animate-in-up md:col-span-7">
           <div className="flex items-baseline justify-between">
-            <h2 className="text-[16px] font-semibold">今日任务 · Day {current}</h2>
-            <span className="text-[12px] text-fg-muted">约 {TOTAL_MINUTES} 分钟</span>
+            <h2 className="text-h2 font-semibold">今日任务 · Day {current}</h2>
+            <span className="text-meta text-fg-muted">约 {TOTAL_MINUTES} 分钟</span>
           </div>
-          <p className="mt-0.5 text-[13px] text-fg-muted">{lesson?.title_zh} · {lesson?.title_en}</p>
-          <div className="mt-3 overflow-hidden rounded-[8px] border border-border">
+          <p className="mt-0.5 text-sm text-fg-muted">{lesson?.title_zh} · {lesson?.title_en}</p>
+          <div className="mt-3 overflow-hidden rounded-lg border border-border">
             {BLOCKS.map((b, i) => {
               const done = getDayProgress(state, current).completedBlocks[b.key]
               return (
                 <button
                   key={b.key}
-                  onClick={() => nav(`/day/${current}#${b.key}`)}
+                  onClick={() => nav(`/day/${current}?b=${b.key}`)}
                   className={cn(
                     'group flex w-full items-center gap-3 px-3.5 py-3 text-left transition-colors duration-200 hover:bg-hover',
                     i > 0 && 'border-t border-border-soft',
@@ -121,8 +118,8 @@ export default function Dashboard() {
                 >
                   <span
                     className={cn(
-                      'grid h-[18px] w-[18px] shrink-0 place-items-center rounded-[5px] border transition-all',
-                      done ? 'border-success bg-success text-white' : 'border-border-strong',
+                      'grid h-[18px] w-[18px] shrink-0 place-items-center rounded-sm border transition-all',
+                      done ? 'border-brand bg-brand text-brand-fg' : 'border-border-strong',
                     )}
                   >
                     {done && <Check size={12} strokeWidth={3} />}
@@ -130,12 +127,12 @@ export default function Dashboard() {
                   <BlockIcon k={b.key} size={17} className="shrink-0 text-fg-secondary" />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className={cn('text-[14px] font-medium', done && 'text-fg-muted')}>{b.title_zh}</span>
-                      <span className="text-[11px] text-fg-dim">{b.slot.split(' ')[1]}</span>
+                      <span className={cn('text-body font-medium', done && 'text-fg-muted')}>{b.title_zh}</span>
+                      <span className="text-label text-fg-dim">{b.slot.split(' ')[1]}</span>
                     </div>
-                    <div className="truncate text-[12px] text-fg-muted">{b.subtitle_zh}</div>
+                    <div className="truncate text-meta text-fg-muted">{b.subtitle_zh}</div>
                   </div>
-                  <span className="text-[11px] text-fg-muted">{b.minutes}′</span>
+                  <span className="text-label text-fg-muted">{b.minutes}′</span>
                   <ChevronRight size={15} className="text-fg-dim opacity-0 transition-all group-hover:translate-x-0.5 group-hover:opacity-100" />
                 </button>
               )
@@ -149,7 +146,7 @@ export default function Dashboard() {
         {/* Right column */}
         <div className="space-y-5 md:col-span-5">
           <section className="animate-in-up">
-            <h2 className="text-[16px] font-semibold">各阶段完成度</h2>
+            <h2 className="text-h2 font-semibold">各阶段完成度</h2>
             <div className="mt-3 space-y-3.5">
               {Object.entries(PHASE_INFO).map(([k, v]) => {
                 const days = CURRICULUM.filter((l) => l.phase === Number(k)).map((d) => d.day)
@@ -157,12 +154,12 @@ export default function Dashboard() {
                 const pct = Math.round((doneCount / days.length) * 100)
                 return (
                   <div key={k}>
-                    <div className="flex items-center justify-between text-[13px]">
+                    <div className="flex items-center justify-between text-sm">
                       <span className="flex items-center gap-2">
                         <span className="h-2 w-2 rounded-full" style={{ background: v.color }} />
                         <span className="text-fg-secondary">{v.name_zh}</span>
                       </span>
-                      <span className="text-fg-muted">{doneCount}/{days.length}</span>
+                      <span className="t-num text-fg-muted">{doneCount}/{days.length}</span>
                     </div>
                     <Bar value={pct} color={v.color} className="mt-1.5" />
                   </div>
@@ -174,7 +171,7 @@ export default function Dashboard() {
           {due > 0 && (
             <Callout tone="red" className="animate-in-up items-center" icon={<RotateCcw size={15} className="text-red" />}>
               <div className="flex w-full items-center justify-between gap-3">
-                <span>有 <b className="font-display text-red">{due}</b> 张词卡到期</span>
+                <span>有 <b className="t-num text-red">{due}</b> 张词卡到期</span>
                 <Button size="sm" onClick={() => nav('/review')}>开始复习</Button>
               </div>
             </Callout>
@@ -184,12 +181,12 @@ export default function Dashboard() {
 
       {/* 30-day map */}
       <section className="animate-in-up">
-        <h2 className="text-[16px] font-semibold">30 天地图</h2>
+        <h2 className="text-h2 font-semibold">30 天地图</h2>
         <div className="mt-3 flex flex-wrap gap-2">
           {Object.entries(PHASE_INFO).map(([k, v]) => (
             <span
               key={k}
-              className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium"
+              className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-label font-medium"
               style={{ background: v.softBg, color: v.color }}
             >
               <span className="h-1.5 w-1.5 rounded-full" style={{ background: v.color }} />
@@ -211,7 +208,7 @@ export default function Dashboard() {
                   disabled={locked}
                   onClick={() => !locked && nav(`/day/${d}`)}
                   className={cn(
-                    'relative grid aspect-square place-items-center rounded-[6px] border text-center transition-all',
+                    'relative grid aspect-square place-items-center rounded-md border text-center transition-all',
                     isCurrent && 'ring-2 ring-red ring-offset-2 ring-offset-bg',
                     locked
                       ? 'cursor-not-allowed border-border bg-surface-2'
@@ -231,7 +228,7 @@ export default function Dashboard() {
                     </span>
                   )}
                   <span
-                    className={cn('font-display text-[17px] font-medium', locked && 'text-fg-dim')}
+                    className={cn('t-num text-h2 font-medium', locked && 'text-fg-dim')}
                     style={done ? { color: v.color } : undefined}
                   >
                     {d}
@@ -239,7 +236,7 @@ export default function Dashboard() {
                   {locked ? (
                     <Lock size={9} className="text-fg-dim" />
                   ) : (
-                    <span className="text-[9px] text-fg-dim">P{phase}</span>
+                    <span className="label-nd">P{phase}</span>
                   )}
                 </button>
               </Tooltip>
@@ -250,8 +247,8 @@ export default function Dashboard() {
         {/* Rhythm strip */}
         <div className="mt-5 border-t border-border pt-4">
           <div className="flex items-center justify-between">
-            <span className="text-[12px] font-medium text-fg-secondary">本月节奏</span>
-            <span className="text-[11px] text-fg-muted">已完成 {completedDays.length}/30 天</span>
+            <span className="text-meta font-medium text-fg-secondary">本月节奏</span>
+            <span className="text-label text-fg-muted">已完成 {completedDays.length}/30 天</span>
           </div>
           <div className="mt-2 flex flex-wrap gap-1">
             {Array.from({ length: TOTAL_DAYS }, (_, i) => i + 1).map((d) => {
@@ -259,8 +256,10 @@ export default function Dashboard() {
               return (
                 <span
                   key={d}
-                  className="h-2.5 w-2.5 rounded-full"
-                  style={done ? { background: 'var(--color-success)' } : { border: '1px solid var(--color-border-strong)' }}
+                  className={cn(
+                    'h-2.5 w-2.5 rounded-full',
+                    done ? 'bg-brand' : 'border border-border-strong',
+                  )}
                 />
               )
             })}
@@ -289,7 +288,7 @@ function Stat({
         onClick && 'hover:bg-hover',
       )}
     >
-      <div className="font-display text-[26px] font-medium leading-none">{value}</div>
+      <div className="t-num text-title font-medium leading-none">{value}</div>
       <div className="label-nd mt-2.5">{label}</div>
     </button>
   )

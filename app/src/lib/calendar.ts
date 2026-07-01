@@ -22,6 +22,9 @@ export function buildIcs(
   hour = 7,
 ): string {
   const hh = String(hour).padStart(2, '0')
+  // DTSTAMP: required by RFC 5545. UTC "creation time" of this calendar object;
+  // some clients (Outlook, strict parsers) reject events that lack it.
+  const dtstamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '')
   const lines: string[] = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
@@ -52,6 +55,7 @@ export function buildIcs(
     lines.push(
       'BEGIN:VEVENT',
       `UID:30days-english-day${l.day}@local`,
+      `DTSTAMP:${dtstamp}`,
       `DTSTART:${start}`,
       `DTEND:${end}`,
       `SUMMARY:${esc(`🚀 Day ${l.day} · ${l.title_zh}`)}`,

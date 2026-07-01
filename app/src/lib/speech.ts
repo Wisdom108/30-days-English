@@ -65,7 +65,7 @@ export interface RecognitionResult {
   transcript: string
 }
 
-export function recognizeOnce(): Promise<RecognitionResult> {
+export function recognizeOnce(timeoutMs = 12000): Promise<RecognitionResult> {
   return new Promise((resolve, reject) => {
     if (!sttSupported()) {
       reject(new Error('SpeechRecognition not supported'))
@@ -78,18 +78,39 @@ export function recognizeOnce(): Promise<RecognitionResult> {
     rec.interimResults = false
     rec.maxAlternatives = 1
     rec.continuous = false
+
+    // Guard so the promise settles exactly once. Without this, a recognizer that
+    // fires `onend` with no result (common when the mic hears nothing, and the
+    // norm on iOS Safari) would leave the caller's button stuck on "听着…" forever.
+    let settled = false
+    const timer = setTimeout(() => {
+      if (settled) return
+      try {
+        rec.stop()
+      } catch {
+        /* ignore */
+      }
+      finish(() => reject(new Error('timeout')))
+    }, timeoutMs)
+
+    function finish(fn: () => void) {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      fn()
+    }
+
     rec.onresult = (e: any) => {
-      const transcript = e.results[0][0].transcript as string
-      resolve({ transcript })
+      const transcript = e.results?.[0]?.[0]?.transcript ?? ''
+      finish(() => resolve({ transcript }))
     }
-    rec.onerror = (e: any) => reject(new Error(e.error || 'recognition error'))
-    rec.onend = () => {
-      /* resolved via onresult; if nothing, timeout below handles it */
-    }
+    rec.onerror = (e: any) => finish(() => reject(new Error(e.error || 'recognition error')))
+    rec.onend = () => finish(() => reject(new Error('no-speech')))
+
     try {
       rec.start()
     } catch (err) {
-      reject(err as Error)
+      finish(() => reject(err as Error))
     }
   })
 }

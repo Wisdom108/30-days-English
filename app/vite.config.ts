@@ -12,11 +12,11 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['apple-touch-icon.png'],
+      includeAssets: ['apple-touch-icon.png', 'favicon.svg', 'favicon-32.png'],
       manifest: {
-        name: '30 Days English · 30 天英语提升',
+        name: '30 Days English · 30 天英语听说强化',
         short_name: '30天英语',
-        description: '零基础 30 天英语强化：听说侧重，科学间隔重复，离线可用。',
+        description: '30 天英语听说强化：科学间隔重复 + 影子跟读 + 精听听写 + 点词查义，离线可用。为有基础、想系统提升听说的学习者设计。',
         theme_color: '#000000',
         background_color: '#000000',
         display: 'standalone',

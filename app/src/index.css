@@ -55,6 +55,27 @@
     'Microsoft YaHei', system-ui, sans-serif;
   --font-display: 'Doto', 'Geist Mono', ui-monospace, monospace;
   --font-mono: 'Geist Mono', ui-monospace, 'SFMono-Regular', monospace;
+
+  /* ---- Type scale (single ramp; CJK+Latin tuned) ---- */
+  /* Display/numeric → Doto · Prose/UI → Inter · Micro-labels → Geist Mono */
+  --text-display: 44px;   --text-display--line-height: 1;      --text-display--letter-spacing: -0.02em;
+  --text-hero: 34px;      --text-hero--line-height: 1.05;      --text-hero--letter-spacing: -0.02em;
+  --text-title: 26px;     --text-title--line-height: 1.15;     --text-title--letter-spacing: -0.02em;
+  --text-h1: 22px;        --text-h1--line-height: 1.25;        --text-h1--letter-spacing: -0.015em;
+  --text-h2: 17px;        --text-h2--line-height: 1.35;        --text-h2--letter-spacing: -0.01em;
+  --text-h3: 15px;        --text-h3--line-height: 1.4;         --text-h3--letter-spacing: -0.006em;
+  --text-body-lg: 15px;   --text-body-lg--line-height: 1.6;
+  --text-body: 14px;      --text-body--line-height: 1.6;
+  --text-sm: 13px;        --text-sm--line-height: 1.55;
+  --text-meta: 12px;      --text-meta--line-height: 1.5;
+  --text-label: 11px;     --text-label--line-height: 1.4;      --text-label--letter-spacing: 0.02em;
+  --text-read: 16px;      --text-read--line-height: 2;         /* reading passages */
+
+  /* ---- Radius ramp (aligns with Tailwind rounded-sm/md/lg/xl = 4/6/8/12) ---- */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
 }
 
 @layer base {
@@ -93,6 +114,9 @@
 @layer utilities {
   .font-display { font-family: var(--font-display); }
   .font-mono { font-family: var(--font-mono); }
+
+  /* Numeric display: Doto dot-matrix + tabular figures (Day numbers, stats, streak) */
+  .t-num { font-family: var(--font-display); font-variant-numeric: tabular-nums; letter-spacing: 0; }
 
   /* Nothing-style uppercase mono micro-label */
   .label-nd {

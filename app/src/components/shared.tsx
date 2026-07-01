@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Volume2, Loader2, Rabbit } from 'lucide-react'
 import { speak, ttsSupported } from '../lib/speech'
 import { lookupWord, type LookupResult } from '../lib/dictionary'
+import type { GlossaryItem } from '../types'
 import { cn } from '../lib/utils'
 
 // ---- Text-to-speech play button ----
@@ -25,6 +26,7 @@ export function SpeakButton({
         className,
       )}
       title={slow ? '慢速朗读' : '朗读'}
+      aria-label={slow ? '慢速朗读' : '朗读'}
       disabled={busy}
       onClick={async (e) => {
         e.stopPropagation()
@@ -45,11 +47,16 @@ export function SpeakButton({
 }
 
 // ---- Reading text with click-to-define words ----
-export function ReadableText({ text }: { text: string }) {
+// Curated per-lesson glossary is checked FIRST (instant + offline); the network
+// dictionary is a supplement for phonetics / fuller English definitions.
+export function ReadableText({ text, glossary = [] }: { text: string; glossary?: GlossaryItem[] }) {
+  const gloss = new Map(glossary.map((g) => [g.word.toLowerCase(), g.meaning_zh]))
+
   const [popover, setPopover] = useState<{
     x: number
     y: number
     word: string
+    meaning_zh?: string
     result: LookupResult | null
     loading: boolean
   } | null>(null)
@@ -65,7 +72,8 @@ export function ReadableText({ text }: { text: string }) {
     const rect = (e.target as HTMLElement).getBoundingClientRect()
     const x = Math.min(rect.left, window.innerWidth - 340)
     const y = rect.bottom + 6
-    setPopover({ x, y, word, result: null, loading: true })
+    const meaning_zh = gloss.get(word.toLowerCase())
+    setPopover({ x, y, word, meaning_zh, result: null, loading: true })
     speak(word)
     const result = await lookupWord(word)
     setPopover((p) => (p && p.word === word ? { ...p, result, loading: false } : p))
@@ -75,17 +83,21 @@ export function ReadableText({ text }: { text: string }) {
 
   return (
     <>
-      <div className="text-[16.5px] leading-[2] text-fg" onClick={() => setPopover(null)}>
+      <div className="text-read text-fg" onClick={() => setPopover(null)}>
         {tokens.map((tok, i) => {
           if (/^\s+$/.test(tok)) return <span key={i}>{tok}</span>
           const m = tok.match(/^([^A-Za-z']*)([A-Za-z][A-Za-z'-]*)(.*)$/)
           if (!m) return <span key={i}>{tok}</span>
           const [, pre, word, post] = m
+          const known = gloss.has(word.toLowerCase())
           return (
             <span key={i}>
               {pre}
               <span
-                className="cursor-pointer rounded px-0.5 transition-colors hover:bg-accent-soft"
+                className={cn(
+                  'cursor-pointer rounded-sm px-0.5 transition-colors hover:bg-accent-soft',
+                  known && 'underline decoration-dotted decoration-fg-dim underline-offset-4',
+                )}
                 onClick={(e) => onWord(e, word)}
               >
                 {word}
@@ -97,30 +109,32 @@ export function ReadableText({ text }: { text: string }) {
       </div>
       {popover && (
         <div
-          className="fixed z-50 max-w-[320px] rounded-[10px] border border-border bg-surface p-3.5 shadow-[var(--shadow-popover)] animate-in-up"
+          className="fixed z-50 max-w-[320px] rounded-xl border border-border bg-surface p-3.5 shadow-[var(--shadow-popover)] animate-in-up"
           style={{ left: popover.x, top: popover.y }}
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex items-center justify-between gap-2">
-            <span className="text-[16px] font-semibold text-fg">{popover.word}</span>
+            <span className="text-h2 font-semibold text-fg">{popover.word}</span>
             <SpeakButton text={popover.word} />
           </div>
-          {popover.loading && <div className="mt-1 text-[13px] text-fg-muted">查询中…</div>}
-          {!popover.loading && popover.result && (
-            <>
-              {popover.result.phonetic && (
-                <div className="text-[13px] text-warning">{popover.result.phonetic}</div>
-              )}
-              {popover.result.meanings.map((mm, idx) => (
-                <div className="mt-1.5 text-[13px] text-fg-secondary" key={idx}>
-                  <span className="mr-1 italic text-fg-muted">{mm.partOfSpeech}</span>
-                  {mm.definition}
-                </div>
-              ))}
-            </>
+          {popover.meaning_zh && (
+            <div className="mt-1 text-body text-fg">{popover.meaning_zh}</div>
           )}
-          {!popover.loading && !popover.result && (
-            <div className="mt-1 text-[13px] text-fg-muted">未找到释义（可能离线或生僻词）。</div>
+          {popover.result?.phonetic && (
+            <div className="mt-1 font-mono text-sm text-fg-muted">{popover.result.phonetic}</div>
+          )}
+          {popover.loading && !popover.meaning_zh && (
+            <div className="mt-1 text-sm text-fg-muted">查询中…</div>
+          )}
+          {!popover.loading &&
+            popover.result?.meanings.slice(0, 2).map((mm, idx) => (
+              <div className="mt-1.5 text-sm text-fg-secondary" key={idx}>
+                <span className="mr-1 italic text-fg-muted">{mm.partOfSpeech}</span>
+                {mm.definition}
+              </div>
+            ))}
+          {!popover.loading && !popover.result && !popover.meaning_zh && (
+            <div className="mt-1 text-sm text-fg-muted">未找到释义（可能离线或生僻词）。</div>
           )}
         </div>
       )}
@@ -144,11 +158,11 @@ export function ProgressRing({
 }) {
   const r = (size - stroke) / 2
   const c = 2 * Math.PI * r
-  const off = c - (value / 100) * c
+  const off = c - (Math.max(0, Math.min(100, value)) / 100) * c
   return (
     <div className="relative grid place-items-center" style={{ width: size, height: size }}>
       <svg width={size} height={size} className="-rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={r} stroke="#262626" strokeWidth={stroke} fill="none" />
+        <circle cx={size / 2} cy={size / 2} r={r} stroke="var(--color-border)" strokeWidth={stroke} fill="none" />
         <circle
           cx={size / 2}
           cy={size / 2}
@@ -167,26 +181,27 @@ export function ProgressRing({
   )
 }
 
-// ---- Comprehension Q&A row (Notion database-row hover) ----
+// ---- Comprehension Q&A row (hover-reveal answer) ----
 export function QAItem({ q, a }: { q: string; a: string }) {
   const [show, setShow] = useState(false)
   return (
     <div className="border-b border-border-soft transition-colors last:border-0 hover:bg-hover">
       <div className="flex items-center justify-between gap-3 px-3.5 py-3">
-        <span className="text-[14px] text-fg">{q}</span>
+        <span className="text-body text-fg">{q}</span>
         <button
-          className="shrink-0 rounded-md px-1.5 py-0.5 text-[12px] font-medium text-brand transition-colors hover:bg-accent-soft"
+          className="shrink-0 rounded-md px-1.5 py-0.5 text-meta font-medium text-brand transition-colors hover:bg-accent-soft"
           onClick={() => setShow((s) => !s)}
+          aria-expanded={show}
         >
           {show ? '隐藏' : '看答案'}
         </button>
       </div>
-      {show && <div className="px-3.5 pb-3 text-[13px] text-success">{a}</div>}
+      {show && <div className="px-3.5 pb-3 text-sm text-fg-secondary">{a}</div>}
     </div>
   )
 }
 
 // ---- Wrapper that groups rows into a hairline-bordered list container ----
 export function RowGroup({ children }: { children: React.ReactNode }) {
-  return <div className="overflow-hidden rounded-[8px] border border-border">{children}</div>
+  return <div className="overflow-hidden rounded-lg border border-border">{children}</div>
 }

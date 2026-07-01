@@ -2,10 +2,12 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import type { ReactNode } from 'react'
 import type { AppState, BlockKey, SrsCard } from './types'
 import {
+  clearState,
   completeBlock,
   loadState,
   saveState,
   saveWriting,
+  uncompleteBlock,
   updateCard,
   upsertCards,
 } from './lib/storage'
@@ -13,6 +15,7 @@ import {
 interface Ctx {
   state: AppState
   markBlock: (day: number, block: BlockKey) => void
+  unmarkBlock: (day: number, block: BlockKey) => void
   addCards: (cards: SrsCard[]) => void
   reviewOne: (card: SrsCard) => void
   storeWriting: (day: number, text: string) => void
@@ -32,6 +35,10 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 
   const markBlock = useCallback((day: number, block: BlockKey) => {
     setState((s) => completeBlock(s, day, block))
+  }, [])
+
+  const unmarkBlock = useCallback((day: number, block: BlockKey) => {
+    setState((s) => uncompleteBlock(s, day, block))
   }, [])
 
   const addCards = useCallback((cards: SrsCard[]) => {
@@ -55,13 +62,13 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const reset = useCallback(() => {
-    localStorage.removeItem('thirty-days-english:v1')
+    clearState()
     setState(loadState())
   }, [])
 
   const value = useMemo(
-    () => ({ state, markBlock, addCards, reviewOne, storeWriting, importAll, dismissGuide, reset }),
-    [state, markBlock, addCards, reviewOne, storeWriting, importAll, dismissGuide, reset],
+    () => ({ state, markBlock, unmarkBlock, addCards, reviewOne, storeWriting, importAll, dismissGuide, reset }),
+    [state, markBlock, unmarkBlock, addCards, reviewOne, storeWriting, importAll, dismissGuide, reset],
   )
 
   return <AppCtx.Provider value={value}>{children}</AppCtx.Provider>

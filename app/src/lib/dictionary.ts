@@ -19,7 +19,10 @@ export async function lookupWord(raw: string): Promise<LookupResult | null> {
       `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`,
     )
     if (!res.ok) {
-      cache.set(word, null)
+      // 404 = the word genuinely has no entry → cache the miss.
+      // Any other status (5xx, offline reachable-but-erroring) → do NOT cache,
+      // so a later retry (or reconnection) can still succeed.
+      if (res.status === 404) cache.set(word, null)
       return null
     }
     const data = await res.json()
@@ -43,7 +46,7 @@ export async function lookupWord(raw: string): Promise<LookupResult | null> {
     cache.set(word, result)
     return result
   } catch {
-    cache.set(word, null)
+    // Network error / offline — do not cache, allow retry when back online.
     return null
   }
 }
