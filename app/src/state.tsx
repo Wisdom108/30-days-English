@@ -16,6 +16,8 @@ interface Ctx {
   addCards: (cards: SrsCard[]) => void
   reviewOne: (card: SrsCard) => void
   storeWriting: (day: number, text: string) => void
+  importAll: (next: AppState) => void
+  dismissGuide: () => void
   reset: () => void
 }
 
@@ -44,6 +46,14 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     setState((s) => saveWriting(s, day, text))
   }, [])
 
+  const importAll = useCallback((next: AppState) => {
+    setState(next)
+  }, [])
+
+  const dismissGuide = useCallback(() => {
+    setState((s) => ({ ...s, guideDismissed: true }))
+  }, [])
+
   const reset = useCallback(() => {
     if (confirm('确定要清空全部学习进度吗？此操作不可撤销。')) {
       localStorage.removeItem('thirty-days-english:v1')
@@ -52,8 +62,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const value = useMemo(
-    () => ({ state, markBlock, addCards, reviewOne, storeWriting, reset }),
-    [state, markBlock, addCards, reviewOne, storeWriting, reset],
+    () => ({ state, markBlock, addCards, reviewOne, storeWriting, importAll, dismissGuide, reset }),
+    [state, markBlock, addCards, reviewOne, storeWriting, importAll, dismissGuide, reset],
   )
 
   return <AppCtx.Provider value={value}>{children}</AppCtx.Provider>

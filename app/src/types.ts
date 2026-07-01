@@ -139,4 +139,5 @@ export interface AppState {
   streak: number
   lastStudyDate: string | null
   writings: Record<number, string> // day -> learner's written text
+  guideDismissed?: boolean // whether the first-run method guide was closed
 }

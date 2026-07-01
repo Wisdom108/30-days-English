@@ -5,10 +5,36 @@ import { isDayComplete } from '../lib/storage'
 import { BLOCKS, PHASE_INFO } from '../blocks'
 import { todayISO } from '../lib/srs'
 import { buildIcs, downloadIcs } from '../lib/calendar'
+import { exportState, parseImport } from '../lib/storage'
 
 export default function Progress() {
-  const { state, reset } = useApp()
+  const { state, reset, importAll } = useApp()
   const [hour, setHour] = useState(7)
+
+  const doExport = () => {
+    const blob = new Blob([exportState(state)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `30days-english-backup-${todayISO()}.json`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
+  const doImport = (file: File) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const next = parseImport(String(reader.result))
+      if (!next) {
+        alert('导入失败：文件格式不正确。')
+        return
+      }
+      if (confirm('导入将覆盖当前进度，确定继续？')) importAll(next)
+    }
+    reader.readAsText(file)
+  }
 
   const completedDays = Array.from({ length: TOTAL_DAYS }, (_, i) => i + 1).filter((d) =>
     isDayComplete(state, d),
@@ -93,6 +119,29 @@ export default function Progress() {
           >
             ⬇️ 导出日历提醒 (.ics)
           </button>
+        </div>
+      </div>
+
+      <div className="card">
+        <h2>💾 进度备份 / 恢复</h2>
+        <p className="small muted">
+          进度保存在本浏览器（localStorage）。换设备或清缓存前，请导出备份；在新设备导入即可继续 30 天旅程。
+        </p>
+        <div className="row wrap" style={{ gap: 10, marginTop: 8 }}>
+          <button className="btn-ghost" onClick={doExport}>⬇️ 导出备份 (.json)</button>
+          <label className="btn btn-ghost" style={{ display: 'inline-block' }}>
+            ⬆️ 导入备份
+            <input
+              type="file"
+              accept="application/json,.json"
+              style={{ display: 'none' }}
+              onChange={(e) => {
+                const f = e.target.files?.[0]
+                if (f) doImport(f)
+                e.target.value = ''
+              }}
+            />
+          </label>
         </div>
       </div>
 

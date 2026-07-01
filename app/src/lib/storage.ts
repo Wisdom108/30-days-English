@@ -106,3 +106,20 @@ export function updateCard(state: AppState, card: SrsCard): AppState {
 export function saveWriting(state: AppState, day: number, text: string): AppState {
   return { ...state, writings: { ...state.writings, [day]: text } }
 }
+
+/** Serialize the full learning state for backup. */
+export function exportState(state: AppState): string {
+  return JSON.stringify(state, null, 2)
+}
+
+/** Parse and validate a backup blob. Returns null if it is not a valid AppState. */
+export function parseImport(raw: string): AppState | null {
+  try {
+    const obj = JSON.parse(raw)
+    if (typeof obj !== 'object' || obj === null) return null
+    if (!('days' in obj) || !('cards' in obj)) return null
+    return { ...defaultState(), ...obj }
+  } catch {
+    return null
+  }
+}

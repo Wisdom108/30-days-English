@@ -6,8 +6,39 @@ import { dueCards } from '../lib/srs'
 import { BLOCKS, PHASE_INFO, TOTAL_MINUTES } from '../blocks'
 import { ProgressRing } from './shared'
 
+const PRINCIPLES: { icon: string; title: string; desc: string }[] = [
+  { icon: '🎧', title: '先听后说', desc: '每天先盲听 2–3 遍再看原文，磨耳朵；听力是口语的地基。' },
+  { icon: '🔁', title: '影子跟读', desc: '听一句立刻同步模仿语音语调，追节奏和连读，不逐词念。' },
+  { icon: '🃏', title: '间隔重复', desc: '词卡按 SM-2 在遗忘临界点复现（1→3→7→14 天…），每天先清到期卡。' },
+  { icon: '🗣️', title: '每天开口', desc: '再害羞也要用麦克风跟读打分、完成开口任务；输出才能内化。' },
+  { icon: '✍️', title: '睡前写作', desc: '睡前写几句 + 过一遍新词，睡眠会帮你巩固记忆。' },
+  { icon: '🔥', title: '连续为王', desc: '每天完成五模块，保持连胜。稳定的每日投入胜过偶尔猛学。' },
+]
+
+function MethodGuide({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="card" style={{ borderColor: 'var(--primary)' }}>
+      <div className="row spread">
+        <h2>👋 欢迎！30 天怎么练最有效</h2>
+        <button className="btn-ghost btn-sm" onClick={onClose}>知道了 ✕</button>
+      </div>
+      <p className="small muted">
+        本计划基于二语习得科学：可理解输入、间隔重复、影子跟读、高频词优先。每天约 2 小时、五个模块按科学时段分布，听说侧重。
+      </p>
+      <div style={{ display: 'grid', gap: 10, marginTop: 6 }}>
+        {PRINCIPLES.map((p) => (
+          <div className="row" key={p.title} style={{ gap: 10, alignItems: 'flex-start' }}>
+            <span style={{ fontSize: 20 }}>{p.icon}</span>
+            <div><b>{p.title}</b> <span className="small muted">— {p.desc}</span></div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function Dashboard() {
-  const { state } = useApp()
+  const { state, dismissGuide } = useApp()
   const nav = useNavigate()
 
   if (CURRICULUM.length === 0) {
@@ -25,6 +56,7 @@ export default function Dashboard() {
 
   return (
     <>
+      {!state.guideDismissed && <MethodGuide onClose={dismissGuide} />}
       <div className="card">
         <div className="progress-ring-wrap">
           <div style={{ position: 'relative' }}>
