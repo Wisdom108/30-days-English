@@ -10,8 +10,8 @@ import {
 
 export interface Env {
   QUOTA: KVNamespace
-  ANTHROPIC_API_KEY: string
-  ANTHROPIC_MODEL: string
+  AI: Ai
+  CF_AI_MODEL: string
   ALLOWED_ORIGIN: string
   // Cloudflare Access (Zero Trust) — auth
   CF_ACCESS_TEAM_DOMAIN: string // e.g. myteam.cloudflareaccess.com
@@ -29,7 +29,7 @@ interface Msg {
   content: string
 }
 
-const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages'
+const DEFAULT_MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast'
 
 // ---------------------------------------------------------------- helpers
 // Cookie-based auth needs credentialed CORS: echo the caller's origin (can't be
@@ -74,43 +74,46 @@ async function bump(env: Env, prefix: string, uid: string): Promise<void> {
   await env.QUOTA.put(key, String(cur + 1), { expirationTtl: 60 * 60 * 48 })
 }
 
-/** Call Claude (raw Messages API). Returns the first text block, or throws. */
-async function callClaude(
+/** Call Cloudflare Workers AI (open-source model). With jsonSchema, uses the
+ *  model's structured-output mode. Returns the raw `response` (string or object). */
+async function callAI(
   env: Env,
   opts: { system: string; messages: Msg[]; max_tokens: number; jsonSchema?: unknown },
-): Promise<string> {
-  const body: Record<string, unknown> = {
-    model: env.ANTHROPIC_MODEL || 'claude-opus-4-8',
+): Promise<unknown> {
+  const model = (env.CF_AI_MODEL || DEFAULT_MODEL) as keyof AiModels
+  const system =
+    opts.system +
+    (opts.jsonSchema
+      ? ' Respond with ONLY valid JSON matching the requested schema — no markdown, no code fences, no prose.'
+      : '')
+  const input: Record<string, unknown> = {
+    messages: [{ role: 'system', content: system }, ...opts.messages],
     max_tokens: opts.max_tokens,
-    system: opts.system,
-    messages: opts.messages,
   }
   if (opts.jsonSchema) {
-    body.output_config = { format: { type: 'json_schema', schema: opts.jsonSchema } }
+    input.response_format = { type: 'json_schema', json_schema: opts.jsonSchema }
   }
-  const res = await fetch(ANTHROPIC_URL, {
-    method: 'POST',
-    headers: {
-      'x-api-key': env.ANTHROPIC_API_KEY,
-      'anthropic-version': '2023-06-01',
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  })
-  if (!res.ok) {
-    const detail = await res.text().catch(() => '')
-    throw new Error(`anthropic ${res.status}: ${detail.slice(0, 300)}`)
-  }
-  const data = (await res.json()) as {
-    stop_reason?: string
-    content?: { type: string; text?: string }[]
-  }
-  if (data.stop_reason === 'refusal') {
-    return '抱歉，这个请求我没法处理。换个说法再试试？'
-  }
-  const text = (data.content || []).find((b) => b.type === 'text')?.text
-  if (!text) throw new Error('empty response')
-  return text
+  const r = (await env.AI.run(model, input as never)) as { response?: unknown }
+  if (r?.response == null || r.response === '') throw new Error('empty response')
+  return r.response
+}
+
+/** For text features: coerce the AI response to a trimmed string. */
+async function callAIText(
+  env: Env,
+  opts: { system: string; messages: Msg[]; max_tokens: number },
+): Promise<string> {
+  const r = await callAI(env, opts)
+  return String(r).trim()
+}
+
+/** Extract a JSON object from a model response (tolerates stray fences/prose). */
+function parseJson(raw: string): unknown {
+  let s = raw.trim().replace(/^```(?:json)?/i, '').replace(/```$/, '').trim()
+  const a = s.indexOf('{')
+  const b = s.lastIndexOf('}')
+  if (a >= 0 && b > a) s = s.slice(a, b + 1)
+  return JSON.parse(s)
 }
 
 const cap = (s: unknown, n: number): string | undefined =>
@@ -149,7 +152,6 @@ function cleanMessages(v: unknown): Msg[] {
 async function handleAI(path: string, req: Request, env: Env): Promise<Response> {
   const uid = await verifyUser(req, env)
   if (!uid) return json({ error: '需要登录' }, env, 401)
-  if (!env.ANTHROPIC_API_KEY) return json({ error: 'AI 未配置' }, env, 503)
   const capQuota = Number(env.DAILY_AI_QUOTA || '80')
   if (!(await underQuota(env, 'q', uid, capQuota))) {
     return json({ error: '今日 AI 额度已用完，明天再来～' }, env, 429)
@@ -171,7 +173,7 @@ async function handleAI(path: string, req: Request, env: Env): Promise<Response>
             : "Let's practice today's conversation. Please greet me to start.",
         })
       }
-      const reply = await callClaude(env, { system: conversationSystem(lesson), messages, max_tokens: 700 })
+      const reply = await callAIText(env, { system: conversationSystem(lesson), messages, max_tokens: 700 })
       await bump(env, 'q', uid)
       return json({ reply }, env)
     }
@@ -179,7 +181,7 @@ async function handleAI(path: string, req: Request, env: Env): Promise<Response>
       const text = String(bodyIn.text || '').slice(0, 4000)
       if (!text.trim()) return json({ error: '没有可批改的内容' }, env, 400)
       const task = cap(bodyIn.prompt, 500) || ''
-      const raw = await callClaude(env, {
+      const raw = await callAI(env, {
         system: writingSystem(lesson),
         messages: [{ role: 'user', content: `Writing task: ${task}\n\n---\nMy writing:\n${text}` }],
         max_tokens: 1600,
@@ -187,7 +189,9 @@ async function handleAI(path: string, req: Request, env: Env): Promise<Response>
       })
       await bump(env, 'q', uid) // charge on a successful model call, even if parse fails
       try {
-        return json({ feedback: JSON.parse(raw) }, env)
+        // Structured-output mode may return an object directly, or a JSON string.
+        const feedback = typeof raw === 'string' ? parseJson(raw) : raw
+        return json({ feedback }, env)
       } catch {
         return json({ error: '批改结果解析失败，请重试' }, env, 502)
       }
@@ -196,7 +200,7 @@ async function handleAI(path: string, req: Request, env: Env): Promise<Response>
       const question = String(bodyIn.question || '').slice(0, 2000)
       if (!question.trim()) return json({ error: '请输入问题' }, env, 400)
       const history = cleanMessages(bodyIn.history)
-      const reply = await callClaude(env, {
+      const reply = await callAIText(env, {
         system: tutorSystem(lesson),
         messages: [...history, { role: 'user', content: question }],
         max_tokens: 1200,
@@ -207,7 +211,7 @@ async function handleAI(path: string, req: Request, env: Env): Promise<Response>
     if (path === '/ai/coach') {
       const target = String(bodyIn.target || '').slice(0, 500)
       const assessment = JSON.stringify(bodyIn.assessment ?? {}).slice(0, 2000)
-      const reply = await callClaude(env, {
+      const reply = await callAIText(env, {
         system: coachSystem(lesson),
         messages: [{ role: 'user', content: `Target: ${target}\nAssessment: ${assessment}` }],
         max_tokens: 600,
@@ -244,10 +248,13 @@ async function handleSpeechToken(req: Request, env: Env): Promise<Response> {
   return json({ token, region: env.AZURE_SPEECH_REGION, voice: env.AZURE_VOICE || 'en-US-AvaMultilingualNeural' }, env)
 }
 
-/** Whoami — the frontend polls this to learn if the user is signed in. */
+/** Whoami — the frontend polls this to learn if AI is usable / who is signed in.
+ *  Open mode (no Access) → returns a "访客" identity so AI works without login. */
 async function handleMe(req: Request, env: Env): Promise<Response> {
   const uid = await verifyUser(req, env)
-  return uid ? json({ email: uid }, env) : json({ email: null }, env, 401)
+  if (!uid) return json({ email: null }, env, 401)
+  const email = env.CF_ACCESS_TEAM_DOMAIN ? uid : '访客'
+  return json({ email, loginRequired: !!env.CF_ACCESS_TEAM_DOMAIN }, env)
 }
 
 /** Access-protected redirect target. Reaching it means Access has authenticated
@@ -287,9 +294,9 @@ export default {
           {
             ok: true,
             features: {
-              ai: !!env.ANTHROPIC_API_KEY,
+              ai: true, // Workers AI binding is always present
               speech: !!(env.AZURE_SPEECH_KEY && env.AZURE_SPEECH_REGION),
-              auth: !!(env.CF_ACCESS_TEAM_DOMAIN || env.DEV_BYPASS_AUTH === 'true'),
+              loginRequired: !!env.CF_ACCESS_TEAM_DOMAIN,
             },
           },
           env,

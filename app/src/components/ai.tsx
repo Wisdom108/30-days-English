@@ -16,6 +16,8 @@ import { cn } from '../lib/utils'
 export function AuthControls() {
   const { user, authEnabled, loading } = useAuth()
   if (!authEnabled) return null
+  // Open mode (no Cloudflare Access): identity is the anonymous "访客" — no login UI.
+  if (user?.email === '访客') return null
   if (loading) return <div className="mx-2 h-6 animate-pulse rounded-md bg-hover" />
 
   if (user) {

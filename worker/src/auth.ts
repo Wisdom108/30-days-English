@@ -24,12 +24,18 @@ function getJwks(teamDomain: string) {
 export async function verifyUser(request: Request, env: Env): Promise<string | null> {
   if (env.DEV_BYPASS_AUTH === 'true') return 'dev@local'
 
+  // Open mode: no Access configured → allow everyone, identify by IP so the
+  // per-IP daily quota still bounds abuse (no login, no dashboard needed).
+  if (!env.CF_ACCESS_TEAM_DOMAIN) {
+    return request.headers.get('CF-Connecting-IP') || 'anon'
+  }
+
   const token =
     request.headers.get('Cf-Access-Jwt-Assertion') ||
     // fallback: the CF_Authorization cookie carries the same JWT
     (request.headers.get('cookie') || '').match(/CF_Authorization=([^;]+)/)?.[1] ||
     ''
-  if (!token || !env.CF_ACCESS_TEAM_DOMAIN) return null
+  if (!token) return null
 
   try {
     const { payload } = await jwtVerify(token, getJwks(env.CF_ACCESS_TEAM_DOMAIN), {

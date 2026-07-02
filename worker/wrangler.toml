@@ -15,15 +15,21 @@ compatibility_flags = ["nodejs_compat"]
 directory = "../app/dist"
 not_found_handling = "single-page-application"
 
+# Cloudflare Workers AI — powers the 4 AI features. Free daily allocation, no key.
+[ai]
+binding = "AI"
+
 [vars]
-# Non-secret config. Model defaults to Opus 4.8; switch to "claude-sonnet-5" or
-# "claude-haiku-4-5" here to trade some quality for lower cost/latency.
-ANTHROPIC_MODEL = "claude-opus-4-8"
+# AI model: Cloudflare Workers AI (free daily allocation, open-source models, no
+# API key). Swap to a lighter model to save "neurons" quota, e.g.
+# "@cf/meta/llama-3.1-8b-instruct" (faster/cheaper) or a Qwen model for Chinese.
+CF_AI_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
 # CORS: set to your deployed frontend origin in production (e.g. https://30days.pages.dev).
 # Must be the exact origin (not "*") once auth cookies are used.
 ALLOWED_ORIGIN = "*"
-# Cloudflare Access (Zero Trust) — auth. Team domain like "myteam.cloudflareaccess.com"
-# and the Access application's Audience (AUD) tag. Both from the Zero Trust dashboard.
+# Cloudflare Access (Zero Trust) — OPTIONAL per-user login. Leave blank to run in
+# open mode (no login; endpoints rate-limited per IP). Fill both to require login:
+# team domain like "myteam.cloudflareaccess.com" + the Access app's Audience (AUD) tag.
 CF_ACCESS_TEAM_DOMAIN = ""
 CF_ACCESS_AUD = ""
 # Azure Speech region (e.g. "eastus"). The key is a secret (below).
@@ -40,10 +46,9 @@ DAILY_SPEECH_QUOTA = "60"
 # then paste the id below.
 [[kv_namespaces]]
 binding = "QUOTA"
-id = "REPLACE_WITH_KV_NAMESPACE_ID"
+id = "871eceea03fa450aa75e89833dc325ef"
 
 # ---- Secrets (DO NOT put real values here — use `wrangler secret put`) ----
-#   ANTHROPIC_API_KEY       your Anthropic API key (sk-ant-...)
-#   AZURE_SPEECH_KEY        Azure Speech resource key
-# (Cloudflare Access needs no secret in the Worker — it verifies against the
-#  team's public JWKS. Auth is enforced by the Access application on the route.)
+#   AZURE_SPEECH_KEY   OPTIONAL — only for premium neural voice + pronunciation
+#                      assessment. Without it, the app uses the browser voice.
+# (AI text = Workers AI binding, no key. Login = optional Cloudflare Access, no secret.)
