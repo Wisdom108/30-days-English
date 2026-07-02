@@ -1,63 +1,73 @@
 @import 'tailwindcss';
-@import '@fontsource-variable/inter';
+@import '@fontsource-variable/space-grotesk';
+@import '@fontsource/space-mono/400.css';
+@import '@fontsource/space-mono/700.css';
 @import '@fontsource/doto/500.css';
 @import '@fontsource/doto/700.css';
 @import '@fontsource/doto/900.css';
-@import '@fontsource/geist-mono/400.css';
-@import '@fontsource/geist-mono/500.css';
 
-/* ---- Nothing OS — monochrome, dot-matrix, one red accent ---- */
+/* ============================================================================
+   NULLFRAME-flavored design system — telemetry-panel Nothing OS.
+   Dot-matrix as structure · Space Mono machine text · Space Grotesk human text ·
+   16px cards with sharp inner segments · motion that slams and settles ·
+   monochrome + brand red used sparingly.
+   Token NAMES are stable (utilities app-wide depend on them); values retuned.
+   ============================================================================ */
 @theme {
   --color-bg: #000000;
-  --color-surface: #0b0b0b;
-  --color-surface-2: #121212;
-  --color-elevated: #171717;
-  --color-hover: #1c1c1c;
+  --color-surface: #111113;        /* card face */
+  --color-surface-2: #0b0b0c;      /* inset / sharp segment (darker than card) */
+  --color-elevated: #1a1a1d;       /* raised / selected / popover */
+  --color-hover: #1e1e21;
 
-  --color-border: #262626;
+  --color-border: #222222;
   --color-border-soft: #191919;
-  --color-border-strong: #383838;
+  --color-border-strong: #333333;
 
-  --color-fg: #ffffff;
+  --color-fg: #ffffff;             /* display / headings */
   --color-fg-secondary: #b4b4b4;
-  --color-fg-muted: #7d7d7d;
-  --color-fg-dim: #555555;
+  --color-fg-muted: #8f8f8f;       /* labels / secondary text (AA on surface) */
+  --color-fg-dim: #666666;         /* placeholder / disabled ONLY */
 
   /* mono "ink" accent = white; brand-fg is black (for white buttons) */
   --color-brand: #ffffff;
-  --color-brand-hover: #e6e6e6;
+  --color-brand-hover: #e8e8e8;
   --color-brand-fg: #000000;
   --color-accent-soft: rgba(255, 255, 255, 0.08);
 
-  /* Nothing red — used VERY sparingly (streak, today, record, alerts) */
-  --color-red: #d6001c;
-  --color-red-soft: rgba(214, 0, 28, 0.14);
+  /* Nothing red — appears rarely (current day, due, record, danger) */
+  --color-red: #d71921;
+  --color-red-soft: rgba(215, 25, 33, 0.14);
+
+  /* LIVE indicator (only status green — telemetry heartbeat, not UI accent) */
+  --color-live: #4a9e5c;
 
   --color-success: #ffffff;
   --color-success-soft: rgba(255, 255, 255, 0.08);
   --color-warning: #b4b4b4;
   --color-warning-soft: rgba(255, 255, 255, 0.06);
-  --color-danger: #d6001c;
-  --color-danger-soft: rgba(214, 0, 28, 0.14);
+  --color-danger: #d71921;
+  --color-danger-soft: rgba(215, 25, 33, 0.14);
 
-  /* Phase colors (white→gray→red intensity arc) live in blocks.ts PHASE_INFO —
-     they are consumed as JS strings (inline styles + alpha concatenation + the
-     Bar color prop), which cannot take a CSS var(). Single source: PHASE_INFO. */
+  /* Phase colors (white→gray→red intensity arc) live in blocks.ts PHASE_INFO. */
 
-  --radius: 6px;
+  --radius: 10px;
 
   --shadow-rest: 0 0 0 1px rgba(255, 255, 255, 0.02);
   --shadow-raised: 0 0 0 1px rgba(255, 255, 255, 0.08);
-  --shadow-popover: 0 12px 40px -8px rgba(0, 0, 0, 0.8);
-  --shadow-card: 0 0 0 1px rgba(255, 255, 255, 0.04);
+  --shadow-popover: 0 24px 80px -12px rgba(0, 0, 0, 0.85);
+  --shadow-card: 0 0 0 1px rgba(255, 255, 255, 0.03);
 
-  --font-sans: 'Inter Variable', -apple-system, BlinkMacSystemFont, 'PingFang SC',
-    'Microsoft YaHei', system-ui, sans-serif;
-  --font-display: 'Doto', 'Geist Mono', ui-monospace, monospace;
-  --font-mono: 'Geist Mono', ui-monospace, 'SFMono-Regular', monospace;
+  --font-sans: 'Space Grotesk Variable', -apple-system, BlinkMacSystemFont,
+    'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-display: 'Doto', ui-monospace, monospace;
+  --font-mono: 'Space Mono', ui-monospace, 'SFMono-Regular', monospace;
 
-  /* ---- Type scale (single ramp; CJK+Latin tuned) ---- */
-  /* Display/numeric → Doto · Prose/UI → Inter · Micro-labels → Geist Mono */
+  /* motion — slams and settles */
+  --ease-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* ---- Type scale (Doto display · Space Grotesk UI · Space Mono labels) ---- */
   --text-display: 44px;   --text-display--line-height: 1;      --text-display--letter-spacing: -0.02em;
   --text-hero: 34px;      --text-hero--line-height: 1.05;      --text-hero--letter-spacing: -0.02em;
   --text-title: 26px;     --text-title--line-height: 1.15;     --text-title--letter-spacing: -0.02em;
@@ -65,17 +75,17 @@
   --text-h2: 17px;        --text-h2--line-height: 1.35;        --text-h2--letter-spacing: -0.01em;
   --text-h3: 15px;        --text-h3--line-height: 1.4;         --text-h3--letter-spacing: -0.006em;
   --text-body-lg: 15px;   --text-body-lg--line-height: 1.6;
-  --text-body: 14px;      --text-body--line-height: 1.6;
-  --text-sm: 13px;        --text-sm--line-height: 1.55;
+  --text-body: 14px;      --text-body--line-height: 1.55;
+  --text-sm: 13px;        --text-sm--line-height: 1.5;
   --text-meta: 12px;      --text-meta--line-height: 1.5;
-  --text-label: 11px;     --text-label--line-height: 1.4;      --text-label--letter-spacing: 0.02em;
-  --text-read: 16px;      --text-read--line-height: 2;         /* reading passages */
+  --text-label: 11px;     --text-label--line-height: 1.4;      --text-label--letter-spacing: 0.14em;
+  --text-read: 16px;      --text-read--line-height: 2;
 
-  /* ---- Radius ramp (aligns with Tailwind rounded-sm/md/lg/xl = 4/6/8/12) ---- */
-  --radius-sm: 4px;
+  /* ---- Radius ramp: sm=segment · md · lg=control · xl=card ---- */
+  --radius-sm: 4px;    /* sharp inner segments, badges */
   --radius-md: 6px;
-  --radius-lg: 8px;
-  --radius-xl: 12px;
+  --radius-lg: 10px;   /* buttons, inputs, select */
+  --radius-xl: 16px;   /* cards, sheets, dialogs, palette */
 }
 
 @layer base {
@@ -90,16 +100,15 @@
   body {
     margin: 0;
     background-color: var(--color-bg);
-    /* subtle Nothing dot-grid */
-    background-image: radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px);
-    background-size: 22px 22px;
-    background-position: -1px -1px;
+    /* nullframe ambient dot-grid */
+    background-image: radial-gradient(circle, #191919 1.1px, transparent 1.1px);
+    background-size: 16px 16px;
     background-attachment: fixed;
     color: var(--color-fg);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    letter-spacing: -0.006em;
+    letter-spacing: -0.004em;
     overscroll-behavior-y: none;
   }
   #root { min-height: 100%; }
@@ -115,8 +124,10 @@
   .font-display { font-family: var(--font-display); }
   .font-mono { font-family: var(--font-mono); }
 
-  /* Numeric display: Doto dot-matrix + tabular figures (Day numbers, stats, streak) */
-  .t-num { font-family: var(--font-display); font-variant-numeric: tabular-nums; letter-spacing: 0; }
+  /* Numeric display: Doto dot-matrix + tabular figures */
+  .t-num { font-family: var(--font-display); font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
+  /* Small inline counters that should stay readable: Space Grotesk tabular */
+  .t-tab { font-variant-numeric: tabular-nums; }
 
   /* Nothing-style uppercase mono micro-label */
   .label-nd {
@@ -127,22 +138,31 @@
     color: var(--color-fg-muted);
   }
 
-  /* safe-area helpers for iPhone notch / dynamic island / home indicator */
+  /* safe-area helpers */
   .pt-safe { padding-top: env(safe-area-inset-top); }
   .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
   .top-safe { top: env(safe-area-inset-top); }
 
-  .animate-in-up { animation: inUp 0.35s cubic-bezier(0.22, 1, 0.36, 1) both; }
+  /* ---- Motion: slam & settle ---- */
+  .animate-in-up { animation: inUp 0.4s var(--ease-out) both; }
   @keyframes inUp {
-    from { opacity: 0; transform: translateY(6px); }
+    from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: translateY(0); }
   }
-  .pulse-red { animation: pulseRed 1.8s ease-in-out infinite; }
+  .animate-slam { animation: slam 0.36s var(--ease-back) both; }
+  @keyframes slam {
+    0% { opacity: 0; transform: scale(0.3); }
+    60% { transform: scale(1.12); }
+    100% { opacity: 1; transform: scale(1); }
+  }
+  .pulse-red { animation: pulseRed 1.6s var(--ease-out) infinite; }
   @keyframes pulseRed {
     0%, 100% { opacity: 1; }
-    50% { opacity: 0.4; }
+    50% { opacity: 0.35; }
   }
-  .flip-3d { transform-style: preserve-3d; transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1); }
+  .pulse-live { animation: pulseRed 2.4s var(--ease-out) infinite; }
+
+  .flip-3d { transform-style: preserve-3d; transition: transform 0.4s var(--ease-out); }
   .flip-3d.flipped { transform: rotateY(180deg); }
   .flip-face { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
   .flip-back { transform: rotateY(180deg); }
@@ -156,5 +176,14 @@
     scroll-behavior: auto !important;
   }
   .flip-3d { transition: none; }
-  .pulse-red { animation: none; }
+  .pulse-red, .pulse-live { animation: none; }
 }
+
+/* User-toggled motion off (command palette · ⌘K → Toggle motion) */
+body.motion-off *, body.motion-off *::before, body.motion-off *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+}
+body.motion-off .flip-3d { transition: none; }
+body.motion-off .pulse-red, body.motion-off .pulse-live { animation: none; }

@@ -41,7 +41,7 @@ export function LogoMark({ size = 28, tile = true }: { size?: number; tile?: boo
       aria-hidden="true"
       className="shrink-0"
     >
-      {tile && <rect width={vb} height={vb} rx={5.5} fill="var(--color-surface)" stroke="var(--color-border-strong)" strokeWidth={0.6} />}
+      {tile && <rect width={vb} height={vb} rx={5.5} fill="var(--color-bg)" stroke="var(--color-border-strong)" strokeWidth={0.6} />}
       {dots.map((d, i) => (
         <circle key={i} cx={d.x} cy={d.y} r={r} fill="var(--color-fg)" />
       ))}
@@ -64,8 +64,9 @@ export function Logo({
     <div className={cn('flex items-center gap-2.5', className)}>
       <LogoMark size={size} />
       <div className="leading-tight">
-        <div className="font-mono text-sm font-semibold uppercase tracking-[0.14em] text-fg">
-          30&nbsp;DAYS
+        <div className="flex items-baseline gap-1.5 text-fg">
+          <span className="font-display text-h3 font-semibold leading-none">30</span>
+          <span className="font-mono text-sm font-semibold uppercase tracking-[0.16em]">DAYS</span>
         </div>
         {subtitle && <div className="text-label text-fg-muted">{subtitle}</div>}
       </div>

@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>30 Days English · 设计审计报告</title>
+<style>
+  :root{
+    --bg:#000; --surface:#0b0b0b; --surface2:#121212; --elevated:#171717;
+    --border:#262626; --border-soft:#191919; --fg:#fff; --fg2:#b4b4b4; --muted:#7d7d7d; --dim:#555;
+    --red:#d6001c; --p0:#d6001c; --p1:#d68a00; --p2:#5a5a5a;
+    --ok:#2f8f57;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+    font:15px/1.6 Inter,-apple-system,"PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased}
+  a{color:inherit}
+  .wrap{max-width:960px;margin:0 auto;padding:40px 22px 120px}
+  header{border-bottom:1px solid var(--border);padding-bottom:26px;margin-bottom:30px}
+  .kick{font:11px/1 ui-monospace,"Geist Mono",monospace;letter-spacing:.22em;text-transform:uppercase;color:var(--muted)}
+  h1{font-size:30px;font-weight:650;margin:12px 0 6px;letter-spacing:-.01em}
+  h1 .dot{color:var(--red)}
+  .sub{color:var(--fg2);font-size:14px}
+  .status{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px}
+  .scard{flex:1 1 150px;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:13px 15px}
+  .scard .n{font:26px/1 ui-monospace,"Geist Mono",monospace;font-weight:600}
+  .scard .l{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-top:5px}
+  .bar{height:7px;border-radius:99px;background:var(--surface2);overflow:hidden;margin-top:26px;display:flex}
+  .bar i{display:block;height:100%}
+  .legend{display:flex;gap:18px;flex-wrap:wrap;font-size:12px;color:var(--fg2);margin-top:10px}
+  .legend b{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px;vertical-align:middle}
+  nav{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:16px 18px;margin:6px 0 34px}
+  nav .t{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+  nav ol{margin:0;padding-left:20px;columns:2;column-gap:30px}
+  nav li{margin:4px 0}
+  nav a{color:var(--fg2);text-decoration:none}
+  nav a:hover{color:var(--fg)}
+  section{margin:44px 0}
+  h2{font-size:20px;font-weight:620;margin:0 0 4px;scroll-margin-top:20px}
+  h2 .cnt{font:12px/1 ui-monospace,monospace;color:var(--muted);font-weight:400;margin-left:8px}
+  .sdesc{color:var(--muted);font-size:13px;margin:0 0 18px}
+  .item{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:15px 17px;margin:10px 0}
+  .item.p0{border-left:3px solid var(--p0)}
+  .item.p1{border-left:3px solid var(--p1)}
+  .item h3{margin:0 0 8px;font-size:15px;font-weight:600;display:flex;gap:9px;align-items:baseline;flex-wrap:wrap}
+  .badge{font:10px/1 ui-monospace,"Geist Mono",monospace;letter-spacing:.08em;text-transform:uppercase;
+    padding:3px 7px;border-radius:4px;border:1px solid var(--border);color:var(--fg2);white-space:nowrap}
+  .b-p0{background:rgba(214,0,28,.14);border-color:rgba(214,0,28,.4);color:#ff5c6e}
+  .b-p1{background:rgba(214,138,0,.12);border-color:rgba(214,138,0,.4);color:#e0a53a}
+  .b-eff{background:var(--surface2)}
+  .b-cat{background:transparent;color:var(--muted)}
+  .item p{margin:6px 0 0;font-size:13.5px;color:var(--fg2)}
+  .item .fix{color:var(--fg)}
+  .item .files{font:11px/1.5 ui-monospace,"Geist Mono",monospace;color:var(--muted);margin-top:9px;word-break:break-word}
+  table{width:100%;border-collapse:collapse;margin-top:8px;font-size:13.5px}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--border-soft);vertical-align:top}
+  th{font:11px/1 ui-monospace,monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border)}
+  td.q{font:11px/1 ui-monospace,monospace;color:var(--muted)}
+  .theme{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:13px 16px;margin:8px 0;font-size:14px}
+  .theme b{color:var(--fg)}
+  .p2box{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:15px 18px;color:var(--fg2);font-size:13.5px;line-height:1.9}
+  .good{background:rgba(47,143,87,.1);border:1px solid rgba(47,143,87,.35);border-radius:6px;padding:11px 15px;color:#7fd6a0;font-size:13.5px;margin:14px 0}
+  .note{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:11px 15px;color:var(--fg2);font-size:13px;margin:14px 0}
+  footer{margin-top:60px;padding-top:20px;border-top:1px solid var(--border);color:var(--dim);font-size:12px}
+  code{font:12px/1 ui-monospace,"Geist Mono",monospace;background:var(--surface2);padding:1px 5px;border-radius:3px;color:var(--fg2)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div class="kick">Design Audit · 2026-07</div>
+  <h1>30 Days English 设计审计<span class="dot">.</span></h1>
+  <div class="sub">基线 <code>v1.6-cf-voice</code> · 依据 <code>DESIGN.md</code>(Nothing 设计系统)+ UX/a11y 启发式 · 8 维度并行审计 63 条</div>
+
+  <div class="status">
+    <div class="scard"><div class="n" style="color:var(--p0)">7</div><div class="l">P0 系统级</div></div>
+    <div class="scard"><div class="n" style="color:var(--p1)">25</div><div class="l">P1 高影响</div></div>
+    <div class="scard"><div class="n" style="color:var(--muted)">30</div><div class="l">P2 锦上添花</div></div>
+    <div class="scard"><div class="n" style="color:var(--ok)">0%</div><div class="l">已实现</div></div>
+  </div>
+
+  <div class="bar">
+    <i style="width:100%;background:var(--surface2)"></i>
+  </div>
+  <div class="legend">
+    <span><b style="background:var(--ok)"></b>产品+部署 已上线</span>
+    <span><b style="background:var(--ok)"></b>审计 已完成</span>
+    <span><b style="background:var(--dim)"></b>改代码 未开始(0/32 P0+P1)</span>
+  </div>
+</header>
+
+<div class="good">✅ 好消息:Review 的 "Notion 浅色残留" 已清干净 — 全仓 grep 无 blue/green/yellow,DESIGN §6 该项达标。</div>
+
+<nav>
+  <div class="t">目录</div>
+  <ol>
+    <li><a href="#status">当前进度</a></li>
+    <li><a href="#quick">Quick Wins(先做)</a></li>
+    <li><a href="#p0">P0 · 系统级必修</a></li>
+    <li><a href="#p1">P1 · 高影响打磨</a></li>
+    <li><a href="#p2">P2 · 锦上添花</a></li>
+    <li><a href="#themes">横切主题</a></li>
+  </ol>
+</nav>
+
+<section id="status">
+  <h2>当前进度</h2>
+  <p class="sdesc">产品与部署早已完成上线;这份报告是"下一步优化 UI/设计"的审计产出。代码改动尚未开始。</p>
+  <table>
+    <tr><th>阶段</th><th>状态</th></tr>
+    <tr><td>产品功能 + Cloudflare 部署上线</td><td>✅ 100% 上线(<code>thirty-days-en.thinkuniverse.workers.dev</code>)</td></tr>
+    <tr><td>UI/设计审计(8 维度并行)</td><td>✅ 完成 · 63 findings</td></tr>
+    <tr><td>改进 backlog 文档</td><td>✅ <code>DESIGN-BACKLOG.md</code> / 本 HTML</td></tr>
+    <tr><td>设计实现 / 改代码</td><td>⛔ <b style="color:var(--p0)">0% 未开始</b>(建分支前喊停)</td></tr>
+  </table>
+</section>
+
+<section id="quick">
+  <h2>🎯 Quick Wins <span class="cnt">高性价比 6 项 · 全 S</span></h2>
+  <p class="sdesc">客观的系统合规/可读性/触控修复,非审美判断题,可直接做。</p>
+  <table>
+    <tr><th class="q">#</th><th>改动</th><th>影响</th><th>文件</th></tr>
+    <tr><td class="q">Q1</td><td>AI 火花图标去红→单色 <code>text-fg-muted</code></td><td>恢复"一抹红"纪律</td><td class="q">SpeakingBlock:144,148 · WritingBlock:117 · ai:118</td></tr>
+    <tr><td class="q">Q2</td><td><code>fg-dim(#555)</code> 当正文→<code>fg-muted</code></td><td>WCAG AA 对比度</td><td class="q">VocabBlock · BlockFooter:23 · Dashboard:142 …</td></tr>
+    <tr><td class="q">Q3</td><td>图标按钮触控区 <44px→44px</td><td>全 App 移动可点性</td><td class="q">shared:25 · ui/index:34,59</td></tr>
+    <tr><td class="q">Q4</td><td>"Day" 误用点阵字→只让数字走 <code>.t-num</code></td><td>字体纪律</td><td class="q">Dashboard:86 · brand:67 · ai:303</td></tr>
+    <tr><td class="q">Q5</td><td>连胜火苗 streak=0 仍红→>0 才红</td><td>累赘红点</td><td class="q">Dashboard:99 · App:115</td></tr>
+    <tr><td class="q">Q6</td><td>Tab/评分卡/翻卡补 focus-visible ring</td><td>键盘可见性</td><td class="q">Segmented:263 · DayView:142 · Review:89,119</td></tr>
+  </table>
+</section>
+
+<section id="p0">
+  <h2>🔴 P0 · 系统级不一致/破损 <span class="cnt">打磨必修</span></h2>
+  <p class="sdesc">违反设计系统或破损,决定"精致度"的地基。</p>
+
+  <div class="item p0"><h3>圆角未收敛 <span class="badge b-p0">P0</span><span class="badge b-cat">tokens</span><span class="badge b-eff">M</span></h3>
+    <p>8px(rounded-lg)vs 6px(rounded-md)混用,甚至<b>同组件内裂开</b>(Segmented 外 lg/内 md;Select 触发 lg/项 md)。DESIGN §3 定 <code>--radius:6px</code> 却没用在该用的控件上。</p>
+    <p class="fix">→ 控件/卡片统一 6px;12px 只留浮层/词卡,4px 留徽章。</p>
+    <div class="files">ui/index.tsx 多处 · shared:25,206 · Review:78,123 · 各 block 卡片</div></div>
+
+  <div class="item p0"><h3>Sheet 原语缺失(§4 唯一没建的),被手搓两遍 <span class="badge b-p0">P0</span><span class="badge b-cat">primitives</span><span class="badge b-eff">M</span></h3>
+    <p>App.tsx:165 移动侧栏 + ai.tsx:288 导师底部 sheet,两套 overlay/动画各写各的,须手动保持同步。</p>
+    <p class="fix">→ 封 <code>Sheet</code>(left/right/bottom)统一消费,含共享 scrim。</p>
+    <div class="files">ui/index.tsx(无 Sheet 导出)· App.tsx:165-178 · ai.tsx:288-321</div></div>
+
+  <div class="item p0"><h3>DayView 模块切换器手写 tablist,键盘/ARIA 契约破损 <span class="badge b-p0">P0</span><span class="badge b-cat">a11y</span><span class="badge b-eff">M</span></h3>
+    <p>无方向键 / roving tabIndex / aria-controls;项目已装 <code>@radix-ui/react-tabs</code> 0 引用,且已有 <code>Segmented</code> 原语没用上。</p>
+    <p class="fix">→ 换 Radix Tabs 或扩展 Segmented(带图标+完成勾),自动获得方向键与正确 tab↔panel 关联。</p>
+    <div class="files">DayView.tsx:132-159,161</div></div>
+
+  <div class="item p0"><h3>红色外溢当 AI 品牌色 <span class="badge b-p0">P0</span><span class="badge b-cat">tokens</span><span class="badge b-eff">S</span></h3>
+    <p>AI 火花图标用 <code>text-red</code>,而 §0 把红严格保留给 此刻/连胜/录音/到期/危险。红一泛滥就失去意义。</p>
+    <p class="fix">→ AI 火花改单色;红只留真正告警。</p>
+    <div class="files">SpeakingBlock:144,148 · WritingBlock:117 · ai.tsx:118</div></div>
+
+  <div class="item p0"><h3>核心图标控件 <44px 移动触控 <span class="badge b-p0">P0</span><span class="badge b-cat">mobile</span><span class="badge b-eff">S~M</span></h3>
+    <p>SpeakButton 36px(每天点几十次)、IconButton md 36px/sm 32px、QAItem 看答案更小、AI 发送 40/关闭 36/进入 32。§3 要求 ≥44px。</p>
+    <p class="fix">→ 触控给 44px 命中区(可保持视觉字号,扩 padding)。</p>
+    <div class="files">shared.tsx:25 · ui/index.tsx:34,59 · ai.tsx:208,306</div></div>
+
+  <div class="item p0"><h3>导入备份键盘/AT 不可达 <span class="badge b-p0">P0</span><span class="badge b-cat">a11y</span><span class="badge b-eff">S</span></h3>
+    <p><code>&lt;label&gt;&lt;input class="hidden"&gt;</code> — <code>display:none</code> 移出 tab 序,label 不可聚焦,控件键盘完全不可达;还手搓了 Button 样式。相邻 Export 却是真 Button。</p>
+    <p class="fix">→ 真 <code>&lt;Button&gt;</code> 触发 <code>inputRef.click()</code>,input 用 <code>sr-only</code>(可聚焦)而非 hidden。</p>
+    <div class="files">Progress.tsx:165-177</div></div>
+
+  <div class="item p0"><h3>"Day" 用点阵字(Doto)违规 <span class="badge b-p0">P0</span><span class="badge b-cat">typography</span><span class="badge b-eff">S</span></h3>
+    <p>标题把 "Day" 也套进 <code>.t-num</code>(Doto),而 §2 禁止 Doto 排单词;同一短语在 114/153 行却是 Inter,自相矛盾。</p>
+    <p class="fix">→ 只让数字走 <code>.t-num</code>,"Day" 留 Inter。</p>
+    <div class="files">Dashboard.tsx:86</div></div>
+</section>
+
+<section id="p1">
+  <h2>🟡 P1 · 高影响打磨 <span class="cnt">25 条</span></h2>
+  <p class="sdesc">直接影响观感与体验的视觉/交互问题。</p>
+
+  <div class="item p1"><h3>当前日红环在红色 P3 格上看不见 <span class="badge b-p1">P1</span><span class="badge b-cat">hierarchy</span><span class="badge b-eff">M</span></h3>
+    <p>Day21-30 是红格,"此刻"红环红叠红 —— 进度越深主指示器越失效。<b>已定:改白环</b>。</p>
+    <div class="files">Dashboard.tsx:223,228-234</div></div>
+
+  <div class="item p1"><h3>可点/不可点 stat 视觉一致,不可点的被渲染成 disabled button <span class="badge b-p1">P1</span><span class="badge b-cat">ux</span><span class="badge b-eff">M</span></h3>
+    <p>3 个 stat 可跳转、连胜不可点却仍是 <code>&lt;button disabled&gt;</code>(读屏念成禁用);唯一区别是 touch 上永不触发的 hover 底。</p>
+    <p class="fix">→ 不可点用 <code>&lt;div&gt;</code>,可点加常驻 chevron + cursor。</p>
+    <div class="files">Dashboard.tsx:96-106,294-300</div></div>
+
+  <div class="item p1"><h3>地图 + 节奏条 + stat 三处重复同一"已完成"数 <span class="badge b-p1">P1</span><span class="badge b-cat">consistency</span><span class="badge b-eff">M</span></h3>
+    <p>还用了两个不同数据源(isDayComplete vs completedAt)可能静默打架。<b>已定:节奏条改名"30 天节奏"+删重复计数</b>。</p>
+    <div class="files">Dashboard.tsx:208-278</div></div>
+
+  <div class="item p1"><h3>翻卡自测只是内容瞬切,没用认证的翻卡动画 <span class="badge b-p1">P1</span><span class="badge b-cat">motion</span><span class="badge b-eff">M</span></h3>
+    <p><code>.flip-3d</code> 等工具类写好了但全项目 0 引用;§0/§5 明确把"翻卡"列为三种认证动画之一。</p>
+    <div class="files">VocabBlock.tsx:92-116 · index.css:145-148</div></div>
+
+  <div class="item p1"><h3>录音态无脉冲/无红/无 spinner <span class="badge b-p1">P1</span><span class="badge b-cat">motion</span><span class="badge b-eff">S</span></h3>
+    <p>"录音"是 §0 指定红脉冲时刻,<code>.pulse-red</code> 也没人用;录音按钮还是最弱的 soft 变体(却是 Speaking 主任务)。</p>
+    <div class="files">SpeakingBlock.tsx:100-108 · index.css:140-144</div></div>
+
+  <div class="item p1"><h3>"播放全文"同动作三种按钮权重 <span class="badge b-p1">P1</span><span class="badge b-cat">hierarchy</span><span class="badge b-eff">S</span></h3>
+    <p>Listening primary 白按钮 / Reading ghost-sm / Speaking ghost-sm —— 同功能观感忽强忽弱。</p>
+    <div class="files">ListeningBlock:39 · ReadingBlock:32 · SpeakingBlock:250</div></div>
+
+  <div class="item p1"><h3>框内容容器 block 间不一致 + WritingBlock 手搓 RowGroup <span class="badge b-p1">P1</span><span class="badge b-cat">consistency</span><span class="badge b-eff">M</span></h3>
+    <p>padding/填充各异;纠错列表手搓了已有的 RowGroup 原语。</p>
+    <div class="files">Reading:36 · Speaking:242 · Vocab:70 · Writing:103,131,144</div></div>
+
+  <div class="item p1"><h3>阅读点词纯指针,键盘/读屏不可达 <span class="badge b-p1">P1</span><span class="badge b-cat">a11y</span><span class="badge b-eff">M</span></h3>
+    <p>点词是裸 <code>onClick</code> span,无 tabIndex/role/键盘 —— 阅读块主交互对键盘用户完全不可用。</p>
+    <div class="files">shared.tsx:96-104</div></div>
+
+  <div class="item p1"><h3><code>fg-dim(#555)</code> 当正文,WCAG 不达标 <span class="badge b-p1">P1</span><span class="badge b-cat">a11y</span><span class="badge b-eff">S</span></h3>
+    <p>#555 在黑底约 2.8:1,低于 4.5:1;却用于例句译文/提示/时段标签等信息文字。→ 改 fg-muted。</p>
+    <div class="files">VocabBlock:84,107,113 · BlockFooter:23 · Dashboard:142 …</div></div>
+
+  <div class="item p1"><h3>口令错误静默失败 <span class="badge b-p1">P1</span><span class="badge b-cat">ux</span><span class="badge b-eff">M</span></h3>
+    <p>submit 无条件关对话框,口令错也没提示,用户只看到同样的锁定态。→ 等 refresh 结果,错留窗+内联报错。</p>
+    <div class="files">ai.tsx:19-24,93</div></div>
+
+  <div class="item p1"><h3>AI 报错低可见 + 无 aria-live <span class="badge b-p1">P1</span><span class="badge b-cat">a11y</span><span class="badge b-eff">M</span></h3>
+    <p>报错是 12px 裸红字无 role=alert;聊天区无 role=log,新回复/思考态读屏不播报。</p>
+    <div class="files">ai.tsx:167,254,318 · WritingBlock:153</div></div>
+
+  <div class="item p1"><h3>聊天输入/口令输入/loader 手搓复制原语 <span class="badge b-p1">P1</span><span class="badge b-cat">primitives</span><span class="badge b-eff">M</span></h3>
+    <p>Input/Textarea/Skeleton 逐字复制,原语一改这些副本静默漂移。</p>
+    <div class="files">ai.tsx:34,195-207,46,114</div></div>
+
+  <div class="item p1"><h3>主要 AI 触控 <44px <span class="badge b-p1">P1</span><span class="badge b-cat">mobile</span><span class="badge b-eff">S</span></h3>
+    <p>发送 40 / 导师关闭 36 / 口令进入 32,全在移动 dialog/sheet 里。</p>
+    <div class="files">ai.tsx:208,306,36</div></div>
+
+  <div class="item p1"><h3>连胜火苗 streak=0 仍红 <span class="badge b-p1">P1</span><span class="badge b-cat">identity</span><span class="badge b-eff">S</span></h3>
+    <p>火苗永远 text-red,但新/断签用户 streak=0 —— 红火苗暗示不存在的连胜。→ >0 才红。</p>
+    <div class="files">Dashboard.tsx:99 · App.tsx:115</div></div>
+
+  <div class="item p1"><h3>Wordmark "30" 用 Geist Mono 而非 Doto <span class="badge b-p1">P1</span><span class="badge b-cat">identity</span><span class="badge b-eff">S</span></h3>
+    <p>§5 规定 "30"(Doto)+"DAYS"(Mono)双字族并置,实际整串 mono,数字字体错。</p>
+    <div class="files">brand.tsx:67-68 · App.tsx:181</div></div>
+
+  <div class="item p1"><h3>iOS 启动 splash 未产出/未接 <span class="badge b-p1">P1</span><span class="badge b-cat">identity</span><span class="badge b-eff">M</span></h3>
+    <p>§5/§6 要求 splash;public/ 无 splash 图,index.html 无 apple-touch-startup-image,PWA 冷启黑屏。</p>
+    <div class="files">index.html:12-21 · gen-icons.py</div></div>
+
+  <div class="item p1"><h3>Tab 无 focus ring + 无键盘导航;焦点环 3 套透明度 <span class="badge b-p1">P1</span><span class="badge b-cat">a11y</span><span class="badge b-eff">S~M</span></h3>
+    <p>Segmented/DayView 声明 role=tablist 却无方向键、无 roving tabIndex、无 focus ring;环透明度 /25 /40 /70 三值不统一。</p>
+    <div class="files">ui/index.tsx:257-277 · DayView:133-158</div></div>
+
+  <div class="item p1"><h3>翻卡 + 评分按钮无 focus ring,绕过 Button 原语 <span class="badge b-p1">P1</span><span class="badge b-cat">a11y</span><span class="badge b-eff">S</span></h3>
+    <p>主翻卡目标键盘聚焦不可见;4 个评分按钮裸 button 无环,绕过已带环的 Button 原语。</p>
+    <div class="files">Review.tsx:89-99,117-132,144-146</div></div>
+
+  <div class="item p1"><h3>两个评分按钮 hover 几乎无感 <span class="badge b-p1">P1</span><span class="badge b-cat">ux</span><span class="badge b-eff">S</span></h3>
+    <p>重来 hover 只差 0.01 alpha;简单 near-black 提亮看不出。另两个却会变底+变字,不一致。</p>
+    <div class="files">Review.tsx:13,16</div></div>
+
+  <div class="note">另有 4 条 P1(DayView tablist↔Segmented 复用、ChatThread 裸 textarea、PasscodeForm 裸 input、Segmented/DayView 键盘导航)与上面若干条同源,实现时会一并合并处理。</div>
+</section>
+
+<section id="p2">
+  <h2>⚪ P2 · 锦上添花 <span class="cnt">30 条摘要</span></h2>
+  <div class="p2box">
+  间距 2px 半步遍地(px-3.5/py-2.5 不在 4px 网格)· Doto 用在 12-13px 小计数器可读性差 · IPA 用 mono(§2 未定义)· 弹层 scrim 透明度/模糊不一(无 token)· Review 内三种半径 · 用裸 <code>✓</code> 而非 lucide Check · Progress 指标 5 格在 2 列手机留孤格 · maskable 图标 glyph 缩太小 · 点栅格纹理只上 2/6 图标 · in-app LogoMark 用灰底而非黑 · Skeleton 原语 0 使用 · 闲置 Radix 包 · spinner 是第四种动画 · 翻卡 Space 键无效 · ProgressRing 600ms/Progress 500ms 超 400ms · 自动滚动强制 smooth 绕过 reduced-motion · hover-only chevron 触控看不到 · 听写正确无正反馈+输入框截断长词 · 翻卡自测不喂 SRS(名不符实)· 分数 chip 三种画法 · 聊天气泡圆角出格 · 欢迎卡 h2 偏小 · 导师 Day 标签用 mono。
+  </div>
+</section>
+
+<section id="themes">
+  <h2>横切主题</h2>
+  <div class="theme">1. <b>红纪律外溢</b> — AI / streak=0 处误用红,应回单色。</div>
+  <div class="theme">2. <b>圆角未收敛</b> — 系统级最大不一致(8/6/12 混,甚至同组件裂)。</div>
+  <div class="theme">3. <b>原语建了但被绕过</b> — Input/Textarea/Skeleton/Segmented 有却手搓副本会漂移;Sheet 是唯一没建却手搓两遍。</div>
+  <div class="theme">4. <b>移动触控 <44px</b> — 最常用控件普遍偏小。</div>
+  <div class="theme">5. <b>a11y 缺口</b> — tab 键盘导航、焦点环、纯指针交互、对比度、聊天无 aria-live。</div>
+  <div class="theme">6. <b>动效纪律</b> — 认证的翻卡/脉冲工具类写好却没用;spinner 与时长超 §0.5。</div>
+  <div class="theme">7. <b>字体纪律</b> — 大体好,但 Doto 误用于词与小计数器;mono 误用于 IPA。</div>
+  <div class="theme">8. <b>交互反馈</b> — 口令静默失败、hover 无感、听写反馈不对称。</div>
+</section>
+
+<footer>
+  30 Days English · 设计审计报告 · 生成 2026-07 · 源数据 8 维度并行审计 63 findings · 完整明细见 DESIGN-BACKLOG.md
+</footer>
+</div>
+</body>
+</html>
