@@ -84,7 +84,7 @@ export default function Review() {
       </div>
       <Progress value={total ? (reviewed / total) * 100 : 0} />
 
-      {/* 3D flip card (div, not button — it contains SpeakButtons) */}
+      {/* 3D flip card — instrument-card face with a mono header strip */}
       <div className="[perspective:1200px]">
         <div
           role="button"
@@ -95,20 +95,30 @@ export default function Review() {
             if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setFlip((f) => !f) }
           }}
           className={cardFlipCls(flip)}
-          style={{ minHeight: 300 }}
+          style={{ minHeight: 340 }}
         >
-          <div className="flip-face absolute inset-0 flex flex-col items-center justify-center gap-2.5 rounded-xl border border-border bg-surface p-8 shadow-[var(--shadow-card)]">
-            <div className="text-display font-semibold text-fg">{card.word}</div>
-            <div className="font-mono text-h2 text-fg-muted">{card.ipa}</div>
-            <SpeakButton text={card.word} />
-            <div className="text-meta text-fg-muted">
-              点击回忆释义，再翻面 · <Kbd>Space</Kbd> 翻转
+          {/* front */}
+          <div className="flip-face absolute inset-0 flex flex-col overflow-hidden rounded-xl border border-border-strong bg-surface">
+            <div className="flex items-center justify-between border-b border-border px-5 py-3">
+              <span className="label-nd">Word · <span className="t-tab text-fg-secondary">{reviewed + 1}/{total}</span></span>
+              <span className="label-nd">Tap · Space</span>
+            </div>
+            <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6">
+              <div className="text-[46px] font-semibold leading-none text-fg">{card.word}</div>
+              <div className="text-h2 text-fg-muted">{card.ipa}</div>
+              <SpeakButton text={card.word} />
             </div>
           </div>
-          <div className="flip-face flip-back absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-xl border border-border bg-surface p-8 shadow-[var(--shadow-card)]">
-            <div className="text-h1 font-medium text-fg">{card.meaning_zh}</div>
-            <div className="text-body-lg text-fg-secondary">{card.example_en}</div>
-            <SpeakButton text={card.example_en} />
+          {/* back */}
+          <div className="flip-face flip-back absolute inset-0 flex flex-col overflow-hidden rounded-xl border border-border-strong bg-surface">
+            <div className="flex items-center justify-between border-b border-border px-5 py-3">
+              <span className="label-nd">Meaning</span>
+              <SpeakButton text={card.example_en} />
+            </div>
+            <div className="flex flex-1 flex-col items-center justify-center gap-2.5 p-6 text-center">
+              <div className="text-h1 font-medium text-fg">{card.meaning_zh}</div>
+              <div className="text-body-lg text-fg-secondary">{card.example_en}</div>
+            </div>
           </div>
         </div>
       </div>

@@ -7,7 +7,7 @@ import { cfVoiceAvailable, cfRecordAndTranscribe } from '../../lib/cfSpeech'
 import { aiCoach, AIError, type LessonCtx } from '../../lib/ai'
 import { SpeakButton, RowGroup } from '../shared'
 import { AiGate, ConversationPanel } from '../ai'
-import { Badge, Button, Card, CardBody, CardHead, Callout, SectionLabel } from '../ui'
+import { Button, Card, CardBody, Callout, SectionLabel } from '../ui'
 import { cn } from '../../lib/utils'
 import BlockFooter from './BlockFooter'
 
@@ -201,11 +201,10 @@ export default function SpeakingBlock({
 
   return (
     <Card>
-      <CardHead title="SPEAKING" right={<Badge variant="warning">NOON · 40′</Badge>} />
       <CardBody>
         <h2 className="text-h2 font-semibold">口语 · 影子跟读</h2>
 
-        <SectionLabel>TARGET SOUNDS</SectionLabel>
+        <SectionLabel>目标音</SectionLabel>
         <ul className="space-y-1.5">
           {s.targetSounds.map((t, i) => (
             <li key={i} className="flex gap-2 text-sm text-fg-secondary">
@@ -215,7 +214,7 @@ export default function SpeakingBlock({
           ))}
         </ul>
 
-        <SectionLabel>SHADOWING</SectionLabel>
+        <SectionLabel>影子跟读</SectionLabel>
         <p className="-mt-1 text-sm text-fg-muted">
           听一句 → 立刻模仿语音语调 → 点「跟读」{premium ? '获取音素级发音评测' : '看跟读匹配度'}。追节奏和连读，不逐词念。
         </p>
@@ -243,7 +242,7 @@ export default function SpeakingBlock({
           ))}
         </RowGroup>
 
-        <SectionLabel>ROLE-PLAY</SectionLabel>
+        <SectionLabel>情景对话</SectionLabel>
         <RowGroup>
           {s.miniDialogue.map((d, i) => (
             <div
@@ -268,12 +267,12 @@ export default function SpeakingBlock({
           <Play size={14} /> 播放整段对话
         </Button>
 
-        <SectionLabel>AI PARTNER</SectionLabel>
+        <SectionLabel>AI 陪练</SectionLabel>
         <AiGate>
           <ConversationPanel lesson={ctxOf(lesson)} scenario={scenario} />
         </AiGate>
 
-        <SectionLabel>SPEAKING TASK</SectionLabel>
+        <SectionLabel>口语任务</SectionLabel>
         <Callout tone="accent">
           <p className="text-body text-fg">{s.speakingTask}</p>
           <p className="mt-1.5 text-meta text-fg-muted">录下自己的回答，对比模仿。坚持“每天开口说”是流利的关键。</p>

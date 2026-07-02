@@ -8,7 +8,7 @@ import { CURRICULUM, TOTAL_DAYS } from '../data/curriculum'
 import { isDayComplete, getDayProgress, displayStreak, isDayUnlocked } from '../lib/storage'
 import { dueCards } from '../lib/srs'
 import { BLOCKS, PHASE_INFO, TOTAL_MINUTES } from '../blocks'
-import { Card, CardHead, Segment, Button, IconButton, Callout, Tooltip, Progress as Bar, Metric } from './ui'
+import { Card, CardHead, Segment, Button, IconButton, Callout, Tooltip, Progress as Bar } from './ui'
 import { BlockIcon } from './blockicons'
 import { cn } from '../lib/utils'
 
@@ -95,34 +95,18 @@ export default function Dashboard() {
             {TOTAL_DAYS - completedDays.length} days left · A2 → B1 · {today}
           </div>
         </div>
-        <div className="text-right leading-[0.82]">
-          <div className="font-mono text-[11px] tracking-[0.24em] text-fg-dim">DAY</div>
-          <div className="t-num text-[76px] font-semibold text-fg sm:text-[88px]">{dd}</div>
+        <div className="text-right leading-[0.85]">
+          <div className="font-mono text-[10px] tracking-[0.24em] text-fg-dim">DAY</div>
+          <div className="t-num text-[52px] font-semibold text-fg sm:text-[68px]">{dd}</div>
         </div>
       </section>
 
-      {/* metric readout */}
+      {/* metric readout — clean numbers, no chrome */}
       <div className="grid grid-cols-2 overflow-hidden rounded-xl border border-border sm:grid-cols-4 animate-in-up">
-        <div className="border-b border-border sm:border-b-0">
-          <Metric label="Progress" value={overall} unit="%" onClick={() => nav('/progress')} icon={<ArrowRight size={13} />}>
-            <Bar value={overall} />
-          </Metric>
-        </div>
-        <div className="border-b border-l border-border sm:border-b-0">
-          <Metric label="Streak" value={streak} unit="d" icon={<span className="text-[13px]">{streak > 0 ? '🔥' : ''}</span>}>
-            <MiniCells n={7} on={Math.min(streak, 7)} />
-          </Metric>
-        </div>
-        <div className="border-l border-border sm:border-l-0">
-          <Metric label="Complete" value={completedDays.length} unit={`/${TOTAL_DAYS}`} onClick={() => nav('/progress')} icon={<Check size={13} />}>
-            <MiniCells n={10} on={Math.round((completedDays.length / TOTAL_DAYS) * 10)} />
-          </Metric>
-        </div>
-        <div className="border-l border-border">
-          <Metric label="Due" value={due} red={due > 0} onClick={() => nav('/review')} icon={due > 0 ? <span className="pulse-red inline-block h-2 w-2 rounded-full bg-red" /> : undefined}>
-            <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-fg-muted">{due > 0 ? 'cards to review' : 'all caught up'}</span>
-          </Metric>
-        </div>
+        <MCell label="Progress" value={`${overall}%`} onClick={() => nav('/progress')} />
+        <MCell label="Streak" value={streak} cls="border-l border-border" />
+        <MCell label="Complete" value={`${completedDays.length}/${TOTAL_DAYS}`} onClick={() => nav('/progress')} cls="border-t border-border sm:border-t-0 sm:border-l" />
+        <MCell label="Due" value={due} red={due > 0} onClick={() => nav('/review')} cls="border-l border-t border-border sm:border-t-0" />
       </div>
 
       {/* two columns */}
@@ -259,12 +243,31 @@ export default function Dashboard() {
   )
 }
 
-function MiniCells({ n, on }: { n: number; on: number }) {
+function MCell({
+  label,
+  value,
+  red,
+  onClick,
+  cls,
+}: {
+  label: string
+  value: React.ReactNode
+  red?: boolean
+  onClick?: () => void
+  cls?: string
+}) {
+  const Tag = onClick ? 'button' : 'div'
   return (
-    <div className="flex gap-1">
-      {Array.from({ length: n }, (_, i) => (
-        <span key={i} className={cn('h-2 w-2 rounded-[2px] border', i < on ? 'border-fg bg-fg' : 'border-border-strong')} />
-      ))}
-    </div>
+    <Tag
+      onClick={onClick}
+      className={cn(
+        'block px-[18px] py-4 text-left transition-colors sm:py-5',
+        onClick && 'hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40',
+        cls,
+      )}
+    >
+      <div className="label-nd">{label}</div>
+      <div className={cn('t-num mt-2.5 text-[30px] font-semibold leading-none sm:text-[34px]', red ? 'text-red' : 'text-fg')}>{value}</div>
+    </Tag>
   )
 }

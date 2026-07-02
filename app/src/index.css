@@ -100,9 +100,9 @@
   body {
     margin: 0;
     background-color: var(--color-bg);
-    /* nullframe ambient dot-grid */
-    background-image: radial-gradient(circle, #191919 1.1px, transparent 1.1px);
-    background-size: 16px 16px;
+    /* ambient dot-grid — kept very subtle */
+    background-image: radial-gradient(circle, #121214 1px, transparent 1px);
+    background-size: 22px 22px;
     background-attachment: fixed;
     color: var(--color-fg);
     font-family: var(--font-sans);
@@ -124,9 +124,9 @@
   .font-display { font-family: var(--font-display); }
   .font-mono { font-family: var(--font-mono); }
 
-  /* Numeric display: Doto dot-matrix + tabular figures */
-  .t-num { font-family: var(--font-display); font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
-  /* Small inline counters that should stay readable: Space Grotesk tabular */
+  /* Unified numerals: Space Grotesk tabular figures everywhere. Doto is
+     reserved for the logo mark only (dot-matrix as a brand glyph, not text). */
+  .t-num { font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
   .t-tab { font-variant-numeric: tabular-nums; }
 
   /* Nothing-style uppercase mono micro-label */

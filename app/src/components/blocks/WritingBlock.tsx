@@ -5,7 +5,7 @@ import { useApp } from '../../state'
 import { SpeakButton, RowGroup } from '../shared'
 import { AiGate } from '../ai'
 import { aiWriting, AIError, type WritingFeedback, type LessonCtx } from '../../lib/ai'
-import { Badge, Button, Card, CardBody, Callout, SectionLabel, Segment, Textarea } from '../ui'
+import { Button, Card, CardBody, Callout, SectionLabel, Segment, Textarea } from '../ui'
 import { cn } from '../../lib/utils'
 import BlockFooter from './BlockFooter'
 
@@ -50,10 +50,7 @@ export default function WritingBlock({
   return (
     <Card>
       <CardBody>
-        <div className="flex items-center justify-between">
-          <h2 className="text-h2 font-semibold">写作 · 睡前巩固</h2>
-          <Badge variant="warning">睡前 · 30′</Badge>
-        </div>
+        <h2 className="text-h2 font-semibold">写作 · 睡前巩固</h2>
 
         <Callout tone="accent" className="mt-3">
           <span className="text-body">
@@ -62,7 +59,7 @@ export default function WritingBlock({
           </span>
         </Callout>
 
-        <SectionLabel>Useful phrases</SectionLabel>
+        <SectionLabel>常用表达</SectionLabel>
         <div className="flex flex-wrap gap-2">
           {w.usefulPhrases.map((p, i) => (
             <span
@@ -74,7 +71,7 @@ export default function WritingBlock({
           ))}
         </div>
 
-        <SectionLabel>My writing</SectionLabel>
+        <SectionLabel>我的写作</SectionLabel>
         <Textarea
           aria-label="我的写作"
           value={text}
@@ -89,7 +86,7 @@ export default function WritingBlock({
           <span className="t-tab">{words}</span> 词 · 自动保存
         </div>
 
-        <SectionLabel>Self-check</SectionLabel>
+        <SectionLabel>自查清单</SectionLabel>
         <ul className="space-y-1">
           {w.selfCheck.map((c, i) => (
             <SelfCheckItem key={i} text={c} />
@@ -102,14 +99,14 @@ export default function WritingBlock({
         {showModel && (
           <Segment className="mt-3 p-4 animate-in-up">
             <div className="flex items-center justify-between">
-              <span className="label-nd">Model</span>
+              <span className="label-nd">范文</span>
               <SpeakButton text={w.modelAnswer} />
             </div>
             <p className="mt-1.5 text-body leading-relaxed text-fg-secondary">{w.modelAnswer}</p>
           </Segment>
         )}
 
-        <SectionLabel>AI feedback</SectionLabel>
+        <SectionLabel>AI 批改</SectionLabel>
         <AiGate>
           {!fb ? (
             <div>
@@ -122,7 +119,7 @@ export default function WritingBlock({
           ) : (
             <div className="space-y-3 animate-in-up">
               <div className="flex items-center gap-2.5">
-                <span className="label-nd">Score</span>
+                <span className="label-nd">得分</span>
                 <span className="inline-flex items-center gap-1 rounded-full border border-border bg-surface-2 px-2 py-0.5">
                   <span className="t-num text-sm text-fg">{fb.score}</span>
                   <span className="t-tab text-meta text-fg-muted">/ 100</span>
@@ -146,7 +143,7 @@ export default function WritingBlock({
               )}
               <Segment className="p-3.5">
                 <div className="flex items-center justify-between">
-                  <span className="label-nd">Polished</span>
+                  <span className="label-nd">润色版</span>
                   <SpeakButton text={fb.polished} />
                 </div>
                 <p className="mt-1.5 text-body leading-relaxed text-fg">{fb.polished}</p>

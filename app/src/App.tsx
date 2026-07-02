@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import {
-  Home, RotateCcw, TrendingUp, BookOpen, Command, Crosshair, Flame, Settings,
+  Home, RotateCcw, TrendingUp, BookOpen, Search, Crosshair, Flame, Settings,
 } from 'lucide-react'
 import Dashboard from './components/Dashboard'
 import DayView from './components/DayView'
@@ -33,20 +33,6 @@ function useScrollTop() {
   }, [pathname])
 }
 
-// LIVE · HH:MM clock (telemetry heartbeat)
-function useClock() {
-  const [t, setT] = useState(() => clockStr())
-  useEffect(() => {
-    const id = setInterval(() => setT(clockStr()), 20000)
-    return () => clearInterval(id)
-  }, [])
-  return t
-}
-function clockStr() {
-  const d = new Date()
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-}
-
 const NAV = [
   { to: '/', end: true, icon: Home, label: 'HOME' },
   { to: 'today', icon: BookOpen, label: 'TODAY' },
@@ -59,7 +45,6 @@ export default function App() {
   const nav = useNavigate()
   const loc = useLocation()
   const onDayRoute = loc.pathname.startsWith('/day/')
-  const clock = useClock()
   useScrollTop()
 
   const [paletteOpen, setPaletteOpen] = useState(false)
@@ -109,13 +94,9 @@ export default function App() {
         <div className="mx-auto flex h-[54px] max-w-[1120px] items-center gap-3 px-4 md:px-6">
           {/* brand */}
           <button onClick={() => nav('/')} className="flex items-center gap-2.5" aria-label="首页">
-            <LogoMark size={30} />
+            <LogoMark size={28} />
             <span className="hidden font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-fg-secondary sm:block">30&nbsp;Days</span>
           </button>
-          <span className="hidden items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-fg-dim md:flex">
-            <span className="pulse-live h-1.5 w-1.5 rounded-full bg-[var(--color-live)] shadow-[0_0_6px_var(--color-live)]" />
-            LIVE · {clock}
-          </span>
 
           {/* desktop nav */}
           {!focus && (
@@ -157,10 +138,10 @@ export default function App() {
             onClick={() => setPaletteOpen(true)}
             className="hidden items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 font-mono text-[11px] uppercase tracking-[0.08em] text-fg-muted transition-colors hover:border-border-strong hover:text-fg sm:flex"
           >
-            <Command size={13} /> Jump <kbd className="rounded-sm border border-border-strong bg-surface-2 px-1 text-fg-secondary">⌘K</kbd>
+            <Search size={13} /> Jump <kbd className="rounded-sm border border-border-strong bg-surface-2 px-1 text-fg-secondary">⌘K</kbd>
           </button>
           <IconButton label="搜索 / 命令 (⌘K)" className="sm:hidden" onClick={() => setPaletteOpen(true)}>
-            <Command size={18} />
+            <Search size={18} />
           </IconButton>
           {!focus && (
             <IconButton label="专注模式 (F)" onClick={() => setFocus(true)} data-chrome>

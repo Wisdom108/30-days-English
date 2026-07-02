@@ -3,7 +3,7 @@ import { Play, Rabbit, FileText, Check } from 'lucide-react'
 import type { DayLesson } from '../../types'
 import { speak } from '../../lib/speech'
 import { QAItem, RowGroup, SpeakButton } from '../shared'
-import { Badge, Button, Card, CardBody, CardHead, Input, SectionLabel } from '../ui'
+import { Button, Card, CardBody, Input, SectionLabel } from '../ui'
 import { cn } from '../../lib/utils'
 import BlockFooter from './BlockFooter'
 
@@ -28,7 +28,6 @@ export default function ListeningBlock({
 
   return (
     <Card>
-      <CardHead title="LISTEN" right={<Badge variant="warning">DAWN · 30′</Badge>} />
       <CardBody>
         <h2 className="text-h2 font-semibold">精听 · {l.title}</h2>
         <p className="mt-1 text-sm text-fg-muted">先盲听整段 2–3 遍，再逐句跟读，最后做听写。别急着看原文！</p>
@@ -54,7 +53,7 @@ export default function ListeningBlock({
           </div>
         )}
 
-        <SectionLabel>DICTATION</SectionLabel>
+        <SectionLabel>听写练习</SectionLabel>
         <p className="-mt-1 mb-2 text-sm text-fg-muted">播放句子，把听到的词填进空格。</p>
         <RowGroup>
           {l.dictation.map((d, i) => {
@@ -102,7 +101,7 @@ export default function ListeningBlock({
           检查听写
         </Button>
 
-        <SectionLabel>COMPREHENSION</SectionLabel>
+        <SectionLabel>理解自测</SectionLabel>
         <RowGroup>
           {l.comprehension.map((qa, i) => (
             <QAItem key={i} q={qa.q} a={qa.a} />

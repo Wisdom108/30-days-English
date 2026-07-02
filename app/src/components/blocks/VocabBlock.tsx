@@ -6,7 +6,7 @@ import { useApp } from '../../state'
 import { dueCards } from '../../lib/srs'
 import { cn } from '../../lib/utils'
 import { SpeakButton } from '../shared'
-import { Badge, Button, Card, CardBody, CardHead, Callout, Segment, Segmented } from '../ui'
+import { Button, Card, CardBody, Callout, Segment, Segmented } from '../ui'
 import BlockFooter from './BlockFooter'
 
 export default function VocabBlock({
@@ -32,10 +32,10 @@ export default function VocabBlock({
 
   return (
     <Card>
-      <CardHead title="VOCAB" right={<Badge variant="warning">晨间 · 20′</Badge>} />
       <CardBody>
-        <div className="text-body text-fg-secondary">
-          <span className="t-tab font-semibold text-fg">{words.length}</span> 个高频词
+        <h2 className="text-h2 font-semibold">词汇复习</h2>
+        <div className="mt-1 text-sm text-fg-muted">
+          本课 <span className="t-tab font-semibold text-fg-secondary">{words.length}</span> 个高频词 · SRS 间隔记忆
         </div>
 
         {due > 0 && (
