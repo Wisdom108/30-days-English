@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { ChevronRight, Flame, ArrowRight, Sparkles, X, Check, Lock, RotateCcw } from 'lucide-react'
 import { useApp } from '../state'
 import { CURRICULUM, TOTAL_DAYS } from '../data/curriculum'
-import { isDayComplete, getDayProgress, displayStreak } from '../lib/storage'
+import { isDayComplete, getDayProgress, displayStreak, isDayUnlocked } from '../lib/storage'
 import { dueCards } from '../lib/srs'
 import { BLOCKS, PHASE_INFO, TOTAL_MINUTES } from '../blocks'
 import { Button, IconButton, Card, CardBody, Callout, Tooltip, Progress as Bar } from './ui'
@@ -24,7 +24,7 @@ function greeting() {
 }
 
 export default function Dashboard() {
-  const { state, dismissGuide } = useApp()
+  const { state, dismissGuide, unlockAllDays } = useApp()
   const nav = useNavigate()
 
   if (CURRICULUM.length === 0) {
@@ -65,6 +65,17 @@ export default function Dashboard() {
                 </div>
               ))}
             </div>
+            {!state.unlockAll && (
+              <div className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-border pt-3 text-sm">
+                <span className="text-fg-muted">已有基础，想直接挑选难度？</span>
+                <button
+                  onClick={unlockAllDays}
+                  className="font-medium text-brand underline decoration-dotted underline-offset-4 hover:text-fg"
+                >
+                  解锁全部 30 天，自由跳学 →
+                </button>
+              </div>
+            )}
           </CardBody>
         </Card>
       )}
@@ -197,7 +208,7 @@ export default function Dashboard() {
         <div className="mt-4 grid grid-cols-5 gap-2 md:grid-cols-10">
           {Array.from({ length: TOTAL_DAYS }, (_, i) => i + 1).map((d) => {
             const done = isDayComplete(state, d)
-            const locked = d > state.currentDay
+            const locked = !isDayUnlocked(state, d)
             const isCurrent = d === current
             const phase = CURRICULUM.find((l) => l.day === d)?.phase ?? 1
             const v = PHASE_INFO[phase]

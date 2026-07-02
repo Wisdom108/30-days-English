@@ -21,6 +21,7 @@ interface Ctx {
   storeWriting: (day: number, text: string) => void
   importAll: (next: AppState) => void
   dismissGuide: () => void
+  unlockAllDays: () => void
   reset: () => void
 }
 
@@ -61,14 +62,18 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     setState((s) => ({ ...s, guideDismissed: true }))
   }, [])
 
+  const unlockAllDays = useCallback(() => {
+    setState((s) => ({ ...s, unlockAll: true }))
+  }, [])
+
   const reset = useCallback(() => {
     clearState()
     setState(loadState())
   }, [])
 
   const value = useMemo(
-    () => ({ state, markBlock, unmarkBlock, addCards, reviewOne, storeWriting, importAll, dismissGuide, reset }),
-    [state, markBlock, unmarkBlock, addCards, reviewOne, storeWriting, importAll, dismissGuide, reset],
+    () => ({ state, markBlock, unmarkBlock, addCards, reviewOne, storeWriting, importAll, dismissGuide, unlockAllDays, reset }),
+    [state, markBlock, unmarkBlock, addCards, reviewOne, storeWriting, importAll, dismissGuide, unlockAllDays, reset],
   )
 
   return <AppCtx.Provider value={value}>{children}</AppCtx.Provider>

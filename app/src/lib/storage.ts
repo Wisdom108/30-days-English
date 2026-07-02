@@ -52,6 +52,12 @@ export function isDayComplete(state: AppState, day: number): boolean {
   return Object.values(p.completedBlocks).every(Boolean)
 }
 
+/** Whether a day is open to study. Sequential by default; unlockAll frees all
+ *  days for learners who already have a foundation and want to jump ahead. */
+export function isDayUnlocked(state: AppState, day: number): boolean {
+  return state.unlockAll === true || day <= state.currentDay
+}
+
 /** Mark a study block done, updating streak + unlocking the next day when all blocks finish. */
 export function completeBlock(state: AppState, day: number, block: BlockKey): AppState {
   const prev = getDayProgress(state, day)

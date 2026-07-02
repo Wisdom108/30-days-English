@@ -140,4 +140,5 @@ export interface AppState {
   lastStudyDate: string | null
   writings: Record<number, string> // day -> learner's written text
   guideDismissed?: boolean // whether the first-run method guide was closed
+  unlockAll?: boolean // learners with a foundation can unlock all 30 days to jump ahead
 }
