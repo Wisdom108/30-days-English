@@ -27,6 +27,20 @@
 
 > 内容标准：全部词汇音标 (IPA) 与英文拼写统一为 **General American（美音/美式拼写）**，词性标签枚举化。`npm run validate`（见 `app/scripts/validate-lessons.mjs`）防内容回归。
 
+## 🤖 AI 与神经语音（可选 · 需配置后端）
+
+在纯前端基础上，可接入一层可选的 AI + 语音能力（**不配置也能完整用离线版**）：
+
+- **AI 对话陪练** — 就每日情景与 Claude 角色扮演对话，实时纠错、带话题往下走
+- **AI 写作批改** — 结构化反馈（逐条纠错 + 中文说明 + 润色版 + 打分）
+- **AI 发音教练** — Azure 音素级发音评测（准确/流利/完整/韵律）+ Claude 针对性建议
+- **AI 私教答疑** — 全局悬浮，随时问语法用法，结合当天课程作答
+- **自然神经语音** — Azure TTS 替换浏览器 TTS，去掉"人机感"
+
+架构：Cloudflare Worker 后端代理 Claude（`claude-opus-4-8`，可切 Sonnet/Haiku）+ 签发 Azure 短时令牌 + Supabase 登录鉴权 + 每用户日额度；密钥只在后端。前端 `config.ts` 特性开关**优雅降级**：未配置时自动回退浏览器语音、隐藏 AI 入口。
+
+**接入步骤与全部待填 key** 见 [`SETUP.md`](./SETUP.md)（Anthropic / Azure Speech / Supabase / Cloudflare）。后端代码在 [`worker/`](./worker)。
+
 ## 🎨 设计
 
 Nothing 风格极简设计语言：纯黑底 + 单色灰阶 + **一抹 Nothing 红**，点阵字 (Doto) 用于数字/编号/品牌，Inter 排正文，Geist Mono 排技术微标签。点阵「30」+红点句号为品牌记号（贯穿 favicon / PWA 图标 / 应用内）。完整规范见 [`DESIGN.md`](./DESIGN.md)。组件层沿用 shadcn 变体约定（cva + `cn`），底层为 Radix 无障碍原语。
