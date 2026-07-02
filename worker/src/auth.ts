@@ -24,9 +24,18 @@ function getJwks(teamDomain: string) {
 export async function verifyUser(request: Request, env: Env): Promise<string | null> {
   if (env.DEV_BYPASS_AUTH === 'true') return 'dev@local'
 
-  // Open mode: no Access configured → allow everyone, identify by IP so the
-  // per-IP daily quota still bounds abuse (no login, no dashboard needed).
+  // No Cloudflare Access configured → open / passcode mode (no dashboard needed).
   if (!env.CF_ACCESS_TEAM_DOMAIN) {
+    // If a shared passcode is set, require it (header or cookie). This is a
+    // simple access gate that needs zero dashboard setup.
+    if (env.APP_PASSCODE) {
+      const given =
+        request.headers.get('x-app-passcode') ||
+        (request.headers.get('cookie') || '').match(/app_pc=([^;]+)/)?.[1] ||
+        ''
+      return given && given === env.APP_PASSCODE ? 'member' : null
+    }
+    // Fully open: identify by IP so the per-IP daily quota still bounds abuse.
     return request.headers.get('CF-Connecting-IP') || 'anon'
   }
 

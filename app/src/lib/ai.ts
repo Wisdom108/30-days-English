@@ -1,8 +1,9 @@
 import { config, features } from '../config'
+import { authHeaders } from './access'
 
 // Typed client for the Cloudflare Worker AI endpoints. Every call carries the
-// Supabase access token; the Worker verifies it, enforces per-user quota, and
-// proxies to Claude (keys stay server-side).
+// auth context (Access cookie and/or passcode header); the Worker verifies it,
+// enforces per-user quota, and runs Cloudflare Workers AI (all server-side).
 
 export interface LessonCtx {
   day?: number
@@ -31,7 +32,7 @@ async function post<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${config.workerUrl}${path}`, {
     method: 'POST',
     credentials: 'include', // carry the Cloudflare Access session cookie
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', ...authHeaders() },
     body: JSON.stringify(body),
   })
   if (res.status === 401) throw new AIError('请先登录')

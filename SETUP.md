@@ -26,8 +26,18 @@ npx wrangler deploy
 ```
 （Azure Portal → 建 Speech 资源 → 拿 Key + Region，有免费档 F0。）不加则继续用浏览器语音，一切照常。
 
-## 可选增强 2 · 每用户登录（Cloudflare Access）
-现在是开放模式（访客 + 按 IP 限额）。想要邮箱/Google 登录 + 每用户额度：
+## 登录 · 两种方式（二选一，都免 Anthropic/Azure）
+
+**A. 访问口令（推荐 · 零后台，全程 wrangler）** — 已启用。
+```bash
+cd worker
+echo "你的口令" | npx wrangler secret put APP_PASSCODE   # 改口令
+npx wrangler deploy                                      # 无需，secret 即时生效
+# 想彻底关掉登录(回开放模式)：npx wrangler secret delete APP_PASSCODE
+```
+设了 `APP_PASSCODE` → 前端弹口令框，输对才可用 AI（口令存本地，之后免输）。共享一个口令，适合个人/小圈子。
+
+**B. 每用户登录（Cloudflare Access）** — 需 Zero Trust 后台，支持邮箱/Google 独立账号 + 每用户额度：
 1. Cloudflare Zero Trust → Access → Applications → Add self-hosted，domain 填 Worker 域名，path 加 `ai`/`speech`/`me`/`login` 四行（base 保持公开）。
 2. Policy=Allow（限你的邮箱或 Everyone）；Settings→Authentication 开 One-time PIN / Google。
 3. 复制 **AUD tag** + team 域名 → 填 `worker/wrangler.toml` 的 `CF_ACCESS_AUD` / `CF_ACCESS_TEAM_DOMAIN` → `npx wrangler deploy`。

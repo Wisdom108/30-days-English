@@ -16,6 +16,7 @@ export interface Env {
   // Cloudflare Access (Zero Trust) — auth
   CF_ACCESS_TEAM_DOMAIN: string // e.g. myteam.cloudflareaccess.com
   CF_ACCESS_AUD: string // Access application audience (AUD) tag
+  APP_PASSCODE?: string // optional shared passcode gate (no dashboard needed)
   DEV_BYPASS_AUTH?: string // "true" only for local `wrangler dev`
   AZURE_SPEECH_KEY: string
   AZURE_SPEECH_REGION: string
@@ -252,9 +253,11 @@ async function handleSpeechToken(req: Request, env: Env): Promise<Response> {
  *  Open mode (no Access) → returns a "访客" identity so AI works without login. */
 async function handleMe(req: Request, env: Env): Promise<Response> {
   const uid = await verifyUser(req, env)
-  if (!uid) return json({ email: null }, env, 401)
-  const email = env.CF_ACCESS_TEAM_DOMAIN ? uid : '访客'
-  return json({ email, loginRequired: !!env.CF_ACCESS_TEAM_DOMAIN }, env)
+  // mode tells the frontend how to log in: Access redirect, passcode prompt, or open.
+  const mode = env.CF_ACCESS_TEAM_DOMAIN ? 'access' : env.APP_PASSCODE ? 'passcode' : 'open'
+  if (!uid) return json({ email: null, mode }, env, 401)
+  const email = mode === 'access' ? uid : mode === 'passcode' ? 'member' : '访客'
+  return json({ email, mode }, env)
 }
 
 /** Access-protected redirect target. Reaching it means Access has authenticated

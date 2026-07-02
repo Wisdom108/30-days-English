@@ -1,20 +1,26 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { getIdentity, type Identity } from './lib/access'
+import { getIdentity, type Identity, type AuthMode } from './lib/access'
 import { features } from './config'
 
 interface AuthCtx {
   user: Identity | null
   loading: boolean
-  /** Whether auth is available (the Worker is configured). Login itself is
-   *  handled by Cloudflare Access at the edge. */
   authEnabled: boolean
+  mode: AuthMode
   refresh: () => void
 }
 
-const Ctx = createContext<AuthCtx>({ user: null, loading: false, authEnabled: false, refresh: () => {} })
+const Ctx = createContext<AuthCtx>({
+  user: null,
+  loading: false,
+  authEnabled: false,
+  mode: 'open',
+  refresh: () => {},
+})
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<Identity | null>(null)
+  const [mode, setMode] = useState<AuthMode>('open')
   const [loading, setLoading] = useState<boolean>(features.worker)
   const [tick, setTick] = useState(0)
 
@@ -22,9 +28,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!features.worker) return
     let alive = true
     setLoading(true)
-    getIdentity().then((id) => {
+    getIdentity().then(({ user, mode }) => {
       if (!alive) return
-      setUser(id)
+      setUser(user)
+      setMode(mode)
       setLoading(false)
     })
     return () => {
@@ -33,8 +40,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [tick])
 
   const value = useMemo<AuthCtx>(
-    () => ({ user, loading, authEnabled: features.worker, refresh: () => setTick((t) => t + 1) }),
-    [user, loading],
+    () => ({ user, mode, loading, authEnabled: features.worker, refresh: () => setTick((t) => t + 1) }),
+    [user, mode, loading],
   )
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }
