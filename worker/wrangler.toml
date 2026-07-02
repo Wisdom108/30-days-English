@@ -10,9 +10,12 @@ compatibility_flags = ["nodejs_compat"]
 # "claude-haiku-4-5" here to trade some quality for lower cost/latency.
 ANTHROPIC_MODEL = "claude-opus-4-8"
 # CORS: set to your deployed frontend origin in production (e.g. https://30days.pages.dev).
+# Must be the exact origin (not "*") once auth cookies are used.
 ALLOWED_ORIGIN = "*"
-# Supabase project URL — used to fetch the JWKS for verifying access tokens.
-SUPABASE_URL = ""
+# Cloudflare Access (Zero Trust) — auth. Team domain like "myteam.cloudflareaccess.com"
+# and the Access application's Audience (AUD) tag. Both from the Zero Trust dashboard.
+CF_ACCESS_TEAM_DOMAIN = ""
+CF_ACCESS_AUD = ""
 # Azure Speech region (e.g. "eastus"). The key is a secret (below).
 AZURE_SPEECH_REGION = ""
 # Default Azure neural voice.
@@ -32,5 +35,5 @@ id = "REPLACE_WITH_KV_NAMESPACE_ID"
 # ---- Secrets (DO NOT put real values here — use `wrangler secret put`) ----
 #   ANTHROPIC_API_KEY       your Anthropic API key (sk-ant-...)
 #   AZURE_SPEECH_KEY        Azure Speech resource key
-#   SUPABASE_JWT_SECRET     (optional) legacy HS256 JWT secret; omit if the
-#                           project uses the default asymmetric JWT signing keys
+# (Cloudflare Access needs no secret in the Worker — it verifies against the
+#  team's public JWKS. Auth is enforced by the Access application on the route.)

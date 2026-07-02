@@ -1,35 +1,40 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import type { Session, User } from '@supabase/supabase-js'
-import { supabase } from './lib/supabase'
+import { getIdentity, type Identity } from './lib/access'
 import { features } from './config'
 
 interface AuthCtx {
-  user: User | null
-  session: Session | null
+  user: Identity | null
   loading: boolean
-  /** Whether auth is even configured (else the app runs in its free tier). */
+  /** Whether auth is available (the Worker is configured). Login itself is
+   *  handled by Cloudflare Access at the edge. */
   authEnabled: boolean
+  refresh: () => void
 }
 
-const Ctx = createContext<AuthCtx>({ user: null, session: null, loading: false, authEnabled: false })
+const Ctx = createContext<AuthCtx>({ user: null, loading: false, authEnabled: false, refresh: () => {} })
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<Session | null>(null)
-  const [loading, setLoading] = useState<boolean>(features.auth)
+  const [user, setUser] = useState<Identity | null>(null)
+  const [loading, setLoading] = useState<boolean>(features.worker)
+  const [tick, setTick] = useState(0)
 
   useEffect(() => {
-    if (!supabase) return
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session)
+    if (!features.worker) return
+    let alive = true
+    setLoading(true)
+    getIdentity().then((id) => {
+      if (!alive) return
+      setUser(id)
       setLoading(false)
     })
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSession(s))
-    return () => sub.subscription.unsubscribe()
-  }, [])
+    return () => {
+      alive = false
+    }
+  }, [tick])
 
   const value = useMemo<AuthCtx>(
-    () => ({ user: session?.user ?? null, session, loading, authEnabled: features.auth }),
-    [session, loading],
+    () => ({ user, loading, authEnabled: features.worker, refresh: () => setTick((t) => t + 1) }),
+    [user, loading],
   )
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }

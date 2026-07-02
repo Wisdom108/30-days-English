@@ -109,7 +109,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       </div>
 
       <div className="mt-auto p-3">
-        <AuthControls onNavigate={onNavigate} />
+        <AuthControls />
         <div className="my-2 border-t border-border" />
         <div className="mb-1 flex items-center gap-1.5 px-2 text-meta text-fg-secondary">
           <Flame size={13} className="text-red" /> <span className="t-num">{streak}</span> 天连续

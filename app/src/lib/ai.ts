@@ -1,5 +1,4 @@
 import { config, features } from '../config'
-import { getAccessToken } from './supabase'
 
 // Typed client for the Cloudflare Worker AI endpoints. Every call carries the
 // Supabase access token; the Worker verifies it, enforces per-user quota, and
@@ -29,13 +28,13 @@ export class AIError extends Error {}
 
 async function post<T>(path: string, body: unknown): Promise<T> {
   if (!features.ai) throw new AIError('AI 未配置')
-  const token = await getAccessToken()
-  if (!token) throw new AIError('请先登录')
   const res = await fetch(`${config.workerUrl}${path}`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+    credentials: 'include', // carry the Cloudflare Access session cookie
+    headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
   })
+  if (res.status === 401) throw new AIError('请先登录')
   const data = await res.json().catch(() => ({}))
   if (!res.ok) throw new AIError((data as { error?: string }).error || `请求失败 (${res.status})`)
   return data as T

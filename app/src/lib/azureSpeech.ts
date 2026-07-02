@@ -1,5 +1,4 @@
 import { config, features } from '../config'
-import { getAccessToken } from './supabase'
 
 // Azure Speech: natural neural TTS + phoneme-level pronunciation assessment.
 // The SDK is heavy (~1.5MB) so it is dynamically imported on first use. The
@@ -23,11 +22,8 @@ let cachedToken: Tok | null = null
 
 async function getToken(): Promise<Tok> {
   if (cachedToken && Date.now() - cachedToken.at < 8.5 * 60 * 1000) return cachedToken
-  const jwt = await getAccessToken()
-  if (!jwt) throw new Error('请先登录')
-  const res = await fetch(`${config.workerUrl}/speech/token`, {
-    headers: { authorization: `Bearer ${jwt}` },
-  })
+  const res = await fetch(`${config.workerUrl}/speech/token`, { credentials: 'include' })
+  if (res.status === 401) throw new Error('请先登录')
   if (!res.ok) throw new Error('语音服务不可用')
   const data = (await res.json()) as { token: string; region: string; voice: string }
   cachedToken = { ...data, at: Date.now() }

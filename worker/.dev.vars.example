@@ -4,10 +4,9 @@
 # Anthropic API key — powers all AI features (draws from your Anthropic credits).
 ANTHROPIC_API_KEY=sk-ant-REPLACE_ME
 
-# Azure Speech resource (Cognitive Services > Speech). Region also set in wrangler.toml [vars].
+# Azure Speech resource key (region is set in wrangler.toml [vars]).
 AZURE_SPEECH_KEY=REPLACE_ME
 
-# Supabase legacy HS256 JWT secret (Project Settings > API > JWT Secret).
-# OMIT this if your project uses the newer asymmetric JWT signing keys — the
-# Worker will then verify tokens against SUPABASE_URL/auth/v1/.well-known/jwks.json.
-SUPABASE_JWT_SECRET=
+# Local-only: bypass Cloudflare Access auth so `wrangler dev` works without a
+# Zero Trust tenant. NEVER set this in production.
+DEV_BYPASS_AUTH=true

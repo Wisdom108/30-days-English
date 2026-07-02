@@ -37,7 +37,7 @@
 - **AI 私教答疑** — 全局悬浮，随时问语法用法，结合当天课程作答
 - **自然神经语音** — Azure TTS 替换浏览器 TTS，去掉"人机感"
 
-架构：Cloudflare Worker 后端代理 Claude（`claude-opus-4-8`，可切 Sonnet/Haiku）+ 签发 Azure 短时令牌 + Supabase 登录鉴权 + 每用户日额度；密钥只在后端。前端 `config.ts` 特性开关**优雅降级**：未配置时自动回退浏览器语音、隐藏 AI 入口。
+架构：**全 Cloudflare 生态** —— Worker 后端代理 Claude（`claude-opus-4-8`，可切 Sonnet/Haiku）+ 签发 Azure 短时令牌 + **Cloudflare Access（Zero Trust 免费档）登录** + KV 每用户日额度；密钥只在 Worker，前端只用 cookie 会话。`config.ts` 特性开关**优雅降级**：未配置时自动回退浏览器语音、隐藏 AI 入口。仅需 **Cloudflare + Anthropic + Azure** 三个账号。
 
 **接入步骤与全部待填 key** 见 [`SETUP.md`](./SETUP.md)（Anthropic / Azure Speech / Supabase / Cloudflare）。后端代码在 [`worker/`](./worker)。
 

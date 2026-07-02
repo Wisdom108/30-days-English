@@ -13,8 +13,10 @@ export interface Env {
   ANTHROPIC_API_KEY: string
   ANTHROPIC_MODEL: string
   ALLOWED_ORIGIN: string
-  SUPABASE_URL: string
-  SUPABASE_JWT_SECRET?: string
+  // Cloudflare Access (Zero Trust) — auth
+  CF_ACCESS_TEAM_DOMAIN: string // e.g. myteam.cloudflareaccess.com
+  CF_ACCESS_AUD: string // Access application audience (AUD) tag
+  DEV_BYPASS_AUTH?: string // "true" only for local `wrangler dev`
   AZURE_SPEECH_KEY: string
   AZURE_SPEECH_REGION: string
   AZURE_VOICE: string
@@ -30,19 +32,27 @@ interface Msg {
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages'
 
 // ---------------------------------------------------------------- helpers
-function cors(env: Env): Record<string, string> {
-  return {
-    'Access-Control-Allow-Origin': env.ALLOWED_ORIGIN || '*',
+// Cookie-based auth needs credentialed CORS: echo the caller's origin (can't be
+// '*' with credentials) when it matches ALLOWED_ORIGIN, and allow credentials.
+function cors(env: Env, req?: Request): Record<string, string> {
+  const allowed = env.ALLOWED_ORIGIN || '*'
+  const origin = req?.headers.get('origin') || ''
+  const allowOrigin = allowed === '*' ? origin || '*' : allowed
+  const h: Record<string, string> = {
+    'Access-Control-Allow-Origin': allowOrigin,
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'authorization, content-type',
+    'Access-Control-Allow-Headers': 'content-type',
     'Access-Control-Max-Age': '86400',
+    Vary: 'Origin',
   }
+  if (allowOrigin !== '*') h['Access-Control-Allow-Credentials'] = 'true'
+  return h
 }
 
-function json(data: unknown, env: Env, status = 200): Response {
+function json(data: unknown, env: Env, status = 200, req?: Request): Response {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { 'content-type': 'application/json', ...cors(env) },
+    headers: { 'content-type': 'application/json', ...cors(env, req) },
   })
 }
 
@@ -234,28 +244,65 @@ async function handleSpeechToken(req: Request, env: Env): Promise<Response> {
   return json({ token, region: env.AZURE_SPEECH_REGION, voice: env.AZURE_VOICE || 'en-US-AvaMultilingualNeural' }, env)
 }
 
+/** Whoami — the frontend polls this to learn if the user is signed in. */
+async function handleMe(req: Request, env: Env): Promise<Response> {
+  const uid = await verifyUser(req, env)
+  return uid ? json({ email: uid }, env) : json({ email: null }, env, 401)
+}
+
+/** Access-protected redirect target. Reaching it means Access has authenticated
+ *  the user (or DEV_BYPASS); bounce back to the app's `redirect` param. */
+function handleLogin(req: Request): Response {
+  const url = new URL(req.url)
+  const back = url.searchParams.get('redirect') || '/'
+  return new Response(null, { status: 302, headers: { location: back } })
+}
+
+/** Clear the Access session on the team domain, then bounce back to the app. */
+function handleLogout(req: Request, env: Env): Response {
+  const url = new URL(req.url)
+  const back = url.searchParams.get('redirect') || '/'
+  const dest = env.CF_ACCESS_TEAM_DOMAIN
+    ? `https://${env.CF_ACCESS_TEAM_DOMAIN}/cdn-cgi/access/logout?returnTo=${encodeURIComponent(back)}`
+    : back
+  return new Response(null, { status: 302, headers: { location: dest } })
+}
+
+// Apply credentialed CORS to every response (origin-echoed, not '*').
+function withCors(resp: Response, env: Env, req: Request): Response {
+  const h = new Headers(resp.headers)
+  for (const [k, v] of Object.entries(cors(env, req))) h.set(k, v)
+  return new Response(resp.body, { status: resp.status, headers: h })
+}
+
 // ---------------------------------------------------------------- entry
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
-    if (req.method === 'OPTIONS') return new Response(null, { headers: cors(env) })
+    if (req.method === 'OPTIONS') return withCors(new Response(null), env, req)
     const { pathname } = new URL(req.url)
 
-    if (pathname === '/health') {
-      return json(
-        {
-          ok: true,
-          features: {
-            ai: !!env.ANTHROPIC_API_KEY,
-            speech: !!(env.AZURE_SPEECH_KEY && env.AZURE_SPEECH_REGION),
-            auth: !!(env.SUPABASE_URL || env.SUPABASE_JWT_SECRET),
+    const route = async (): Promise<Response> => {
+      if (pathname === '/health') {
+        return json(
+          {
+            ok: true,
+            features: {
+              ai: !!env.ANTHROPIC_API_KEY,
+              speech: !!(env.AZURE_SPEECH_KEY && env.AZURE_SPEECH_REGION),
+              auth: !!(env.CF_ACCESS_TEAM_DOMAIN || env.DEV_BYPASS_AUTH === 'true'),
+            },
           },
-        },
-        env,
-      )
+          env,
+        )
+      }
+      if (pathname === '/me' && req.method === 'GET') return handleMe(req, env)
+      if (pathname === '/login') return handleLogin(req)
+      if (pathname === '/logout') return handleLogout(req, env)
+      if (pathname === '/speech/token' && req.method === 'GET') return handleSpeechToken(req, env)
+      if (pathname.startsWith('/ai/') && req.method === 'POST') return handleAI(pathname, req, env)
+      return json({ error: 'not found' }, env, 404)
     }
-    if (pathname === '/speech/token' && req.method === 'GET') return handleSpeechToken(req, env)
-    if (pathname.startsWith('/ai/') && req.method === 'POST') return handleAI(pathname, req, env)
 
-    return json({ error: 'not found' }, env, 404)
+    return withCors(await route(), env, req)
   },
 }

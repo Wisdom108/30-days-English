@@ -1,16 +1,18 @@
-import { jwtVerify, createRemoteJWKSet, type JWTPayload } from 'jose'
+import { jwtVerify, createRemoteJWKSet } from 'jose'
 import type { Env } from './index'
 
-// Verify a Supabase access token (Authorization: Bearer <jwt>).
-// Supports both auth schemes:
-//   - Legacy HS256 shared secret (SUPABASE_JWT_SECRET set)
-//   - Default asymmetric signing keys (verified via the project JWKS endpoint)
-// Returns the user id (sub) on success, or null on any failure.
+// Verify a Cloudflare Access identity. When the Worker route is protected by a
+// Zero Trust Access application, Cloudflare validates the login at the edge and
+// forwards a signed JWT in the `Cf-Access-Jwt-Assertion` header. We re-verify it
+// (defense in depth) against the team's public keys and return the user's email.
+//
+// Local dev: set DEV_BYPASS_AUTH=true in .dev.vars so `wrangler dev` works
+// without a real Access tenant.
 
 const jwksCache = new Map<string, ReturnType<typeof createRemoteJWKSet>>()
 
-function getJwks(supabaseUrl: string) {
-  const url = `${supabaseUrl.replace(/\/+$/, '')}/auth/v1/.well-known/jwks.json`
+function getJwks(teamDomain: string) {
+  const url = `https://${teamDomain}/cdn-cgi/access/certs`
   let jwks = jwksCache.get(url)
   if (!jwks) {
     jwks = createRemoteJWKSet(new URL(url))
@@ -20,31 +22,22 @@ function getJwks(supabaseUrl: string) {
 }
 
 export async function verifyUser(request: Request, env: Env): Promise<string | null> {
-  const auth = request.headers.get('authorization') || ''
-  const token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : ''
-  if (!token) return null
+  if (env.DEV_BYPASS_AUTH === 'true') return 'dev@local'
+
+  const token =
+    request.headers.get('Cf-Access-Jwt-Assertion') ||
+    // fallback: the CF_Authorization cookie carries the same JWT
+    (request.headers.get('cookie') || '').match(/CF_Authorization=([^;]+)/)?.[1] ||
+    ''
+  if (!token || !env.CF_ACCESS_TEAM_DOMAIN) return null
 
   try {
-    let payload: JWTPayload
-    if (env.SUPABASE_JWT_SECRET) {
-      const key = new TextEncoder().encode(env.SUPABASE_JWT_SECRET)
-      ;({ payload } = await jwtVerify(token, key, {
-        algorithms: ['HS256'],
-        audience: 'authenticated',
-      }))
-    } else if (env.SUPABASE_URL) {
-      // Pin issuer + audience + asymmetric algs (defense-in-depth).
-      ;({ payload } = await jwtVerify(token, getJwks(env.SUPABASE_URL), {
-        issuer: `${env.SUPABASE_URL.replace(/\/+$/, '')}/auth/v1`,
-        audience: 'authenticated',
-        algorithms: ['RS256', 'ES256'],
-      }))
-    } else {
-      return null
-    }
-    // Supabase puts the user id in `sub`; require an authenticated (non-anon) role.
-    if (payload.role === 'anon') return null
-    return typeof payload.sub === 'string' ? payload.sub : null
+    const { payload } = await jwtVerify(token, getJwks(env.CF_ACCESS_TEAM_DOMAIN), {
+      issuer: `https://${env.CF_ACCESS_TEAM_DOMAIN}`,
+      audience: env.CF_ACCESS_AUD || undefined,
+      algorithms: ['RS256'],
+    })
+    return typeof payload.email === 'string' ? payload.email : (payload.sub as string) || null
   } catch {
     return null
   }

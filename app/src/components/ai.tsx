@@ -1,96 +1,22 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
-import { Sparkles, LogIn, LogOut, Mail, Send, X, Bot, Loader2 } from 'lucide-react'
+import { Sparkles, LogIn, LogOut, Send, X, Bot, Loader2 } from 'lucide-react'
 import { useAuth } from '../auth'
 import { features } from '../config'
-import { signInWithEmail, signInWithGoogle, signOut } from '../lib/supabase'
+import { login, logout } from '../lib/access'
 import { aiChat, aiTutor, AIError, type ChatMsg, type LessonCtx } from '../lib/ai'
 import { Button, Callout, IconButton } from './ui'
 import { cn } from '../lib/utils'
 
 // ============================================================================
-// Login
+// Login (Cloudflare Access — hosted email OTP + Google/GitHub, redirect flow)
 // ============================================================================
-export function LoginCard({ onDone }: { onDone?: () => void }) {
-  const [email, setEmail] = useState('')
-  const [state, setState] = useState<'idle' | 'sending' | 'sent'>('idle')
-  const [error, setError] = useState<string | null>(null)
 
-  const sendLink = async () => {
-    if (!email.includes('@')) return setError('请输入有效邮箱')
-    setState('sending')
-    setError(null)
-    const { error } = await signInWithEmail(email.trim())
-    if (error) {
-      setError(error)
-      setState('idle')
-    } else {
-      setState('sent')
-    }
-  }
-
-  if (state === 'sent') {
-    return (
-      <div className="text-center">
-        <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-xl border border-border bg-surface-2">
-          <Mail size={20} className="text-fg" />
-        </div>
-        <h3 className="text-h2 font-semibold text-fg">登录链接已发送</h3>
-        <p className="mt-1.5 text-sm text-fg-muted">
-          去 <b className="text-fg">{email}</b> 邮箱点击链接即可登录。可关闭此窗口。
-        </p>
-        {onDone && (
-          <Button variant="secondary" className="mt-4" onClick={onDone}>
-            知道了
-          </Button>
-        )}
-      </div>
-    )
-  }
-
-  return (
-    <div>
-      <div className="flex items-center gap-2">
-        <Sparkles size={16} className="text-red" />
-        <h3 className="text-h2 font-semibold text-fg">登录解锁 AI 功能</h3>
-      </div>
-      <p className="mt-1 text-sm text-fg-muted">对话陪练 · 写作批改 · 发音教练 · 私教答疑</p>
-
-      <div className="mt-4 space-y-2.5">
-        <input
-          type="email"
-          inputMode="email"
-          autoComplete="email"
-          placeholder="你的邮箱"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && sendLink()}
-          className="h-10 w-full rounded-lg border border-border bg-surface px-3 text-body text-fg outline-none placeholder:text-fg-dim focus:border-brand focus:ring-2 focus:ring-brand/25"
-        />
-        <Button className="w-full" disabled={state === 'sending'} onClick={sendLink}>
-          {state === 'sending' ? <Loader2 size={15} className="animate-spin" /> : <Mail size={15} />}
-          发送登录链接
-        </Button>
-        <div className="flex items-center gap-2 py-0.5">
-          <span className="h-px flex-1 bg-border" />
-          <span className="text-label text-fg-dim">或</span>
-          <span className="h-px flex-1 bg-border" />
-        </div>
-        <Button variant="secondary" className="w-full" onClick={() => signInWithGoogle()}>
-          <LogIn size={15} /> 用 Google 登录
-        </Button>
-      </div>
-      {error && <p className="mt-2 text-meta text-danger">{error}</p>}
-      <p className="mt-3 text-meta text-fg-dim">免登录也可用全部课程与基础语音；AI 功能需登录（有每日额度）。</p>
-    </div>
-  )
-}
-
-/** Sidebar auth widget: shows sign-in trigger or the signed-in email + sign-out. */
-export function AuthControls({ onNavigate }: { onNavigate?: () => void }) {
-  const { user, authEnabled } = useAuth()
-  const [open, setOpen] = useState(false)
+/** Sidebar auth widget: signed-in email + sign-out, or a sign-in trigger. */
+export function AuthControls() {
+  const { user, authEnabled, loading } = useAuth()
   if (!authEnabled) return null
+  if (loading) return <div className="mx-2 h-6 animate-pulse rounded-md bg-hover" />
 
   if (user) {
     return (
@@ -99,36 +25,19 @@ export function AuthControls({ onNavigate }: { onNavigate?: () => void }) {
           {(user.email || '?')[0].toUpperCase()}
         </span>
         <span className="flex-1 truncate text-fg-secondary">{user.email}</span>
-        <IconButton label="登出" size="sm" onClick={() => signOut()}>
+        <IconButton label="登出" size="sm" onClick={logout}>
           <LogOut size={14} />
         </IconButton>
       </div>
     )
   }
   return (
-    <Dialog.Root open={open} onOpenChange={setOpen}>
-      <Dialog.Trigger asChild>
-        <button
-          onClick={onNavigate}
-          className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-sm text-fg-secondary transition-colors hover:bg-hover hover:text-fg"
-        >
-          <LogIn size={14} /> 登录 · 解锁 AI
-        </button>
-      </Dialog.Trigger>
-      <LoginModal onClose={() => setOpen(false)} />
-    </Dialog.Root>
-  )
-}
-
-function LoginModal({ onClose }: { onClose: () => void }) {
-  return (
-    <Dialog.Portal>
-      <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px] data-[state=open]:animate-in-up" />
-      <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-[92vw] max-w-[380px] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow-popover)] focus:outline-none data-[state=open]:animate-in-up">
-        <Dialog.Title className="sr-only">登录</Dialog.Title>
-        <LoginCard onDone={onClose} />
-      </Dialog.Content>
-    </Dialog.Portal>
+    <button
+      onClick={login}
+      className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-sm text-fg-secondary transition-colors hover:bg-hover hover:text-fg"
+    >
+      <LogIn size={14} /> 登录 · 解锁 AI
+    </button>
   )
 }
 
@@ -137,12 +46,11 @@ function LoginModal({ onClose }: { onClose: () => void }) {
 // ============================================================================
 export function AiGate({ children, compact }: { children: ReactNode; compact?: boolean }) {
   const { user, authEnabled, loading } = useAuth()
-  const [open, setOpen] = useState(false)
 
   if (!features.ai || !authEnabled) {
     return (
       <Callout tone="warning" icon={<Sparkles size={15} className="text-fg-muted" />}>
-        AI 功能需配置后端（CF Worker + Supabase + Claude）后启用。见 SETUP.md。
+        AI 功能需配置后端（CF Worker + Cloudflare Access + Claude）后启用。见 SETUP.md。
       </Callout>
     )
   }
@@ -152,17 +60,12 @@ export function AiGate({ children, compact }: { children: ReactNode; compact?: b
   }
   if (!user) {
     return (
-      <Dialog.Root open={open} onOpenChange={setOpen}>
-        <Callout tone="accent" icon={<Sparkles size={15} className="text-red" />}>
-          <div className={cn('flex items-center justify-between gap-3', compact && 'flex-col items-stretch')}>
-            <span>登录后解锁 AI 功能</span>
-            <Dialog.Trigger asChild>
-              <Button size="sm">登录</Button>
-            </Dialog.Trigger>
-          </div>
-        </Callout>
-        <LoginModal onClose={() => setOpen(false)} />
-      </Dialog.Root>
+      <Callout tone="accent" icon={<Sparkles size={15} className="text-red" />}>
+        <div className={cn('flex items-center justify-between gap-3', compact && 'flex-col items-stretch')}>
+          <span>登录后解锁 · 对话陪练 / 写作批改 / 发音教练 / 私教答疑</span>
+          <Button size="sm" onClick={login}>登录</Button>
+        </div>
+      </Callout>
     )
   }
   return <>{children}</>
