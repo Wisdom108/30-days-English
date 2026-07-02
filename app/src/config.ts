@@ -11,12 +11,17 @@
 
 const env = import.meta.env
 
+// Same-origin mode: the Worker serves both the static app and the /api routes,
+// so API calls are relative (workerUrl = '') and the Access cookie is same-origin
+// (no cross-site cookie problems). Set VITE_SAME_ORIGIN=true for that build.
+const sameOrigin = env.VITE_SAME_ORIGIN === 'true'
+
 export const config = {
-  workerUrl: (env.VITE_WORKER_URL || '').replace(/\/+$/, ''),
+  workerUrl: sameOrigin ? '' : (env.VITE_WORKER_URL || '').replace(/\/+$/, ''),
   azureVoice: env.VITE_AZURE_VOICE || 'en-US-AvaMultilingualNeural',
 }
 
-const workerReady = !!config.workerUrl
+const workerReady = sameOrigin || !!config.workerUrl
 
 // Auth is Cloudflare Access (edge login) — whether a user is signed in is a
 // RUNTIME check (see lib/access.ts → getIdentity), not a build-time flag. These

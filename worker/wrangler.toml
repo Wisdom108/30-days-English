@@ -5,6 +5,16 @@ main = "src/index.ts"
 compatibility_date = "2026-01-01"
 compatibility_flags = ["nodejs_compat"]
 
+# Same-origin hosting: this Worker also serves the built frontend (app/dist), so
+# the app and its /api routes share one origin (login cookie is not cross-site).
+# Build the app first: cd ../app && npm run build (with VITE_SAME_ORIGIN=true).
+# Static assets are served automatically; the Worker script handles the API paths
+# (/health /me /login /logout /ai/* /speech/*). Client routing is HashRouter, so
+# the SPA fallback rarely triggers, but it's set for direct deep links.
+[assets]
+directory = "../app/dist"
+not_found_handling = "single-page-application"
+
 [vars]
 # Non-secret config. Model defaults to Opus 4.8; switch to "claude-sonnet-5" or
 # "claude-haiku-4-5" here to trade some quality for lower cost/latency.
