@@ -97,7 +97,7 @@ export default function Dashboard() {
         </div>
         <div className="text-right leading-[0.85]">
           <div className="font-mono text-[10px] tracking-[0.24em] text-fg-dim">DAY</div>
-          <div className="t-num text-[52px] font-semibold text-fg sm:text-[68px]">{dd}</div>
+          <div className="t-num text-[58px] font-semibold text-fg sm:text-[78px]">{dd}</div>
         </div>
       </section>
 
@@ -267,7 +267,7 @@ function MCell({
       )}
     >
       <div className="label-nd">{label}</div>
-      <div className={cn('t-num mt-2.5 text-[30px] font-semibold leading-none sm:text-[34px]', red ? 'text-red' : 'text-fg')}>{value}</div>
+      <div className={cn('t-num mt-2.5 text-[28px] font-semibold leading-none sm:text-[32px]', red ? 'text-red' : 'text-fg')}>{value}</div>
     </Tag>
   )
 }

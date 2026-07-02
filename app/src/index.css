@@ -100,9 +100,9 @@
   body {
     margin: 0;
     background-color: var(--color-bg);
-    /* ambient dot-grid — kept very subtle */
-    background-image: radial-gradient(circle, #121214 1px, transparent 1px);
-    background-size: 22px 22px;
+    /* Nothing dot-grid texture — the signature ambient structure */
+    background-image: radial-gradient(circle, #1a1a1a 1.1px, transparent 1.1px);
+    background-size: 16px 16px;
     background-attachment: fixed;
     color: var(--color-fg);
     font-family: var(--font-sans);
@@ -124,9 +124,10 @@
   .font-display { font-family: var(--font-display); }
   .font-mono { font-family: var(--font-mono); }
 
-  /* Unified numerals: Space Grotesk tabular figures everywhere. Doto is
-     reserved for the logo mark only (dot-matrix as a brand glyph, not text). */
-  .t-num { font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+  /* Doto dot-matrix numerals — the Nothing signature. Reserved for LARGE
+     display numbers (Day, streak, stats, grid). Small inline counters use
+     .t-tab (plain tabular Space Grotesk) so they stay clean, not messy. */
+  .t-num { font-family: var(--font-display); font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
   .t-tab { font-variant-numeric: tabular-nums; }
 
   /* Nothing-style uppercase mono micro-label */
