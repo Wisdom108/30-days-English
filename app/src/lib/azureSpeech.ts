@@ -38,13 +38,36 @@ export function azureAvailable(): boolean {
   return features.premiumSpeech
 }
 
+// Track the in-flight synthesizer so a new speak() halts the previous one —
+// otherwise rapid taps stack multiple voices playing at once.
+let activeSynth: { close(): void; stopSpeakingAsync?: (cb?: () => void) => void } | null = null
+
+function stopActive() {
+  const s = activeSynth
+  activeSynth = null
+  if (!s) return
+  try {
+    s.stopSpeakingAsync?.(() => {
+      try {
+        s.close()
+      } catch {
+        /* ignore */
+      }
+    })
+  } catch {
+    /* ignore */
+  }
+}
+
 /** Synthesize `text` with a natural neural voice and play it. */
 export async function azureSpeak(text: string, rate = 1): Promise<void> {
   const SpeechSDK = await loadSdk()
   const { token, region, voice } = await getToken()
+  stopActive()
   const speechConfig = SpeechSDK.SpeechConfig.fromAuthorizationToken(token, region)
   speechConfig.speechSynthesisVoiceName = config.azureVoice || voice
   const synth = new SpeechSDK.SpeechSynthesizer(speechConfig)
+  activeSynth = synth
   const ratePct = `${Math.round((rate - 1) * 100)}%`
   const ssml =
     `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="en-US">` +
@@ -53,11 +76,13 @@ export async function azureSpeak(text: string, rate = 1): Promise<void> {
     synth.speakSsmlAsync(
       ssml,
       (result) => {
+        if (activeSynth === synth) activeSynth = null
         synth.close()
         if (result.reason === SpeechSDK.ResultReason.SynthesizingAudioCompleted) resolve()
         else reject(new Error('合成失败'))
       },
       (err) => {
+        if (activeSynth === synth) activeSynth = null
         synth.close()
         reject(new Error(String(err)))
       },

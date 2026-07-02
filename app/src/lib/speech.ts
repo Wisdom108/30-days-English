@@ -5,13 +5,19 @@ import { azureAvailable, azureSpeak } from './azureSpeech'
 
 export function ttsSupported(): boolean {
   // Azure TTS or the browser's SpeechSynthesis — either counts as "can speak".
-  return azureAvailable() || (typeof window !== 'undefined' && 'speechSynthesis' in window)
+  return azureAvailable() || browserTts()
 }
+
+// Concrete browser Web Speech guard — the browser-only helpers below MUST use
+// this (not ttsSupported), or a premium build on a webview lacking
+// speechSynthesis (e.g. WeChat/older Android WebView) would deref undefined and
+// white-screen the app at startup (warmUpVoices runs before React mounts).
+const browserTts = () => typeof window !== 'undefined' && 'speechSynthesis' in window
 
 let cachedVoice: SpeechSynthesisVoice | null = null
 
 function pickEnglishVoice(): SpeechSynthesisVoice | null {
-  if (!ttsSupported()) return null
+  if (!browserTts()) return null
   const voices = window.speechSynthesis.getVoices()
   if (!voices.length) return null
   // Prefer a natural en-US / en-GB voice.
@@ -54,12 +60,12 @@ function browserSpeak(text: string, rate = 1): Promise<void> {
 }
 
 export function stopSpeaking() {
-  if (ttsSupported()) window.speechSynthesis.cancel()
+  if (browserTts()) window.speechSynthesis.cancel()
 }
 
 // Some browsers load voices asynchronously; call once on app start.
 export function warmUpVoices() {
-  if (!ttsSupported()) return
+  if (!browserTts()) return
   const load = () => {
     cachedVoice = pickEnglishVoice()
   }

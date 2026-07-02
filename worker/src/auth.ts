@@ -28,9 +28,17 @@ export async function verifyUser(request: Request, env: Env): Promise<string | n
     let payload: JWTPayload
     if (env.SUPABASE_JWT_SECRET) {
       const key = new TextEncoder().encode(env.SUPABASE_JWT_SECRET)
-      ;({ payload } = await jwtVerify(token, key, { algorithms: ['HS256'] }))
+      ;({ payload } = await jwtVerify(token, key, {
+        algorithms: ['HS256'],
+        audience: 'authenticated',
+      }))
     } else if (env.SUPABASE_URL) {
-      ;({ payload } = await jwtVerify(token, getJwks(env.SUPABASE_URL)))
+      // Pin issuer + audience + asymmetric algs (defense-in-depth).
+      ;({ payload } = await jwtVerify(token, getJwks(env.SUPABASE_URL), {
+        issuer: `${env.SUPABASE_URL.replace(/\/+$/, '')}/auth/v1`,
+        audience: 'authenticated',
+        algorithms: ['RS256', 'ES256'],
+      }))
     } else {
       return null
     }

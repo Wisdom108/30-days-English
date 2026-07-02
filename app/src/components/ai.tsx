@@ -136,7 +136,7 @@ function LoginModal({ onClose }: { onClose: () => void }) {
 // AI gate — wrap any AI feature; shows the right prompt when unavailable
 // ============================================================================
 export function AiGate({ children, compact }: { children: ReactNode; compact?: boolean }) {
-  const { user, authEnabled } = useAuth()
+  const { user, authEnabled, loading } = useAuth()
   const [open, setOpen] = useState(false)
 
   if (!features.ai || !authEnabled) {
@@ -145,6 +145,10 @@ export function AiGate({ children, compact }: { children: ReactNode; compact?: b
         AI 功能需配置后端（CF Worker + Supabase + Claude）后启用。见 SETUP.md。
       </Callout>
     )
+  }
+  // Avoid flashing the "登录后解锁" prompt while the session is still resolving.
+  if (loading) {
+    return <div className="h-9 animate-pulse rounded-lg bg-hover" />
   }
   if (!user) {
     return (
@@ -291,13 +295,14 @@ export function ConversationPanel({ lesson, scenario }: { lesson: LessonCtx; sce
 // Floating private tutor (私教答疑) — mounted globally, context = current day
 // ============================================================================
 export function TutorFab({ lesson, hidden }: { lesson: LessonCtx; hidden?: boolean }) {
-  const { authEnabled } = useAuth()
+  const { user, authEnabled } = useAuth()
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState<ChatMsg[]>([])
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
-  if (!features.ai || !authEnabled || hidden) return null
+  // Only for signed-in users — signed-out access is via the sidebar login entry.
+  if (!features.ai || !authEnabled || !user || hidden) return null
 
   const ask = async (text: string) => {
     const next = [...messages, { role: 'user' as const, content: text }]

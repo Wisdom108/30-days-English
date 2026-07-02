@@ -19,6 +19,8 @@ AZURE_SPEECH_REGION = ""
 AZURE_VOICE = "en-US-AvaMultilingualNeural"
 # Daily AI-call quota per user.
 DAILY_AI_QUOTA = "80"
+# Daily Azure-speech-token mints per user (each grants ~10 min of Azure access).
+DAILY_SPEECH_QUOTA = "60"
 
 # Per-user daily quota counter. Create with:
 #   wrangler kv namespace create QUOTA

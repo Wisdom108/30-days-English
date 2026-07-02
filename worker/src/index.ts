@@ -19,6 +19,7 @@ export interface Env {
   AZURE_SPEECH_REGION: string
   AZURE_VOICE: string
   DAILY_AI_QUOTA: string
+  DAILY_SPEECH_QUOTA: string
 }
 
 interface Msg {
@@ -49,15 +50,18 @@ function today(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
-/** Soft per-user daily quota via KV. Returns true if the call is allowed. */
-async function checkQuota(env: Env, uid: string): Promise<boolean> {
-  const cap = Number(env.DAILY_AI_QUOTA || '80')
-  const key = `q:${uid}:${today()}`
+// Soft per-user daily quotas via KV (read-only gate + explicit charge-on-success,
+// so failed upstream calls don't burn the user's quota). Non-atomic by design —
+// a small app tolerates the rare concurrent-burst overshoot; front with a CF
+// rate-limit rule if strict enforcement is ever needed.
+async function underQuota(env: Env, prefix: string, uid: string, cap: number): Promise<boolean> {
+  const cur = Number((await env.QUOTA.get(`${prefix}:${uid}:${today()}`)) || '0')
+  return cur < cap
+}
+async function bump(env: Env, prefix: string, uid: string): Promise<void> {
+  const key = `${prefix}:${uid}:${today()}`
   const cur = Number((await env.QUOTA.get(key)) || '0')
-  if (cur >= cap) return false
-  // 2-day TTL so yesterday's counters expire on their own.
   await env.QUOTA.put(key, String(cur + 1), { expirationTtl: 60 * 60 * 48 })
-  return true
 }
 
 /** Call Claude (raw Messages API). Returns the first text block, or throws. */
@@ -99,20 +103,24 @@ async function callClaude(
   return text
 }
 
+const cap = (s: unknown, n: number): string | undefined =>
+  typeof s === 'string' ? s.slice(0, n) : undefined
+
 function lessonFrom(v: unknown): LessonCtx {
   const o = (v || {}) as Record<string, unknown>
+  // Cap every client string that reaches a prompt — bounds cost / DoS amplification.
   return {
     day: typeof o.day === 'number' ? o.day : undefined,
-    theme: typeof o.theme === 'string' ? o.theme : undefined,
-    title_en: typeof o.title_en === 'string' ? o.title_en : undefined,
-    grammar: typeof o.grammar === 'string' ? o.grammar : undefined,
-    level: typeof o.level === 'string' ? o.level : undefined,
+    theme: cap(o.theme, 200),
+    title_en: cap(o.title_en, 200),
+    grammar: cap(o.grammar, 300),
+    level: cap(o.level, 40),
   }
 }
 
 function cleanMessages(v: unknown): Msg[] {
   if (!Array.isArray(v)) return []
-  return v
+  const msgs = v
     .filter(
       (m): m is Msg =>
         !!m &&
@@ -122,6 +130,9 @@ function cleanMessages(v: unknown): Msg[] {
     )
     .slice(-16)
     .map((m) => ({ role: m.role, content: m.content.slice(0, 4000) }))
+  // Anthropic requires the first message to be role 'user'.
+  while (msgs.length && msgs[0].role === 'assistant') msgs.shift()
+  return msgs
 }
 
 // ---------------------------------------------------------------- handlers
@@ -129,36 +140,47 @@ async function handleAI(path: string, req: Request, env: Env): Promise<Response>
   const uid = await verifyUser(req, env)
   if (!uid) return json({ error: '需要登录' }, env, 401)
   if (!env.ANTHROPIC_API_KEY) return json({ error: 'AI 未配置' }, env, 503)
-  if (!(await checkQuota(env, uid))) return json({ error: '今日 AI 额度已用完，明天再来～' }, env, 429)
+  const capQuota = Number(env.DAILY_AI_QUOTA || '80')
+  if (!(await underQuota(env, 'q', uid, capQuota))) {
+    return json({ error: '今日 AI 额度已用完，明天再来～' }, env, 429)
+  }
 
   const bodyIn = (await req.json().catch(() => ({}))) as Record<string, unknown>
   const lesson = lessonFrom(bodyIn.lesson)
 
   try {
     if (path === '/ai/chat') {
-      const system = conversationSystem(lesson, typeof bodyIn.scenario === 'string' ? bodyIn.scenario : undefined)
+      const scenario = cap(bodyIn.scenario, 400)
       const messages = cleanMessages(bodyIn.messages)
-      if (!messages.length) messages.push({ role: 'user', content: "Let's start." })
-      const reply = await callClaude(env, { system, messages, max_tokens: 700 })
+      // Scenario is client-supplied → deliver it as a user turn, not system authority.
+      if (!messages.length) {
+        messages.push({
+          role: 'user',
+          content: scenario
+            ? `Let's role-play this scenario to practice: ${scenario}. Please greet me to start.`
+            : "Let's practice today's conversation. Please greet me to start.",
+        })
+      }
+      const reply = await callClaude(env, { system: conversationSystem(lesson), messages, max_tokens: 700 })
+      await bump(env, 'q', uid)
       return json({ reply }, env)
     }
     if (path === '/ai/writing') {
       const text = String(bodyIn.text || '').slice(0, 4000)
       if (!text.trim()) return json({ error: '没有可批改的内容' }, env, 400)
-      const system = writingSystem(lesson, typeof bodyIn.prompt === 'string' ? bodyIn.prompt : undefined)
+      const task = cap(bodyIn.prompt, 500) || ''
       const raw = await callClaude(env, {
-        system,
-        messages: [{ role: 'user', content: text }],
+        system: writingSystem(lesson),
+        messages: [{ role: 'user', content: `Writing task: ${task}\n\n---\nMy writing:\n${text}` }],
         max_tokens: 1600,
         jsonSchema: WRITING_SCHEMA,
       })
-      let parsed: unknown
+      await bump(env, 'q', uid) // charge on a successful model call, even if parse fails
       try {
-        parsed = JSON.parse(raw)
+        return json({ feedback: JSON.parse(raw) }, env)
       } catch {
-        return json({ error: '批改结果解析失败', raw }, env, 502)
+        return json({ error: '批改结果解析失败，请重试' }, env, 502)
       }
-      return json({ feedback: parsed }, env)
     }
     if (path === '/ai/tutor') {
       const question = String(bodyIn.question || '').slice(0, 2000)
@@ -169,6 +191,7 @@ async function handleAI(path: string, req: Request, env: Env): Promise<Response>
         messages: [...history, { role: 'user', content: question }],
         max_tokens: 1200,
       })
+      await bump(env, 'q', uid)
       return json({ reply }, env)
     }
     if (path === '/ai/coach') {
@@ -179,10 +202,12 @@ async function handleAI(path: string, req: Request, env: Env): Promise<Response>
         messages: [{ role: 'user', content: `Target: ${target}\nAssessment: ${assessment}` }],
         max_tokens: 600,
       })
+      await bump(env, 'q', uid)
       return json({ reply }, env)
     }
-  } catch (e) {
-    return json({ error: 'AI 暂时不可用', detail: String(e).slice(0, 200) }, env, 502)
+  } catch {
+    // Don't echo upstream error text to the client.
+    return json({ error: 'AI 暂时不可用，请稍后再试' }, env, 502)
   }
   return json({ error: 'not found' }, env, 404)
 }
@@ -194,12 +219,18 @@ async function handleSpeechToken(req: Request, env: Env): Promise<Response> {
   if (!env.AZURE_SPEECH_KEY || !env.AZURE_SPEECH_REGION) {
     return json({ error: '语音服务未配置' }, env, 503)
   }
+  // One token already grants ~10 min of direct Azure access — cap mints per user/day.
+  const spCap = Number(env.DAILY_SPEECH_QUOTA || '60')
+  if (!(await underQuota(env, 'sp', uid, spCap))) {
+    return json({ error: '今日语音额度已用完' }, env, 429)
+  }
   const res = await fetch(
     `https://${env.AZURE_SPEECH_REGION}.api.cognitive.microsoft.com/sts/v1.0/issueToken`,
     { method: 'POST', headers: { 'Ocp-Apim-Subscription-Key': env.AZURE_SPEECH_KEY } },
   )
   if (!res.ok) return json({ error: '语音令牌获取失败' }, env, 502)
   const token = await res.text()
+  await bump(env, 'sp', uid)
   return json({ token, region: env.AZURE_SPEECH_REGION, voice: env.AZURE_VOICE || 'en-US-AvaMultilingualNeural' }, env)
 }
 
