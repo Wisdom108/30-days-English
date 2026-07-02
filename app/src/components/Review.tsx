@@ -10,10 +10,10 @@ import { cn } from '../lib/utils'
 // Grade → SM-2 quality. Monochrome intensity ramp (red reserved for "重来"),
 // difficulty easing left→right. No off-palette colors.
 const GRADES = [
-  { q: 2, label: '重来', hint: '完全忘了', key: '1', cls: 'border-red/40 bg-red-soft text-red hover:bg-red/15' },
+  { q: 2, label: '重来', hint: '完全忘了', key: '1', cls: 'border-red/40 bg-red-soft text-red hover:bg-red/25 hover:border-red/60' },
   { q: 3, label: '困难', hint: '想了很久', key: '2', cls: 'border-border bg-surface-2 text-fg-muted hover:bg-hover hover:text-fg-secondary' },
   { q: 4, label: '记得', hint: '有点犹豫', key: '3', cls: 'border-border-strong bg-elevated text-fg-secondary hover:bg-hover hover:text-fg' },
-  { q: 5, label: '简单', hint: '脱口而出', key: '4', cls: 'border-fg/25 bg-hover text-fg hover:brightness-125' },
+  { q: 5, label: '简单', hint: '脱口而出', key: '4', cls: 'border-fg/25 bg-hover text-fg hover:bg-elevated' },
 ]
 
 export default function Review() {
@@ -75,7 +75,7 @@ export default function Review() {
     <div className="mx-auto max-w-[460px] space-y-4">
       <div className="flex items-center justify-between">
         <button
-          className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-sm text-fg-muted transition-colors hover:bg-hover hover:text-fg"
+          className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm text-fg-muted transition-colors hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
           onClick={() => nav('/')}
         >
           <ArrowLeft size={15} /> 首页
@@ -92,7 +92,7 @@ export default function Review() {
           aria-label="翻转词卡"
           onClick={() => setFlip((f) => !f)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') setFlip((f) => !f)
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setFlip((f) => !f) }
           }}
           className={cardFlipCls(flip)}
           style={{ minHeight: 300 }}
@@ -120,7 +120,7 @@ export default function Review() {
               key={g.q}
               onClick={() => grade(g.q)}
               className={cn(
-                'flex flex-col items-center gap-1 rounded-lg border py-2.5 transition-all duration-150 active:scale-[0.97]',
+                'flex flex-col items-center gap-1 rounded-lg border py-2.5 transition-all duration-150 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40',
                 g.cls,
               )}
             >
@@ -142,5 +142,5 @@ export default function Review() {
 }
 
 function cardFlipCls(flipped: boolean) {
-  return `flip-3d relative block w-full text-left${flipped ? ' flipped' : ''}`
+  return `flip-3d relative block w-full rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40${flipped ? ' flipped' : ''}`
 }

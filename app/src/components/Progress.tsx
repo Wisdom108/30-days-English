@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Download, Upload, CalendarClock, AlertTriangle, Flame } from 'lucide-react'
+import { useRef, useState } from 'react'
+import { Download, Upload, CalendarClock, AlertTriangle, Flame, Check } from 'lucide-react'
 import { BlockIcon } from './blockicons'
 import * as AlertDialogPrimitive from '@radix-ui/react-alert-dialog'
 import { useApp } from '../state'
@@ -18,6 +18,7 @@ export default function Progress() {
   const [hour, setHour] = useState(7)
   const [pendingImport, setPendingImport] = useState<AppState | null>(null)
   const [importError, setImportError] = useState<string | null>(null)
+  const importRef = useRef<HTMLInputElement>(null)
 
   const doExport = () => {
     const blob = new Blob([exportState(state)], { type: 'application/json' })
@@ -53,13 +54,14 @@ export default function Progress() {
     count: Object.values(state.days).filter((d) => d.completedBlocks[b.key]).length,
   }))
 
+  const streak = displayStreak(state)
   const metrics: { k: string; v: React.ReactNode }[] = [
     {
       k: '连续天数',
       v: (
         <span className="inline-flex items-center justify-center gap-1.5">
-          <Flame size={16} className="text-red" />
-          {displayStreak(state)}
+          <Flame size={16} className={streak > 0 ? 'text-red' : 'text-fg-dim'} />
+          {streak}
         </span>
       ),
     },
@@ -74,12 +76,12 @@ export default function Progress() {
       <h1 className="text-title font-semibold">学习进度</h1>
       <div className="border-b border-border pb-1" />
 
-      {/* Metrics strip — individual bordered cells so the wrapped mobile row stays clean */}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+      {/* Metrics strip — 3-up on mobile (no orphan cell), 5-up on desktop */}
+      <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
         {metrics.map((m, i) => (
           <div
             key={i}
-            className="rounded-md border border-border bg-surface px-3 py-4 text-center shadow-rest"
+            className="rounded-sm border border-border bg-surface px-3 py-4 text-center shadow-rest"
           >
             <div className="t-num text-h1 font-medium leading-none text-fg">{m.v}</div>
             <div className="label-nd mt-2">{m.k}</div>
@@ -125,7 +127,7 @@ export default function Progress() {
                 <BlockIcon k={b.key} size={15} className="text-fg-secondary" />
                 {b.title_zh}
               </span>
-              <span className="text-fg-muted">{b.count === TOTAL_DAYS ? '✓ ' : ''}{b.count}/{TOTAL_DAYS}</span>
+              <span className="inline-flex items-center gap-1 text-fg-muted">{b.count === TOTAL_DAYS && <Check size={13} className="text-fg" strokeWidth={3} />}{b.count}/{TOTAL_DAYS}</span>
             </div>
             <Bar value={Math.round((b.count / TOTAL_DAYS) * 100)} className="mt-1.5" />
           </div>
@@ -162,21 +164,21 @@ export default function Progress() {
       </p>
       <div className="mt-2 flex flex-wrap gap-2.5">
         <Button variant="secondary" onClick={doExport}><Download size={15} /> 导出备份</Button>
-        <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border border-border bg-surface px-4 text-body font-medium text-fg transition-colors hover:border-border-strong hover:bg-hover">
-          <Upload size={15} /> 导入备份
-          <input
-            type="file"
-            accept="application/json,.json"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0]
-              if (f) doImport(f)
-              e.target.value = ''
-            }}
-          />
-        </label>
+        <Button variant="secondary" onClick={() => importRef.current?.click()}><Upload size={15} /> 导入备份</Button>
+        <input
+          ref={importRef}
+          type="file"
+          accept="application/json,.json"
+          className="sr-only"
+          aria-label="导入备份文件"
+          onChange={(e) => {
+            const f = e.target.files?.[0]
+            if (f) doImport(f)
+            e.target.value = ''
+          }}
+        />
       </div>
-      {importError && <p className="text-meta text-danger">{importError}</p>}
+      {importError && <p role="alert" className="text-sm text-danger">{importError}</p>}
 
       {/* Danger zone */}
       <SectionLabel>危险操作</SectionLabel>
@@ -196,7 +198,7 @@ export default function Progress() {
       {/* Import confirmation (controlled) */}
       <AlertDialogPrimitive.Root open={!!pendingImport} onOpenChange={(o) => !o && setPendingImport(null)}>
         <AlertDialogPrimitive.Portal>
-          <AlertDialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/25 backdrop-blur-[1px] data-[state=open]:animate-in-up" />
+          <AlertDialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/55 backdrop-blur-[2px] data-[state=open]:animate-in-up" />
           <AlertDialogPrimitive.Content className="fixed left-1/2 top-1/2 z-50 w-[92vw] max-w-[400px] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow-popover)] data-[state=open]:animate-in-up">
             <AlertDialogPrimitive.Title className="text-h2 font-semibold text-fg">导入备份？</AlertDialogPrimitive.Title>
             <AlertDialogPrimitive.Description className="mt-1.5 text-sm leading-relaxed text-fg-secondary">

@@ -20,7 +20,7 @@ export default function BlockFooter({
           本模块已完成
         </span>
       ) : (
-        <span className="text-sm text-fg-dim">完成后点击右侧打卡</span>
+        <span className="text-sm text-fg-muted">完成后点击右侧打卡</span>
       )}
       {done
         ? onUndo && (

@@ -2,10 +2,10 @@ import { useState } from 'react'
 import { Check, Sparkles, Loader2 } from 'lucide-react'
 import type { DayLesson } from '../../types'
 import { useApp } from '../../state'
-import { SpeakButton } from '../shared'
+import { SpeakButton, RowGroup } from '../shared'
 import { AiGate } from '../ai'
 import { aiWriting, AIError, type WritingFeedback, type LessonCtx } from '../../lib/ai'
-import { Badge, Button, Card, CardBody, Callout, SectionLabel, Textarea } from '../ui'
+import { Badge, Button, Card, CardBody, Callout, SectionLabel, Segment, Textarea } from '../ui'
 import { cn } from '../../lib/utils'
 import BlockFooter from './BlockFooter'
 
@@ -62,7 +62,7 @@ export default function WritingBlock({
           </span>
         </Callout>
 
-        <SectionLabel>实用表达</SectionLabel>
+        <SectionLabel>Useful phrases</SectionLabel>
         <div className="flex flex-wrap gap-2">
           {w.usefulPhrases.map((p, i) => (
             <span
@@ -74,7 +74,7 @@ export default function WritingBlock({
           ))}
         </div>
 
-        <SectionLabel>我的写作</SectionLabel>
+        <SectionLabel>My writing</SectionLabel>
         <Textarea
           aria-label="我的写作"
           value={text}
@@ -85,11 +85,11 @@ export default function WritingBlock({
           placeholder="在这里用英文写下你的答案…"
           className="min-h-[140px]"
         />
-        <div className="mt-1 text-meta text-fg-dim">
-          <span className="t-num">{words}</span> 词 · 自动保存
+        <div className="mt-1 text-meta text-fg-muted">
+          <span className="t-tab">{words}</span> 词 · 自动保存
         </div>
 
-        <SectionLabel>自查清单</SectionLabel>
+        <SectionLabel>Self-check</SectionLabel>
         <ul className="space-y-1">
           {w.selfCheck.map((c, i) => (
             <SelfCheckItem key={i} text={c} />
@@ -100,57 +100,64 @@ export default function WritingBlock({
           {showModel ? '隐藏范文' : '对照范文'}
         </Button>
         {showModel && (
-          <div className="mt-3 rounded-lg border border-border bg-surface-2 p-4">
+          <Segment className="mt-3 p-4 animate-in-up">
             <div className="flex items-center justify-between">
-              <span className="label-nd">范文</span>
+              <span className="label-nd">Model</span>
               <SpeakButton text={w.modelAnswer} />
             </div>
             <p className="mt-1.5 text-body leading-relaxed text-fg-secondary">{w.modelAnswer}</p>
-          </div>
+          </Segment>
         )}
 
-        <SectionLabel>AI 批改</SectionLabel>
+        <SectionLabel>AI feedback</SectionLabel>
         <AiGate>
           {!fb ? (
             <div>
               <Button variant="secondary" disabled={fbBusy} onClick={runFeedback}>
-                {fbBusy ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} className="text-red" />}
+                {fbBusy ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} className="text-fg-muted" />}
                 让 AI 批改我的写作
               </Button>
-              <p className="mt-1.5 text-meta text-fg-dim">AI 会指出语法/用词/地道度问题，并给出润色版与打分。</p>
+              <p className="mt-1.5 text-meta text-fg-muted">AI 会指出语法/用词/地道度问题，并给出润色版与打分。</p>
             </div>
           ) : (
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <span className="t-num text-hero text-fg">{fb.score}</span>
-                <span className="text-meta text-fg-muted">/ 100</span>
+            <div className="space-y-3 animate-in-up">
+              <div className="flex items-center gap-2.5">
+                <span className="label-nd">Score</span>
+                <span className="inline-flex items-center gap-1 rounded-full border border-border bg-surface-2 px-2 py-0.5">
+                  <span className="t-num text-sm text-fg">{fb.score}</span>
+                  <span className="t-tab text-meta text-fg-muted">/ 100</span>
+                </span>
                 <Button variant="ghost" size="sm" className="ml-auto" onClick={() => setFb(null)}>重新批改</Button>
               </div>
               <p className="text-sm leading-relaxed text-fg-secondary">{fb.overall_zh}</p>
               {fb.corrections.length > 0 && (
-                <div className="overflow-hidden rounded-lg border border-border">
+                <RowGroup>
                   {fb.corrections.map((c, i) => (
                     <div key={i} className={cn('px-3.5 py-2.5', i > 0 && 'border-t border-border-soft')}>
                       <div className="flex flex-wrap items-center gap-2 text-sm">
                         <span className="text-danger line-through">{c.original}</span>
-                        <span className="text-fg-dim">→</span>
+                        <span className="text-fg-muted">→</span>
                         <span className="text-fg">{c.fixed}</span>
                       </div>
                       <div className="mt-0.5 text-meta text-fg-muted">{c.why_zh}</div>
                     </div>
                   ))}
-                </div>
+                </RowGroup>
               )}
-              <div className="rounded-lg border border-border bg-surface-2 p-3.5">
+              <Segment className="p-3.5">
                 <div className="flex items-center justify-between">
-                  <span className="label-nd">润色版</span>
+                  <span className="label-nd">Polished</span>
                   <SpeakButton text={fb.polished} />
                 </div>
                 <p className="mt-1.5 text-body leading-relaxed text-fg">{fb.polished}</p>
-              </div>
+              </Segment>
             </div>
           )}
-          {fbErr && <p className="mt-2 text-meta text-danger">{fbErr}</p>}
+          {fbErr && (
+            <Callout tone="red" role="alert" className="mt-2 animate-in-up">
+              {fbErr}
+            </Callout>
+          )}
         </AiGate>
 
         <BlockFooter done={done} onComplete={onComplete} onUndo={onUndo} />

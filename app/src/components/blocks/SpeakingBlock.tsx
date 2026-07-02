@@ -7,7 +7,7 @@ import { cfVoiceAvailable, cfRecordAndTranscribe } from '../../lib/cfSpeech'
 import { aiCoach, AIError, type LessonCtx } from '../../lib/ai'
 import { SpeakButton, RowGroup } from '../shared'
 import { AiGate, ConversationPanel } from '../ai'
-import { Badge, Button, Card, CardBody, Callout, SectionLabel } from '../ui'
+import { Badge, Button, Card, CardBody, CardHead, Callout, SectionLabel } from '../ui'
 import { cn } from '../../lib/utils'
 import BlockFooter from './BlockFooter'
 
@@ -97,14 +97,21 @@ function ShadowRow({
         <div className="flex items-center gap-1">
           <SpeakButton text={text} />
           <SpeakButton text={text} slow />
+          {/* Record is the block's primary action → raised to a bordered button;
+              active state pulses red per the recording-affordance contract. */}
           <Button
-            variant="soft"
+            variant="secondary"
             size="sm"
-            className="h-9 gap-1.5 px-3"
+            className={cn('h-9 gap-1.5 px-3', rec && 'border-red/50 text-red')}
             onClick={record}
             disabled={rec || (!premium && !cfVoiceAvailable() && !sttOk)}
           >
-            <Mic size={14} /> {rec ? '听着…' : '跟读'}
+            {rec ? (
+              <span className="pulse-red inline-block h-2 w-2 shrink-0 rounded-full bg-red" />
+            ) : (
+              <Mic size={14} />
+            )}
+            {rec ? '听着…' : '跟读'}
           </Button>
         </div>
       </div>
@@ -141,11 +148,11 @@ function ShadowRow({
           )}
           {!coach ? (
             <Button variant="ghost" size="sm" disabled={coachBusy} onClick={getCoach}>
-              {coachBusy ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} className="text-red" />}
+              {coachBusy ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} className="text-fg-muted" />}
               问 AI 发音教练
             </Button>
           ) : (
-            <Callout tone="accent" icon={<Sparkles size={14} className="text-red" />}>
+            <Callout tone="accent" icon={<Sparkles size={14} className="text-fg-muted" />}>
               {coach}
             </Callout>
           )}
@@ -157,7 +164,7 @@ function ShadowRow({
         <div className="mt-2 flex items-center justify-between gap-2">
           <span className="text-meta text-fg-muted">听到：{heard}</span>
           {score !== null && (
-            <span className="inline-flex items-baseline gap-1 rounded-full bg-surface-2 px-2.5 py-0.5">
+            <span className="inline-flex items-baseline gap-1 rounded-full border border-border bg-surface-2 px-2 py-0.5">
               <span className="t-num text-sm font-semibold text-fg">{score}</span>
               <span className="text-label text-fg-muted">匹配</span>
             </span>
@@ -165,9 +172,9 @@ function ShadowRow({
         </div>
       )}
       {error && (
-        <div className="mt-2 flex items-center gap-1.5 text-meta text-fg-muted">
-          <AlertCircle size={12} className="shrink-0" /> {error}
-        </div>
+        <Callout tone="red" role="alert" className="mt-2" icon={<AlertCircle size={16} className="text-red" />}>
+          {error}
+        </Callout>
       )}
     </div>
   )
@@ -194,13 +201,11 @@ export default function SpeakingBlock({
 
   return (
     <Card>
+      <CardHead title="SPEAKING" right={<Badge variant="warning">NOON · 40′</Badge>} />
       <CardBody>
-        <div className="flex items-center justify-between">
-          <h2 className="text-h2 font-semibold">口语 · 影子跟读</h2>
-          <Badge variant="warning">午间 · 40′ · 重点</Badge>
-        </div>
+        <h2 className="text-h2 font-semibold">口语 · 影子跟读</h2>
 
-        <SectionLabel>发音重点</SectionLabel>
+        <SectionLabel>TARGET SOUNDS</SectionLabel>
         <ul className="space-y-1.5">
           {s.targetSounds.map((t, i) => (
             <li key={i} className="flex gap-2 text-sm text-fg-secondary">
@@ -210,20 +215,20 @@ export default function SpeakingBlock({
           ))}
         </ul>
 
-        <SectionLabel>影子跟读</SectionLabel>
+        <SectionLabel>SHADOWING</SectionLabel>
         <p className="-mt-1 text-sm text-fg-muted">
           听一句 → 立刻模仿语音语调 → 点「跟读」{premium ? '获取音素级发音评测' : '看跟读匹配度'}。追节奏和连读，不逐词念。
         </p>
         {premium ? (
-          <p className="mt-1 mb-2 text-meta text-fg-dim">
+          <p className="mt-1 mb-2 text-meta text-fg-muted">
             由 Azure 神经语音评测：准确度 / 流利度 / 完整度 / 韵律，逐词标出弱点，可让 AI 教练给针对性建议。
           </p>
         ) : cfVoiceAvailable() ? (
-          <p className="mt-1 mb-2 text-meta text-fg-dim">
+          <p className="mt-1 mb-2 text-meta text-fg-muted">
             由 Cloudflare Whisper 识别你的跟读、算匹配度（听清了多少词）；配置 Azure 后可升级为音素级发音评测。
           </p>
         ) : (
-          <p className="mt-1 mb-2 text-meta text-fg-dim">
+          <p className="mt-1 mb-2 text-meta text-fg-muted">
             跟读匹配度只反映识别器听清了多少词，不评判口音；配置 Azure 后可用真发音评测。
           </p>
         )}
@@ -238,31 +243,37 @@ export default function SpeakingBlock({
           ))}
         </RowGroup>
 
-        <SectionLabel>情景对话（角色扮演）</SectionLabel>
-        <div className="rounded-lg border border-border p-4">
+        <SectionLabel>ROLE-PLAY</SectionLabel>
+        <RowGroup>
           {s.miniDialogue.map((d, i) => (
-            <div key={i} className="flex items-start gap-2.5 py-1.5">
+            <div
+              key={i}
+              className={cn(
+                'flex items-start gap-2.5 px-3.5 py-2.5 transition-colors hover:bg-hover',
+                i > 0 && 'border-t border-border-soft',
+              )}
+            >
               <span className="min-w-6 text-sm font-semibold text-fg">{d.speaker}:</span>
               <span className="flex-1 text-body text-fg-secondary">{d.line}</span>
               <SpeakButton text={d.line} />
             </div>
           ))}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="mt-2"
-            onClick={() => speak(s.miniDialogue.map((d) => d.line).join('. '))}
-          >
-            <Play size={14} /> 播放整段对话
-          </Button>
-        </div>
+        </RowGroup>
+        <Button
+          variant="secondary"
+          size="sm"
+          className="mt-3"
+          onClick={() => speak(s.miniDialogue.map((d) => d.line).join('. '))}
+        >
+          <Play size={14} /> 播放整段对话
+        </Button>
 
-        <SectionLabel>AI 对话陪练</SectionLabel>
+        <SectionLabel>AI PARTNER</SectionLabel>
         <AiGate>
           <ConversationPanel lesson={ctxOf(lesson)} scenario={scenario} />
         </AiGate>
 
-        <SectionLabel>开口任务</SectionLabel>
+        <SectionLabel>SPEAKING TASK</SectionLabel>
         <Callout tone="accent">
           <p className="text-body text-fg">{s.speakingTask}</p>
           <p className="mt-1.5 text-meta text-fg-muted">录下自己的回答，对比模仿。坚持“每天开口说”是流利的关键。</p>

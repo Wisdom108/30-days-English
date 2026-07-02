@@ -2,7 +2,7 @@ import { Play } from 'lucide-react'
 import type { DayLesson } from '../../types'
 import { speak } from '../../lib/speech'
 import { QAItem, ReadableText, RowGroup } from '../shared'
-import { Badge, Button, Card, CardBody, SectionLabel } from '../ui'
+import { Badge, Button, Card, CardBody, SectionLabel, Segment } from '../ui'
 import { cn } from '../../lib/utils'
 import BlockFooter from './BlockFooter'
 
@@ -29,15 +29,15 @@ export default function ReadingBlock({
           先通读理解大意，遇到生词 <b className="font-medium text-fg-secondary">点一下</b> 即可查释义并听发音。
         </p>
 
-        <Button variant="ghost" size="sm" className="mt-3" onClick={() => speak(r.passage, 0.95)}>
+        <Button variant="secondary" size="sm" className="mt-3" onClick={() => speak(r.passage, 0.95)}>
           <Play size={14} /> 朗读全文
         </Button>
 
-        <div className="mt-3 rounded-lg border border-border p-4">
+        <Segment className="mt-3 p-4">
           <ReadableText text={r.passage} glossary={r.glossary} />
-        </div>
+        </Segment>
 
-        <SectionLabel>重点词汇</SectionLabel>
+        <SectionLabel>Glossary</SectionLabel>
         <RowGroup>
           {r.glossary.map((g, i) => (
             <div
@@ -53,7 +53,7 @@ export default function ReadingBlock({
           ))}
         </RowGroup>
 
-        <SectionLabel>阅读理解</SectionLabel>
+        <SectionLabel>Comprehension</SectionLabel>
         <RowGroup>
           {r.comprehension.map((qa, i) => (
             <QAItem key={i} q={qa.q} a={qa.a} />
