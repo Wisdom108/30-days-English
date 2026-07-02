@@ -325,7 +325,7 @@ export function TutorFab({ lesson, hidden }: { lesson: LessonCtx; hidden?: boole
           <div className="flex items-center gap-2">
             <Bot size={17} className="text-fg" />
             <span className="label-nd">AI Tutor</span>
-            {lesson.day ? <Badge variant="accent"><span className="t-num">Day {lesson.day}</span></Badge> : null}
+            {lesson.day ? <Badge variant="accent"><span className="t-tab">Day {lesson.day}</span></Badge> : null}
           </div>
           <Dialog.Close asChild>
             <IconButton label="关闭"><span className="text-lg leading-none">×</span></IconButton>

@@ -35,7 +35,7 @@ export default function VocabBlock({
           className="flex w-full items-center justify-between gap-3 rounded-xl border border-red/40 bg-red-soft px-4 py-3 text-left transition-colors hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
         >
           <span className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.08em] text-fg">
-            <RotateCcw size={14} className="text-red" /><b className="t-num text-red">{due}</b> 张词卡到期
+            <RotateCcw size={14} className="text-red" /><b className="t-tab text-red">{due}</b> 张词卡到期
           </span>
           <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-fg-muted">去复习 →</span>
         </button>
@@ -61,7 +61,7 @@ export default function VocabBlock({
             <div className="flip-face col-start-1 row-start-1 flex flex-col overflow-hidden rounded-[22px] border border-border-strong"
               style={{ background: 'radial-gradient(120% 80% at 50% 0%, #17171a 0%, #0d0d0f 62%)' }}>
               <div className="flex items-center justify-between border-b border-border px-5 py-3">
-                <span className="label-nd">词汇 · <span className="t-num text-fg-secondary">{i + 1}/{words.length}</span></span>
+                <span className="label-nd">词汇 · <span className="t-tab text-fg-secondary">{i + 1}/{words.length}</span></span>
                 <SpeakButton text={card.word} />
               </div>
               <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
@@ -111,7 +111,7 @@ export default function VocabBlock({
           aria-expanded={listOpen}
           className="flex w-full items-center justify-between px-5 py-4 transition-colors hover:bg-hover"
         >
-          <span className="label-nd">浏览全部 · <span className="t-num text-fg-secondary">{words.length}</span> 词</span>
+          <span className="label-nd">浏览全部 · <span className="t-tab text-fg-secondary">{words.length}</span> 词</span>
           <ChevronDown size={17} className={cn('text-fg-muted transition-transform', listOpen && 'rotate-180')} />
         </button>
         {listOpen && (

@@ -21,7 +21,7 @@ function Collapse({ label, count, children, defaultOpen }: { label: string; coun
   return (
     <div className="overflow-hidden rounded-2xl border border-border">
       <button onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex w-full items-center justify-between px-5 py-4 transition-colors hover:bg-hover">
-        <span className="label-nd">{label}{count != null && <> · <span className="t-num text-fg-secondary">{count}</span></>}</span>
+        <span className="label-nd">{label}{count != null && <> · <span className="t-tab text-fg-secondary">{count}</span></>}</span>
         <ChevronDown size={17} className={cn('text-fg-muted transition-transform', open && 'rotate-180')} />
       </button>
       {open && <div className="border-t border-border">{children}</div>}
@@ -34,7 +34,7 @@ function ScoreChip({ label, score }: { label: string; score: number }) {
   return (
     <span className="inline-flex items-baseline gap-1 rounded-full border border-border bg-surface-2 px-2 py-0.5">
       <span className="text-label text-fg-muted">{label}</span>
-      <span className={cn('t-num text-sm font-semibold', cls)}>{score}</span>
+      <span className={cn('t-tab text-sm font-semibold', cls)}>{score}</span>
     </span>
   )
 }
@@ -74,7 +74,7 @@ function ShadowHero({ text, tip, idx, total, sttOk, lesson }: { text: string; ti
     <div className="overflow-hidden rounded-[22px] border border-border-strong"
       style={{ background: 'radial-gradient(120% 80% at 50% 0%, #17171a 0%, #0d0d0f 62%)' }}>
       <div className="flex items-center justify-between border-b border-border px-5 py-3">
-        <span className="label-nd">跟读 · <span className="t-num text-fg-secondary">{idx + 1}/{total}</span></span>
+        <span className="label-nd">跟读 · <span className="t-tab text-fg-secondary">{idx + 1}/{total}</span></span>
         <div className="flex items-center gap-1">
           <SpeakButton text={text} />
           <SpeakButton text={text} slow />
@@ -107,14 +107,14 @@ function ShadowHero({ text, tip, idx, total, sttOk, lesson }: { text: string; ti
         {/* score — big */}
         {score !== null && !azure && (
           <div className="mt-5 w-full animate-in-up">
-            <div className="t-num text-[44px] font-semibold leading-none text-fg">{score}</div>
+            <div className="t-doto text-[44px] font-semibold leading-none text-fg">{score}</div>
             <div className="label-nd mt-1.5">匹配度</div>
             {heard && <div className="mt-2 text-sm text-fg-muted">听到：{heard}</div>}
           </div>
         )}
         {azure && (
           <div className="mt-5 w-full animate-in-up">
-            <div className="t-num text-[44px] font-semibold leading-none text-fg">{azure.pronunciation}</div>
+            <div className="t-doto text-[44px] font-semibold leading-none text-fg">{azure.pronunciation}</div>
             <div className="label-nd mt-1.5">发音总分</div>
             <div className="mt-3 flex flex-wrap justify-center gap-1.5">
               <ScoreChip label="准确" score={azure.accuracy} />

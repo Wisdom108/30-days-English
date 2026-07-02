@@ -206,8 +206,8 @@ export default function DayView() {
         <div className="mt-5 flex flex-col items-center gap-3 rounded-xl border border-border-strong bg-surface px-5 py-6 text-center animate-in-up">
           <div className="grid h-11 w-11 place-items-center rounded-full bg-accent-soft"><PartyPopper size={20} className="text-fg" /></div>
           <div>
-            <div className="text-h1 font-semibold text-fg"><span className="t-num">Day {dayNum}</span> 全部完成</div>
-            <p className="mt-1 text-sm text-fg-muted">连胜 <span className="t-num text-fg">{displayStreak(state)}</span> 天 · 保持节奏</p>
+            <div className="text-h1 font-semibold text-fg"><span className="t-tab">Day {dayNum}</span> 全部完成</div>
+            <p className="mt-1 text-sm text-fg-muted">连胜 <span className="t-tab text-fg">{displayStreak(state)}</span> 天 · 保持节奏</p>
           </div>
         </div>
       )}

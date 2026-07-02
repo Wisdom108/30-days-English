@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { Play, ChevronDown } from 'lucide-react'
 import type { DayLesson } from '../../types'
 import { speak } from '../../lib/speech'
-import { QAItem, ReadableText, RowGroup } from '../shared'
+import { QAItem, ReadableText, RowGroup, BlockHead } from '../shared'
 import { Button } from '../ui'
 import { cn } from '../../lib/utils'
 
@@ -11,7 +11,7 @@ function Collapse({ label, count, children }: { label: string; count?: number; c
   return (
     <div className="overflow-hidden rounded-2xl border border-border">
       <button onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex w-full items-center justify-between px-5 py-4 transition-colors hover:bg-hover">
-        <span className="label-nd">{label}{count != null && <> · <span className="t-num text-fg-secondary">{count}</span></>}</span>
+        <span className="label-nd">{label}{count != null && <> · <span className="t-tab text-fg-secondary">{count}</span></>}</span>
         <ChevronDown size={17} className={cn('text-fg-muted transition-transform', open && 'rotate-180')} />
       </button>
       {open && <div className="border-t border-border">{children}</div>}
@@ -32,10 +32,13 @@ export default function ReadingBlock({
     <div className="space-y-4">
       {/* ===== HERO — immersive passage ===== */}
       <div className="overflow-hidden rounded-[22px] border border-border-strong bg-surface">
-        <div className="flex items-center justify-between border-b border-border px-5 py-3">
-          <span className="label-nd">阅读 · {r.title}</span>
-          <Button variant="secondary" size="sm" onClick={() => speak(r.passage, 0.95)}><Play size={14} /> 朗读全文</Button>
-        </div>
+        <BlockHead
+          tag="阅读"
+          title={r.title}
+          right={
+            <Button variant="secondary" size="sm" onClick={() => speak(r.passage, 0.95)}><Play size={14} /> 朗读全文</Button>
+          }
+        />
         <div className="px-6 py-6">
           <ReadableText text={r.passage} glossary={r.glossary} />
           <p className="mt-5 border-t border-border pt-4 font-mono text-[10px] uppercase tracking-[0.1em] text-fg-dim">

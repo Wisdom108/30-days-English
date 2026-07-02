@@ -17,7 +17,7 @@ function Collapse({ label, count, children }: { label: string; count?: number; c
   return (
     <div className="overflow-hidden rounded-2xl border border-border">
       <button onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex w-full items-center justify-between px-5 py-4 transition-colors hover:bg-hover">
-        <span className="label-nd">{label}{count != null && <> · <span className="t-num text-fg-secondary">{count}</span></>}</span>
+        <span className="label-nd">{label}{count != null && <> · <span className="t-tab text-fg-secondary">{count}</span></>}</span>
         <ChevronDown size={17} className={cn('text-fg-muted transition-transform', open && 'rotate-180')} />
       </button>
       {open && <div className="border-t border-border">{children}</div>}
@@ -66,7 +66,7 @@ export default function WritingBlock({
             className="min-h-[200px] border-0 bg-transparent p-2 text-body-lg leading-relaxed focus:ring-0"
           />
           <div className="flex items-center justify-between px-2 pb-1">
-            <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-fg-dim"><span className="t-num text-fg-secondary">{words}</span> 词 · 自动保存</span>
+            <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-fg-dim"><span className="t-tab text-fg-secondary">{words}</span> 词 · 自动保存</span>
           </div>
         </div>
       </div>
@@ -86,7 +86,7 @@ export default function WritingBlock({
               <div>
                 <div className="label-nd mb-1.5">AI 批改</div>
                 <div className="flex items-baseline gap-1">
-                  <span className="t-num text-[44px] font-semibold leading-none text-fg">{fb.score}</span>
+                  <span className="t-doto text-[44px] font-semibold leading-none text-fg">{fb.score}</span>
                   <span className="text-h2 text-fg-muted">/100</span>
                 </div>
               </div>

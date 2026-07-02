@@ -79,7 +79,7 @@
   --text-sm: 13px;        --text-sm--line-height: 1.5;
   --text-meta: 12px;      --text-meta--line-height: 1.5;
   --text-label: 11px;     --text-label--line-height: 1.4;      --text-label--letter-spacing: 0.14em;
-  --text-read: 16px;      --text-read--line-height: 2;
+  --text-read: 16px;      --text-read--line-height: 1.85;
 
   /* ---- Radius ramp: sm=segment · md · lg=control · xl=card ---- */
   --radius-sm: 4px;    /* sharp inner segments, badges */
@@ -124,11 +124,16 @@
   .font-display { font-family: var(--font-display); }
   .font-mono { font-family: var(--font-mono); }
 
-  /* Doto dot-matrix numerals — the Nothing signature. ALL numbers use Doto
-     for a single, unified numeric typeface (Day, streak, stats, grid, counters,
-     scores, pagination). t-tab is an alias kept for call sites. */
-  .t-num { font-family: var(--font-display); font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
-  .t-tab { font-family: var(--font-display); font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
+  /* Numeric discipline (nullframe):
+     · t-doto  → Doto dot-matrix, the Nothing SIGNATURE. Reserve for ONE large
+                 hero numeral per screen (Day readout, big scores ≥40px). Below
+                 that size the dot-matrix turns to illegible noise.
+     · t-num / t-tab → Space Mono tabular. The everyday data numeral: counters,
+                 stats, dates, pagination, grid, minutes. Clean + unified, so the
+                 rare Doto number reads as a deliberate statement, not clutter. */
+  .t-doto { font-family: var(--font-display); font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
+  .t-num,
+  .t-tab { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-feature-settings: 'tnum'; letter-spacing: -0.01em; }
 
   /* Nothing-style uppercase mono micro-label */
   .label-nd {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Volume2, Loader2, Rabbit } from 'lucide-react'
 import { speak, ttsSupported } from '../lib/speech'
 import { lookupWord, type LookupResult } from '../lib/dictionary'
@@ -6,6 +6,39 @@ import type { GlossaryItem } from '../types'
 import { cn } from '../lib/utils'
 
 const RING = 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40'
+
+// Strip a trailing Chinese gloss "English Title (中文)" → "English Title" so the
+// English never gets uppercased-next-to-CJK (the "中英混杂" jumble).
+export function titleEn(s = ''): string {
+  return s.replace(/\s*[（(][^)）]*[)）]\s*$/, '').trim()
+}
+
+// ---- Shared block-hero header: Chinese action tag + English title, cleanly
+// separated so zh chrome and en content never collide on one uppercase line. ----
+export function BlockHead({
+  tag,
+  title,
+  right,
+}: {
+  tag: string // Chinese action word, e.g. 精听 / 跟读
+  title?: string // lesson title (English, Chinese gloss auto-stripped)
+  right?: ReactNode
+}) {
+  const t = titleEn(title)
+  return (
+    <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-3.5">
+      <div className="flex min-w-0 items-baseline gap-2.5">
+        <span className="shrink-0 text-body font-semibold text-fg">{tag}</span>
+        {t && (
+          <span className="min-w-0 truncate font-mono text-[11px] uppercase tracking-[0.12em] text-fg-muted">
+            {t}
+          </span>
+        )}
+      </div>
+      {right && <div className="flex shrink-0 items-center gap-1">{right}</div>}
+    </div>
+  )
+}
 
 // ---- Text-to-speech play button (44px tap target, small glyph) ----
 export function SpeakButton({

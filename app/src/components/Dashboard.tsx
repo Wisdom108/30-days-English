@@ -97,7 +97,7 @@ export default function Dashboard() {
         </div>
         <div className="text-right leading-[0.85]">
           <div className="font-mono text-[10px] tracking-[0.24em] text-fg-dim">DAY</div>
-          <div className="t-num text-[58px] font-semibold text-fg sm:text-[78px]">{dd}</div>
+          <div className="t-doto text-[58px] font-semibold text-fg sm:text-[78px]">{dd}</div>
         </div>
       </section>
 
@@ -142,7 +142,7 @@ export default function Dashboard() {
                       <Slot size={14} className="text-fg-dim" />
                       <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-fg-dim">{m?.slot}</span>
                     </span>
-                    <span className="t-num text-right text-body font-medium text-fg-secondary">{b.minutes}′</span>
+                    <span className="t-tab text-right text-body font-medium text-fg-secondary">{b.minutes}′</span>
                     <ChevronRight size={15} className="text-fg-dim opacity-40 transition-all group-hover:translate-x-0.5 group-hover:opacity-100" />
                   </button>
                 )
@@ -175,7 +175,7 @@ export default function Dashboard() {
                       </div>
                       <Bar value={pct} color={v.color} className="mt-1.5" />
                     </div>
-                    <span className="t-num text-sm text-fg-secondary">{doneCount}/{days.length}</span>
+                    <span className="t-tab text-sm text-fg-secondary">{doneCount}/{days.length}</span>
                   </div>
                 )
               })}
@@ -185,7 +185,7 @@ export default function Dashboard() {
           {due > 0 && (
             <Callout tone="red" className="animate-in-up items-center" icon={<RotateCcw size={15} className="text-red" />}>
               <div className="flex w-full items-center justify-between gap-3">
-                <span className="font-mono text-[11px] uppercase tracking-[0.08em]"><b className="t-num text-red">{due}</b> cards due</span>
+                <span className="font-mono text-[11px] uppercase tracking-[0.08em]"><b className="t-tab text-red">{due}</b> cards due</span>
                 <Button size="sm" onClick={() => nav('/review')}>REVIEW</Button>
               </div>
             </Callout>
@@ -230,7 +230,7 @@ export default function Dashboard() {
                   >
                     {done && <span className="absolute right-1 top-1" style={{ color: v.color }}><Check size={11} strokeWidth={3} /></span>}
                     {isCurrent && <span className="pulse-red absolute right-1 top-1 h-[5px] w-[5px] rounded-full bg-red" />}
-                    <span className={cn('t-num text-h2 font-medium', locked && 'text-fg-dim')} style={done ? { color: v.color } : undefined}>{d}</span>
+                    <span className={cn('t-tab text-h2 font-medium', locked && 'text-fg-dim')} style={done ? { color: v.color } : undefined}>{d}</span>
                     {locked ? <Lock size={9} className="text-fg-dim" /> : <span className="font-mono text-[9px] tracking-[0.06em] text-fg-dim">P{phase}</span>}
                   </button>
                 </Tooltip>
@@ -267,7 +267,7 @@ function MCell({
       )}
     >
       <div className="label-nd">{label}</div>
-      <div className={cn('t-num mt-2.5 text-[28px] font-semibold leading-none sm:text-[32px]', red ? 'text-red' : 'text-fg')}>{value}</div>
+      <div className={cn('t-tab mt-2.5 text-[28px] font-semibold leading-none sm:text-[32px]', red ? 'text-red' : 'text-fg')}>{value}</div>
     </Tag>
   )
 }

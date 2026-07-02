@@ -83,14 +83,14 @@ export default function Progress() {
             key={i}
             className="rounded-sm border border-border bg-surface px-3 py-4 text-center shadow-rest"
           >
-            <div className="t-num text-h1 font-medium leading-none text-fg">{m.v}</div>
+            <div className="t-tab text-h1 font-medium leading-none text-fg">{m.v}</div>
             <div className="label-nd mt-2">{m.k}</div>
           </div>
         ))}
       </div>
       {state.startDate && (
         <p className="pt-1 text-meta text-fg-muted">
-          开始日期：<span className="t-num text-fg-secondary">{state.startDate}</span>
+          开始日期：<span className="t-tab text-fg-secondary">{state.startDate}</span>
         </p>
       )}
 

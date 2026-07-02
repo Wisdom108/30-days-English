@@ -250,7 +250,7 @@ export function Metric({
         {icon && <span className="text-fg-dim">{icon}</span>}
       </div>
       <div className={cn('mt-3 flex items-baseline gap-1 leading-none', red ? 'text-red' : 'text-fg')}>
-        <span className="t-num text-[32px] font-semibold">{value}</span>
+        <span className="t-tab text-[32px] font-semibold">{value}</span>
         {unit && <span className="text-body text-fg-secondary">{unit}</span>}
       </div>
       {children && <div className="mt-3">{children}</div>}

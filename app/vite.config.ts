@@ -5,8 +5,20 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 // base: './' keeps asset paths relative so the built app works whether it is
 // served from a domain root, a sub-path (e.g. GitHub Pages), or previewed locally.
+// Dev: proxy the API routes to the deployed Cloudflare Worker so `npm run dev`
+// has working AI + neural voice (the Vite server has no backend of its own).
+// Same-origin from the browser's view → no CORS, passcode header flows through.
+const WORKER = 'https://thirty-days-en.thinkuniverse.workers.dev'
+const proxy = Object.fromEntries(
+  ['/health', '/me', '/login', '/logout', '/ai', '/speech'].map((p) => [
+    p,
+    { target: WORKER, changeOrigin: true, secure: true },
+  ]),
+)
+
 export default defineConfig({
   base: './',
+  server: { host: true, proxy },
   plugins: [
     react(),
     tailwindcss(),

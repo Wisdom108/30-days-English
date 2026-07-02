@@ -120,7 +120,7 @@ export default function App() {
                         <Icon size={14} strokeWidth={2} />
                         {it.label}
                         {it.badge && due > 0 && (
-                          <span className="t-num rounded-sm bg-red-soft px-1 text-[10px] font-semibold text-red">{due}</span>
+                          <span className="t-tab rounded-sm bg-red-soft px-1 text-[10px] font-semibold text-red">{due}</span>
                         )}
                         {isActive && <span className="absolute inset-x-3 -bottom-[9px] h-[2px] rounded-full bg-red" />}
                       </>
@@ -154,14 +154,13 @@ export default function App() {
             </button>
           )}
           {!focus && (
-            <div className="hidden items-center gap-2.5 md:flex" data-chrome>
-              <div className="flex h-11 items-center gap-2 rounded-lg border border-border bg-surface px-3">
-                <Flame size={15} className={streak > 0 ? 'text-red' : 'text-fg-dim'} />
-                <span className="t-num text-body-lg font-semibold text-fg">{streak}</span>
-              </div>
-              <AuthControls />
+            <div className="hidden h-11 items-center gap-2 rounded-lg border border-border bg-surface px-3 md:flex" data-chrome>
+              <Flame size={15} className={streak > 0 ? 'text-red' : 'text-fg-dim'} />
+              <span className="t-tab text-body-lg font-semibold text-fg">{streak}</span>
             </div>
           )}
+          {/* auth (passcode / login) — visible on mobile too; it unlocks AI + neural voice */}
+          {!focus && <div data-chrome><AuthControls /></div>}
         </div>
       </header>
 
