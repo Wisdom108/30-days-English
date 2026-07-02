@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { getIdentity, type Identity, type AuthMode } from './lib/access'
+import { loadCaps } from './lib/caps'
 import { features } from './config'
 
 interface AuthCtx {
@@ -28,10 +29,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!features.worker) return
     let alive = true
     setLoading(true)
-    getIdentity().then(({ user, mode }) => {
+    // Load server capabilities (Azure vs Cloudflare voice) alongside identity so
+    // the voice layer picks the right tier on first render.
+    Promise.all([getIdentity(), loadCaps()]).then(([id]) => {
       if (!alive) return
-      setUser(user)
-      setMode(mode)
+      setUser(id.user)
+      setMode(id.mode)
       setLoading(false)
     })
     return () => {

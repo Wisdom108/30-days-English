@@ -33,4 +33,6 @@ export const features = {
   ai: workerReady,
   /** Azure neural TTS + pronunciation assessment (behind Access login). */
   premiumSpeech: workerReady,
+  /** Cloudflare Workers AI voice: Aura-2 TTS + Whisper STT (free, no key). */
+  cfVoice: workerReady,
 } as const

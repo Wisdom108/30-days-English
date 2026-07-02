@@ -37,6 +37,7 @@
 - **AI 写作批改** — 结构化反馈（逐条纠错 + 中文说明 + 润色版 + 打分，`response_format` 结构化输出）
 - **AI 发音教练** — 结合发音评分给针对性中文建议
 - **AI 私教答疑** — 全局悬浮，随时问语法用法，结合当天课程作答
+- **神经语音 + 跟读识别** — 朗读用 Cloudflare Aura-2 神经音（治"人机感"），跟读用 Whisper 转写算匹配度；全免费无 key
 
 架构：**全 Cloudflare** —— 一个 Worker 同时托管前端 + API，用 **Workers AI 绑定**（默认 `@cf/meta/llama-3.3-70b-instruct-fp8-fast`，可换轻量/中文模型）跑 AI，KV 按 IP 日额度。`config.ts` 优雅降级：未配置后端时回退浏览器语音、隐藏 AI。
 

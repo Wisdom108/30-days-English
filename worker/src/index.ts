@@ -12,6 +12,8 @@ export interface Env {
   QUOTA: KVNamespace
   AI: Ai
   CF_AI_MODEL: string
+  CF_TTS_MODEL?: string // Workers AI text-to-speech (default Deepgram Aura-2 EN)
+  CF_STT_MODEL?: string // Workers AI speech-to-text (default Whisper large v3 turbo)
   ALLOWED_ORIGIN: string
   // Cloudflare Access (Zero Trust) — auth
   CF_ACCESS_TEAM_DOMAIN: string // e.g. myteam.cloudflareaccess.com
@@ -249,6 +251,70 @@ async function handleSpeechToken(req: Request, env: Env): Promise<Response> {
   return json({ token, region: env.AZURE_SPEECH_REGION, voice: env.AZURE_VOICE || 'en-US-AvaMultilingualNeural' }, env)
 }
 
+const DEFAULT_TTS = '@cf/deepgram/aura-2-en'
+const DEFAULT_STT = '@cf/openai/whisper-large-v3-turbo'
+
+function b64(buf: ArrayBuffer): string {
+  const bytes = new Uint8Array(buf)
+  let s = ''
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    s += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
+  }
+  return btoa(s)
+}
+
+/** Text-to-speech via Cloudflare Workers AI (Deepgram Aura). Returns audio/mpeg. */
+async function handleTts(req: Request, env: Env): Promise<Response> {
+  const uid = await verifyUser(req, env)
+  if (!uid) return json({ error: '需要登录' }, env, 401)
+  const spCap = Number(env.DAILY_SPEECH_QUOTA || '200')
+  if (!(await underQuota(env, 'sp', uid, spCap))) return json({ error: '今日语音额度已用完' }, env, 429)
+  const body = (await req.json().catch(() => ({}))) as { text?: string }
+  const text = String(body.text || '').slice(0, 800)
+  if (!text.trim()) return json({ error: '没有可朗读的内容' }, env, 400)
+  try {
+    const model = (env.CF_TTS_MODEL || DEFAULT_TTS) as keyof AiModels
+    const r = (await env.AI.run(model, { text } as never)) as unknown
+    await bump(env, 'sp', uid)
+    // Aura returns an audio ReadableStream; MeloTTS returns { audio: base64 }.
+    let audio: BodyInit | null = null
+    if (r instanceof ReadableStream) audio = r
+    else if (r instanceof ArrayBuffer) audio = r
+    else if (r && typeof r === 'object' && 'audio' in r && typeof (r as { audio: string }).audio === 'string') {
+      audio = Uint8Array.from(atob((r as { audio: string }).audio), (c) => c.charCodeAt(0))
+    }
+    if (!audio) return json({ error: '语音合成失败' }, env, 502)
+    return new Response(audio, {
+      headers: { 'content-type': 'audio/mpeg', 'cache-control': 'no-store', ...cors(env, req) },
+    })
+  } catch {
+    return json({ error: '语音合成失败' }, env, 502)
+  }
+}
+
+/** Speech-to-text via Cloudflare Workers AI (Whisper). Body = raw audio bytes. */
+async function handleStt(req: Request, env: Env): Promise<Response> {
+  const uid = await verifyUser(req, env)
+  if (!uid) return json({ error: '需要登录' }, env, 401)
+  const spCap = Number(env.DAILY_SPEECH_QUOTA || '200')
+  if (!(await underQuota(env, 'sp', uid, spCap))) return json({ error: '今日语音额度已用完' }, env, 429)
+  const buf = await req.arrayBuffer()
+  if (!buf.byteLength) return json({ error: '没有音频' }, env, 400)
+  if (buf.byteLength > 6_000_000) return json({ error: '音频过大' }, env, 413)
+  try {
+    const model = (env.CF_STT_MODEL || DEFAULT_STT) as keyof AiModels
+    // v3-turbo takes a base64 string; the classic model takes a byte array.
+    const input = String(model).includes('turbo')
+      ? { audio: b64(buf) }
+      : { audio: [...new Uint8Array(buf)] }
+    const r = (await env.AI.run(model, input as never)) as { text?: string }
+    await bump(env, 'sp', uid)
+    return json({ text: (r?.text || '').trim() }, env)
+  } catch {
+    return json({ error: '识别失败，请重试' }, env, 502)
+  }
+}
+
 /** Whoami — the frontend polls this to learn if AI is usable / who is signed in.
  *  Open mode (no Access) → returns a "访客" identity so AI works without login. */
 async function handleMe(req: Request, env: Env): Promise<Response> {
@@ -298,7 +364,8 @@ export default {
             ok: true,
             features: {
               ai: true, // Workers AI binding is always present
-              speech: !!(env.AZURE_SPEECH_KEY && env.AZURE_SPEECH_REGION),
+              speech: !!(env.AZURE_SPEECH_KEY && env.AZURE_SPEECH_REGION), // Azure premium
+              cfVoice: true, // Workers AI TTS (Aura) + STT (Whisper), always on
               loginRequired: !!env.CF_ACCESS_TEAM_DOMAIN,
             },
           },
@@ -309,6 +376,8 @@ export default {
       if (pathname === '/login') return handleLogin(req)
       if (pathname === '/logout') return handleLogout(req, env)
       if (pathname === '/speech/token' && req.method === 'GET') return handleSpeechToken(req, env)
+      if (pathname === '/speech/tts' && req.method === 'POST') return handleTts(req, env)
+      if (pathname === '/speech/stt' && req.method === 'POST') return handleStt(req, env)
       if (pathname.startsWith('/ai/') && req.method === 'POST') return handleAI(pathname, req, env)
       return json({ error: 'not found' }, env, 404)
     }

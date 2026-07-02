@@ -3,6 +3,7 @@ import { AlertCircle, Mic, MicOff, Play, Sparkles, Loader2 } from 'lucide-react'
 import type { DayLesson } from '../../types'
 import { recognizeOnce, scorePronunciation, speak, sttSupported } from '../../lib/speech'
 import { azureAvailable, azureAssess, type PronScore } from '../../lib/azureSpeech'
+import { cfVoiceAvailable, cfRecordAndTranscribe } from '../../lib/cfSpeech'
 import { aiCoach, AIError, type LessonCtx } from '../../lib/ai'
 import { SpeakButton, RowGroup } from '../shared'
 import { AiGate, ConversationPanel } from '../ai'
@@ -59,6 +60,11 @@ function ShadowRow({
     try {
       if (premium) {
         setAzure(await azureAssess(text))
+      } else if (cfVoiceAvailable()) {
+        // Cloudflare Whisper: record + transcribe, then word-match score.
+        const transcript = await cfRecordAndTranscribe()
+        setHeard(transcript)
+        setScore(scorePronunciation(text, transcript))
       } else {
         const { transcript } = await recognizeOnce()
         setHeard(transcript)
@@ -96,7 +102,7 @@ function ShadowRow({
             size="sm"
             className="h-9 gap-1.5 px-3"
             onClick={record}
-            disabled={rec || (!premium && !sttOk)}
+            disabled={rec || (!premium && !cfVoiceAvailable() && !sttOk)}
           >
             <Mic size={14} /> {rec ? '听着…' : '跟读'}
           </Button>
@@ -212,12 +218,16 @@ export default function SpeakingBlock({
           <p className="mt-1 mb-2 text-meta text-fg-dim">
             由 Azure 神经语音评测：准确度 / 流利度 / 完整度 / 韵律，逐词标出弱点，可让 AI 教练给针对性建议。
           </p>
+        ) : cfVoiceAvailable() ? (
+          <p className="mt-1 mb-2 text-meta text-fg-dim">
+            由 Cloudflare Whisper 识别你的跟读、算匹配度（听清了多少词）；配置 Azure 后可升级为音素级发音评测。
+          </p>
         ) : (
           <p className="mt-1 mb-2 text-meta text-fg-dim">
-            跟读匹配度只反映识别器听清了多少词，不评判口音；登录并配置 Azure 后可用真发音评测。
+            跟读匹配度只反映识别器听清了多少词，不评判口音；配置 Azure 后可用真发音评测。
           </p>
         )}
-        {!premium && !sttOk && (
+        {!premium && !cfVoiceAvailable() && !sttOk && (
           <Callout tone="warning" className="mb-2" icon={<MicOff size={16} className="text-fg-muted" />}>
             当前浏览器不支持语音识别，建议用 Chrome / Edge；仍可跟读练习。
           </Callout>

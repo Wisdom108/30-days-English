@@ -1,5 +1,6 @@
-import { config, features } from '../config'
+import { config } from '../config'
 import { authHeaders } from './access'
+import { serverCaps } from './caps'
 
 // Azure Speech: natural neural TTS + phoneme-level pronunciation assessment.
 // The SDK is heavy (~1.5MB) so it is dynamically imported on first use. The
@@ -35,7 +36,7 @@ async function getToken(): Promise<Tok> {
 }
 
 export function azureAvailable(): boolean {
-  return features.premiumSpeech
+  return serverCaps().speech
 }
 
 // Track the in-flight synthesizer so a new speak() halts the previous one —

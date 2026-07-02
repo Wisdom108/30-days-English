@@ -1,11 +1,14 @@
-// Speech wrappers. Premium path = Azure neural TTS + pronunciation assessment
-// (via the Worker); free path = the browser Web Speech API. speak() routes to
-// Azure when configured and falls back to the browser on any error.
+// Speech wrappers. Voice tiers, best first:
+//   1. Azure neural TTS + phoneme pronunciation assessment (if AZURE key set)
+//   2. Cloudflare Workers AI: Aura-2 neural TTS + Whisper STT (free, no key)
+//   3. Browser Web Speech API (offline fallback)
+// speak() tries each in order, falling back on any error.
 import { azureAvailable, azureSpeak } from './azureSpeech'
+import { cfVoiceAvailable, cfSpeak, stopCfSpeak } from './cfSpeech'
 
 export function ttsSupported(): boolean {
-  // Azure TTS or the browser's SpeechSynthesis — either counts as "can speak".
-  return azureAvailable() || browserTts()
+  // Azure / Cloudflare neural TTS or the browser's SpeechSynthesis.
+  return azureAvailable() || cfVoiceAvailable() || browserTts()
 }
 
 // Concrete browser Web Speech guard — the browser-only helpers below MUST use
@@ -29,13 +32,22 @@ function pickEnglishVoice(): SpeechSynthesisVoice | null {
 }
 
 export async function speak(text: string, rate = 1): Promise<void> {
-  // Premium: Azure natural neural voice (fixes the robotic browser-TTS feel).
+  // Tier 1: Azure natural neural voice (fixes the robotic browser-TTS feel).
   if (azureAvailable()) {
     try {
       await azureSpeak(text, rate)
       return
     } catch {
-      /* fall back to the browser voice below */
+      /* fall through */
+    }
+  }
+  // Tier 2: Cloudflare Aura-2 neural voice (free, no key).
+  if (cfVoiceAvailable()) {
+    try {
+      await cfSpeak(text, rate)
+      return
+    } catch {
+      /* fall through */
     }
   }
   return browserSpeak(text, rate)
@@ -60,6 +72,7 @@ function browserSpeak(text: string, rate = 1): Promise<void> {
 }
 
 export function stopSpeaking() {
+  stopCfSpeak()
   if (browserTts()) window.speechSynthesis.cancel()
 }
 
