@@ -14,9 +14,8 @@ import SpeakingBlock from './blocks/SpeakingBlock'
 import ReadingBlock from './blocks/ReadingBlock'
 import WritingBlock from './blocks/WritingBlock'
 import { SpeakButton } from './shared'
-import { Badge, Button, Card, CardBody, Callout, SectionLabel } from './ui'
+import { Badge, Button, Card, CardBody, Callout, SectionLabel, Segmented } from './ui'
 import { useToast } from './ui/toast'
-import { cn } from '../lib/utils'
 
 export default function DayView() {
   const { day } = useParams()
@@ -128,37 +127,31 @@ export default function DayView() {
         </CardBody>
       </Card>
 
-      {/* Sticky block switcher — a proper tablist */}
-      <div
-        role="tablist"
-        aria-label="学习模块切换"
-        className="sticky top-[60px] z-10 flex gap-1 overflow-x-auto rounded-lg border border-border bg-surface-2 p-1 md:top-3"
-      >
-        {BLOCKS.map((b) => {
-          const isActive = active === b.key
-          const isDone = done(b.key)
-          const short = b.title_zh.split(/[ +]/)[0]
-          return (
-            <button
-              key={b.key}
-              role="tab"
-              aria-selected={isActive}
-              aria-label={`${b.title_zh}${isDone ? ' · 已完成' : ''}`}
-              onClick={() => setActive(b.key)}
-              className={cn(
-                'flex min-h-11 min-w-11 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-2.5 text-sm font-medium transition-all duration-200',
-                isActive ? 'bg-elevated text-fg shadow-rest' : 'text-fg-muted hover:text-fg',
-              )}
-            >
-              <BlockIcon k={b.key} size={15} className={isActive ? 'text-fg' : 'text-fg-muted'} />
-              <span className="hidden sm:inline">{short}</span>
-              {isDone && <Check size={13} className="text-fg" strokeWidth={2.5} aria-hidden />}
-            </button>
-          )
-        })}
+      {/* Sticky block switcher — accessible Segmented (roving tabindex + arrows) */}
+      <div className="sticky top-[62px] z-10 md:top-3">
+        <Segmented
+          full
+          ariaLabel="学习模块切换"
+          value={active}
+          onChange={setActive}
+          options={BLOCKS.map((b) => {
+            const isDone = done(b.key)
+            const short = b.title_zh.split(/[ +]/)[0]
+            return {
+              value: b.key,
+              label: (
+                <>
+                  <BlockIcon k={b.key} size={15} />
+                  <span className="hidden sm:inline">{short}</span>
+                  {isDone && <Check size={13} strokeWidth={2.5} aria-hidden />}
+                </>
+              ),
+            }
+          })}
+        />
       </div>
 
-      <div key={dayNum} className="animate-in-up" role="tabpanel">
+      <div key={dayNum} id="block-panel" className="animate-in-up" role="tabpanel" tabIndex={0}>
         {active === 'listening' && (
           <ListeningBlock lesson={lesson} done={done('listening')} onComplete={() => complete('listening')} onUndo={() => uncomplete('listening')} />
         )}

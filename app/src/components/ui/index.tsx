@@ -333,6 +333,7 @@ export function Segmented<T extends string>({
   className,
   size = 'md',
   ariaLabel,
+  full = false,
 }: {
   value: T
   onChange: (v: T) => void
@@ -340,6 +341,7 @@ export function Segmented<T extends string>({
   className?: string
   size?: 'sm' | 'md'
   ariaLabel?: string
+  full?: boolean
 }) {
   const h = size === 'sm' ? 'py-1.5 text-sm' : 'py-2 text-body'
   const refs = useRef<(HTMLButtonElement | null)[]>([])
@@ -362,7 +364,11 @@ export function Segmented<T extends string>({
     <div
       role="tablist"
       aria-label={ariaLabel}
-      className={cn('inline-flex gap-1 rounded-lg border border-border bg-surface-2 p-1', className)}
+      className={cn(
+        'gap-1 rounded-lg border border-border bg-surface-2 p-1',
+        full ? 'flex w-full' : 'inline-flex',
+        className,
+      )}
     >
       {options.map((o, i) => {
         const active = o.value === value
@@ -379,6 +385,7 @@ export function Segmented<T extends string>({
               'flex items-center justify-center gap-1.5 rounded-sm px-3 font-medium transition-all duration-200',
               RING,
               h,
+              full && 'min-h-11 flex-1',
               active ? 'bg-elevated text-fg shadow-rest' : 'text-fg-muted hover:text-fg',
             )}
           >
