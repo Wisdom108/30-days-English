@@ -7,11 +7,13 @@ import DayView from './components/DayView'
 import Review from './components/Review'
 import Progress from './components/Progress'
 import { useApp } from './state'
-import { CURRICULUM, TOTAL_DAYS } from './data/curriculum'
+import { CURRICULUM, TOTAL_DAYS, getLesson } from './data/curriculum'
 import { dueCards } from './lib/srs'
 import { isDayComplete, displayStreak } from './lib/storage'
 import { PHASE_INFO } from './blocks'
 import { Logo, LogoMark } from './components/ui/brand'
+import { AuthControls, TutorFab } from './components/ai'
+import type { LessonCtx } from './lib/ai'
 import { cn } from './lib/utils'
 
 function useNav() {
@@ -107,6 +109,8 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       </div>
 
       <div className="mt-auto p-3">
+        <AuthControls onNavigate={onNavigate} />
+        <div className="my-2 border-t border-border" />
         <div className="mb-1 flex items-center gap-1.5 px-2 text-meta text-fg-secondary">
           <Flame size={13} className="text-red" /> <span className="t-num">{streak}</span> 天连续
         </div>
@@ -135,6 +139,19 @@ export default function App() {
   const loc = useLocation()
   const onDayRoute = loc.pathname.startsWith('/day/')
   useScrollTop()
+
+  // Lesson context for the AI tutor — reflect the day being viewed, else today.
+  const dayMatch = loc.pathname.match(/^\/day\/(\d+)/)
+  const ctxLesson = getLesson(dayMatch ? Number(dayMatch[1]) : current)
+  const lessonCtx: LessonCtx = ctxLesson
+    ? {
+        day: ctxLesson.day,
+        theme: ctxLesson.theme,
+        title_en: ctxLesson.title_en,
+        grammar: ctxLesson.grammarNote?.point_en,
+        level: 'A2-B1',
+      }
+    : {}
 
   return (
     <div className="min-h-screen">
@@ -212,6 +229,9 @@ export default function App() {
           ))}
         </nav>
       )}
+
+      {/* Floating AI tutor (only renders when AI is configured + signed in) */}
+      <TutorFab lesson={lessonCtx} />
     </div>
   )
 }

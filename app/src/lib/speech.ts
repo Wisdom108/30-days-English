@@ -1,8 +1,11 @@
-// Thin wrappers around the browser Web Speech API (free, no backend).
-// TTS = SpeechSynthesis; STT = SpeechRecognition (Chrome/Edge best support).
+// Speech wrappers. Premium path = Azure neural TTS + pronunciation assessment
+// (via the Worker); free path = the browser Web Speech API. speak() routes to
+// Azure when configured and falls back to the browser on any error.
+import { azureAvailable, azureSpeak } from './azureSpeech'
 
 export function ttsSupported(): boolean {
-  return typeof window !== 'undefined' && 'speechSynthesis' in window
+  // Azure TTS or the browser's SpeechSynthesis — either counts as "can speak".
+  return azureAvailable() || (typeof window !== 'undefined' && 'speechSynthesis' in window)
 }
 
 let cachedVoice: SpeechSynthesisVoice | null = null
@@ -19,9 +22,22 @@ function pickEnglishVoice(): SpeechSynthesisVoice | null {
   return preferred || voices[0] || null
 }
 
-export function speak(text: string, rate = 1): Promise<void> {
+export async function speak(text: string, rate = 1): Promise<void> {
+  // Premium: Azure natural neural voice (fixes the robotic browser-TTS feel).
+  if (azureAvailable()) {
+    try {
+      await azureSpeak(text, rate)
+      return
+    } catch {
+      /* fall back to the browser voice below */
+    }
+  }
+  return browserSpeak(text, rate)
+}
+
+function browserSpeak(text: string, rate = 1): Promise<void> {
   return new Promise((resolve) => {
-    if (!ttsSupported()) {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
       resolve()
       return
     }
