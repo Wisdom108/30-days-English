@@ -27,17 +27,20 @@
 
 > 内容标准：全部词汇音标 (IPA) 与英文拼写统一为 **General American（美音/美式拼写）**，词性标签枚举化。`npm run validate`（见 `app/scripts/validate-lessons.mjs`）防内容回归。
 
-## 🤖 AI 与神经语音（可选 · 需配置后端）
+## 🤖 AI 功能（已上线 · Cloudflare Workers AI · 免费开源）
 
-在纯前端基础上，可接入一层可选的 AI + 语音能力（**不配置也能完整用离线版**）：
+在线体验：**https://thirty-days-en.thinkuniverse.workers.dev**
 
-- **AI 对话陪练** — 就每日情景与 Claude 角色扮演对话，实时纠错、带话题往下走
-- **AI 写作批改** — 结构化反馈（逐条纠错 + 中文说明 + 润色版 + 打分）
-- **AI 发音教练** — Azure 音素级发音评测（准确/流利/完整/韵律）+ Claude 针对性建议
+四大 AI 功能开箱即用，**零额外账号、零 API key、开放模式免登录**（Cloudflare Workers AI 免费开源模型，按 IP 限日额度）：
+
+- **AI 对话陪练** — 就每日情景角色扮演对话，实时纠错、带话题往下走
+- **AI 写作批改** — 结构化反馈（逐条纠错 + 中文说明 + 润色版 + 打分，`response_format` 结构化输出）
+- **AI 发音教练** — 结合发音评分给针对性中文建议
 - **AI 私教答疑** — 全局悬浮，随时问语法用法，结合当天课程作答
-- **自然神经语音** — Azure TTS 替换浏览器 TTS，去掉"人机感"
 
-架构：**全 Cloudflare 生态** —— Worker 后端代理 Claude（`claude-opus-4-8`，可切 Sonnet/Haiku）+ 签发 Azure 短时令牌 + **Cloudflare Access（Zero Trust 免费档）登录** + KV 每用户日额度；密钥只在 Worker，前端只用 cookie 会话。`config.ts` 特性开关**优雅降级**：未配置时自动回退浏览器语音、隐藏 AI 入口。仅需 **Cloudflare + Anthropic + Azure** 三个账号。
+架构：**全 Cloudflare** —— 一个 Worker 同时托管前端 + API，用 **Workers AI 绑定**（默认 `@cf/meta/llama-3.3-70b-instruct-fp8-fast`，可换轻量/中文模型）跑 AI，KV 按 IP 日额度。`config.ts` 优雅降级：未配置后端时回退浏览器语音、隐藏 AI。
+
+**可选增强**（见 [`SETUP.md`](./SETUP.md)）：加 **Azure Speech** 换真·神经语音 + 音素级发音评测；加 **Cloudflare Access** 换每用户登录。都不加也完整可用。
 
 **接入步骤与全部待填 key** 见 [`SETUP.md`](./SETUP.md)（Anthropic / Azure Speech / Supabase / Cloudflare）。后端代码在 [`worker/`](./worker)。
 

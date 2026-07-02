@@ -1,75 +1,54 @@
-# SETUP · AI + 语音 + 登录 接入清单
+# SETUP · 部署与可选增强
 
-全部占位符留空时，App 仍作为**纯前端离线 PWA** 正常运行（浏览器语音、无 AI、无登录）；逐项填好后对应高级功能自动点亮。**全 Cloudflare 生态 + 2 个 key**，无 Supabase。
+**已上线**：`https://thirty-days-en.thinkuniverse.workers.dev`
+一个 Cloudflare Worker 同时托管前端 + API，登录 cookie 同域。**AI 四功能开箱即用，零额外账号/密钥**（用 Cloudflare Workers AI 免费开源模型）。
 
-> 架构：前端（Vite/React，`app/`，可部署到 Cloudflare Pages）+ Cloudflare Worker 后端（`worker/`）。登录用 **Cloudflare Access（Zero Trust，免费 ≤50 用户）**，Worker 校验 Access 签发的 JWT。敏感 key 只在 Worker，前端只用 cookie 会话。
+## 已经跑起来的（无需任何 key）
+- 全部课程 / 词卡 / 打卡 / 浏览器语音 / 点词查义 / 解锁全部天数（离线可用）
+- **AI 对话陪练 / 写作批改 / 发音教练 / 私教答疑** —— Cloudflare Workers AI（`@cf/meta/llama-3.3-70b-instruct-fp8-fast`），免费每日额度，**无 API key、开放模式免登录**（按 IP 限日额度防滥用）
+
+## 重新部署（改代码后）
+```bash
+cd app && VITE_SAME_ORIGIN=true npm run build      # 前端打包进 Worker
+cd ../worker && npx wrangler deploy                 # 一条命令上线（含前端+API）
+```
+换更省额度的模型：改 `worker/wrangler.toml` 的 `CF_AI_MODEL`（如 `@cf/meta/llama-3.1-8b-instruct`，或 Qwen 系更适合中文）。
 
 ---
 
-## 需要的账号（3 个）
-
-| 账号 | 用途 | 拿什么 | 敏感度 |
-|---|---|---|---|
-| **Cloudflare** | 部署 Worker + KV 额度 + **Access 登录**（全免费档） | 账号（`wrangler login` 浏览器授权，你自己跑） | — |
-| **Anthropic** | AI 四功能（走 Claude 额度） | API key `sk-ant-…` | 🔴 密钥 |
-| **Azure Speech** | 自然神经语音 + 发音评测 | Key + Region(如 eastus) | 🔴 Key / 🟢 Region |
-
----
-
-## 步骤
-
-### 1) 部署 Worker
+## 可选增强 1 · 真·神经语音 + 发音评测（Azure）
+现在语音走浏览器 TTS。想要自然音色 + 音素级发音评测（治"人机感"），加 Azure Speech：
 ```bash
 cd worker
-npm install
-npx wrangler login                              # 浏览器授权（你自己）
-npx wrangler kv namespace create QUOTA          # 把输出的 id 填进 wrangler.toml 的 [[kv_namespaces]]
-# 填 wrangler.toml [vars]：AZURE_SPEECH_REGION（AZURE_VOICE/模型/额度可选）
-npx wrangler secret put ANTHROPIC_API_KEY       # 终端粘密钥，不进文件/git
-npx wrangler secret put AZURE_SPEECH_KEY
-npx wrangler deploy                             # 记下 https://thirty-days-en.<子域>.workers.dev
+# wrangler.toml [vars] 填 AZURE_SPEECH_REGION（如 eastus）
+npx wrangler secret put AZURE_SPEECH_KEY            # 终端粘 key，不进 git/聊天
+npx wrangler deploy
 ```
-本地联调：`worker/.dev.vars` 里放 `DEV_BYPASS_AUTH=true` + 两个 key（见 `.dev.vars.example`），`npx wrangler dev`（跳过 Access 登录直接测）。
+（Azure Portal → 建 Speech 资源 → 拿 Key + Region，有免费档 F0。）不加则继续用浏览器语音，一切照常。
 
-### 2) Cloudflare Access（登录，Zero Trust 免费档）
-1. Cloudflare 仪表盘 → **Zero Trust** → 首次会让你起个 team 名 → 得到 team 域名 `你的team.cloudflareaccess.com`。
-2. **Access › Applications › Add an application › Self-hosted**：
-   - Application domain 填你的 **Worker 域名**（`thirty-days-en.<子域>.workers.dev`），Path 可留空（保护整个 Worker）或按需只保护 `/ai`、`/speech`、`/me`。
-   - 建 **Policy**：Action=Allow，规则按需（如 Emails ending in 你的域名 / 指定邮箱 / Everyone）。
-   - **登录方式**：Zero Trust › Settings › Authentication 里开 **One-time PIN（邮箱验证码，默认就有）**，要 Google/GitHub 就加对应 Login method。
-3. 建好后在该 Application 的 **Overview** 复制 **Application Audience (AUD) Tag**。
-4. 回填 `worker/wrangler.toml [vars]`：`CF_ACCESS_TEAM_DOMAIN = "你的team.cloudflareaccess.com"`、`CF_ACCESS_AUD = "<AUD tag>"`，然后 `npx wrangler deploy`。
-
-> 跨域 cookie：Worker 与前端不同域时，登录 cookie 需能带上。最稳的是**同域部署**——把前端放 Cloudflare Pages，Worker 挂在同域 `/api/*` 路由（前端 env 用 `VITE_WORKER_URL=/api`）。不同子域也能用，但确保 Access 应用覆盖到位。
-
-### 3) 前端环境变量
-`app/.env.local`（见 `app/.env.example`）：
-```
-VITE_WORKER_URL=https://thirty-days-en.<子域>.workers.dev   # 或同域时用 /api
-# VITE_AZURE_VOICE=en-US-AvaMultilingualNeural              # 可选
-```
-然后 `cd app && npm run build`。上线后把 `worker/wrangler.toml` 的 `ALLOWED_ORIGIN` 改成你的前端域名（用 cookie 后不能是 `*`）。
+## 可选增强 2 · 每用户登录（Cloudflare Access）
+现在是开放模式（访客 + 按 IP 限额）。想要邮箱/Google 登录 + 每用户额度：
+1. Cloudflare Zero Trust → Access → Applications → Add self-hosted，domain 填 Worker 域名，path 加 `ai`/`speech`/`me`/`login` 四行（base 保持公开）。
+2. Policy=Allow（限你的邮箱或 Everyone）；Settings→Authentication 开 One-time PIN / Google。
+3. 复制 **AUD tag** + team 域名 → 填 `worker/wrangler.toml` 的 `CF_ACCESS_AUD` / `CF_ACCESS_TEAM_DOMAIN` → `npx wrangler deploy`。
+配好后前端自动改成"需登录"，未登录点 AI 会走 Access 登录页。
 
 ---
 
-## 功能点亮条件（优雅降级）
+## 本地开发
+```bash
+# 前端热更新
+cd app && npm run dev                                # http://localhost:5173
+# 后端本地（含 Workers AI；.dev.vars 放 DEV_BYPASS_AUTH=true 免登录）
+cd worker && npx wrangler dev
+```
 
-| 功能 | 需要 |
-|---|---|
-| 课程 / 词卡 / 打卡 / 浏览器语音 / 点词查义 / 解锁全部天数 | **无需任何配置**（离线可用） |
-| 自然神经语音 + 发音评测 | Worker + Azure + Access 登录 |
-| AI 对话陪练 / 写作批改 / 发音教练 / 私教答疑 | Worker + Anthropic + Access 登录 |
+## 敏感度
+- 🔴 Azure key（若用）：只经 `wrangler secret put`，不进 git/聊天。
+- 🟢 其余（模型名、region、AUD、team 域名、KV id）：非敏感，在 wrangler.toml。
+- Cloudflare 登录：`wrangler login` 浏览器授权，凭证只在本机。
 
-没配置时：AI 区块显示"需配置后端"占位，私教悬浮/登录入口隐藏，语音回退浏览器 TTS。
-
----
-
-## 敏感度分工（重要）
-- 🔴 **Anthropic key / Azure key**：只经 `wrangler secret put`（终端输入）→ 存 Cloudflare secret store，绝不进文件/git/聊天。
-- 🟢 **Region / Worker URL / AUD tag / team 域名**：非敏感，写进 `wrangler.toml` / `.env.local`。
-- **Cloudflare 登录**：`wrangler login` 浏览器授权，凭证只在你本机。
-
-## 仍是占位符 / 可后补
-- 真人录音音频（现用 Azure TTS 合成；`lib/speech.ts` 已抽象，可加音频源 provider）
-- 品牌插画（现用点阵「30」记号）
-- 进度云同步（现为 localStorage + 导入导出备份；如需跨设备可后接 Cloudflare D1）
+## 仍可后补（非必需）
+- 真人录音音频（现 Workers AI / 浏览器合成；`lib/speech.ts` 已抽象可加音频源）
+- 品牌插画（现点阵「30」记号）
+- 跨设备进度同步（现 localStorage + 导入导出；可后接 Cloudflare D1）
