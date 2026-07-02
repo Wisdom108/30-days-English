@@ -9,7 +9,7 @@ import type { AppState } from '../types'
 import { BLOCKS, PHASE_INFO } from '../blocks'
 import { todayISO } from '../lib/srs'
 import { buildIcs, downloadIcs } from '../lib/calendar'
-import { Button, Progress as Bar, SectionLabel, ConfirmDialog, Select } from './ui'
+import { Button, Cells, SectionLabel, ConfirmDialog, Select } from './ui'
 
 const REMINDER_HOURS = [6, 7, 8, 9, 12, 18, 20, 21]
 
@@ -100,7 +100,6 @@ export default function Progress() {
         {Object.entries(PHASE_INFO).map(([k, v]) => {
           const days = CURRICULUM.filter((l) => l.phase === Number(k)).map((l) => l.day)
           const doneCount = days.filter((d) => completedDays.includes(d)).length
-          const pct = days.length ? Math.round((doneCount / days.length) * 100) : 0
           return (
             <div key={k}>
               <div className="flex items-center justify-between text-sm">
@@ -109,9 +108,9 @@ export default function Progress() {
                   <span className="font-medium text-fg">阶段 {k}</span>
                   <span className="text-fg-muted">{v.name_zh} · {v.range}</span>
                 </span>
-                <span className="text-fg-muted">{doneCount}/{days.length}</span>
+                <span className="t-tab text-fg-muted">{doneCount}/{days.length}</span>
               </div>
-              <Bar value={pct} color={v.color} className="mt-1.5" />
+              <Cells value={doneCount} max={days.length} accent={v.color} height={8} className="mt-2" />
             </div>
           )
         })}
@@ -127,9 +126,9 @@ export default function Progress() {
                 <BlockIcon k={b.key} size={15} className="text-fg-secondary" />
                 {b.title_zh}
               </span>
-              <span className="inline-flex items-center gap-1 text-fg-muted">{b.count === TOTAL_DAYS && <Check size={13} className="text-fg" strokeWidth={3} />}{b.count}/{TOTAL_DAYS}</span>
+              <span className="inline-flex items-center gap-1 text-fg-muted">{b.count === TOTAL_DAYS && <Check size={13} className="text-fg" strokeWidth={3} />}<span className="t-tab">{b.count}/{TOTAL_DAYS}</span></span>
             </div>
-            <Bar value={Math.round((b.count / TOTAL_DAYS) * 100)} className="mt-1.5" />
+            <Cells value={b.count} max={TOTAL_DAYS} height={7} className="mt-2" />
           </div>
         ))}
       </div>

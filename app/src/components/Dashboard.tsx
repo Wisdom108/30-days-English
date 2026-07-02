@@ -8,7 +8,7 @@ import { CURRICULUM, TOTAL_DAYS } from '../data/curriculum'
 import { isDayComplete, getDayProgress, displayStreak, isDayUnlocked } from '../lib/storage'
 import { dueCards } from '../lib/srs'
 import { BLOCKS, PHASE_INFO, TOTAL_MINUTES } from '../blocks'
-import { Card, CardHead, Segment, Button, IconButton, Callout, Tooltip, Progress as Bar } from './ui'
+import { Card, CardHead, Segment, Button, IconButton, Callout, Tooltip, Badge, Cells } from './ui'
 import { BlockIcon } from './blockicons'
 import { cn } from '../lib/utils'
 
@@ -51,6 +51,7 @@ export default function Dashboard() {
   const current = Math.min(state.currentDay, TOTAL_DAYS)
   const streak = displayStreak(state)
   const lesson = CURRICULUM.find((l) => l.day === current)
+  const phase = lesson?.phase ?? 1
   const dd = String(current).padStart(2, '0')
   const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase()
 
@@ -84,29 +85,49 @@ export default function Dashboard() {
         </Card>
       )}
 
-      {/* hero */}
-      <section className="flex items-end justify-between gap-6 py-2 animate-in-up">
-        <div>
-          <div className="label-nd">{greeting()}</div>
-          <h1 className="mt-2 text-title font-semibold">
-            Day {current} <span className="text-fg-secondary">/ {lesson?.title_en ?? lesson?.title_zh}</span>
-          </h1>
-          <div className="mt-1.5 font-mono text-[11px] uppercase tracking-[0.1em] text-fg-muted">
-            {TOTAL_DAYS - completedDays.length} days left · A2 → B1 · {today}
+      {/* hero — nullframe device-readout card */}
+      <Card className="overflow-hidden animate-in-up">
+        <CardHead
+          title={greeting()}
+          right={
+            <Badge variant="accent" style={{ color: PHASE_INFO[phase]?.color, borderColor: (PHASE_INFO[phase]?.color ?? '#fff') + '55' }}>
+              <span className="h-1.5 w-1.5 rounded-full" style={{ background: PHASE_INFO[phase]?.color }} />
+              {PHASE_EN[phase]} · P{phase}
+            </Badge>
+          }
+        />
+        <div className="flex items-center gap-4 p-5">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-h1 font-semibold leading-tight sm:text-title">
+              Day {current} <span className="text-fg-secondary">/ {lesson?.title_en ?? lesson?.title_zh}</span>
+            </h1>
+            <div className="mt-2 font-mono text-[11px] uppercase tracking-[0.1em] text-fg-muted">
+              {TOTAL_DAYS - completedDays.length} days left · A2 → B1 · {today}
+            </div>
+          </div>
+          {/* DAY / 01 — centered in a bordered readout chip (no more floating label) */}
+          <div className="shrink-0 rounded-lg border border-border-strong bg-surface-2 px-3.5 py-2 text-center">
+            <div className="font-mono text-[9px] uppercase tracking-[0.24em] text-fg-dim">Day</div>
+            <div className="t-doto mt-0.5 text-[44px] font-semibold leading-none text-fg sm:text-[52px]">{dd}</div>
           </div>
         </div>
-        <div className="text-right leading-[0.85]">
-          <div className="font-mono text-[10px] tracking-[0.24em] text-fg-dim">DAY</div>
-          <div className="t-doto text-[58px] font-semibold text-fg sm:text-[78px]">{dd}</div>
+        {/* whole-journey progress as segmented cells */}
+        <div className="flex items-center gap-3 border-t border-border px-5 py-3">
+          <Cells value={completedDays.length} max={TOTAL_DAYS} height={8} className="flex-1" />
+          <span className="t-tab shrink-0 text-meta text-fg-muted">{completedDays.length}/{TOTAL_DAYS}</span>
         </div>
-      </section>
+      </Card>
 
-      {/* metric readout — clean numbers, no chrome */}
+      {/* metric readout — number + segmented cell bar */}
       <div className="grid grid-cols-2 overflow-hidden rounded-xl border border-border sm:grid-cols-4 animate-in-up">
-        <MCell label="Progress" value={`${overall}%`} onClick={() => nav('/progress')} />
-        <MCell label="Streak" value={streak} cls="border-l border-border" />
-        <MCell label="Complete" value={`${completedDays.length}/${TOTAL_DAYS}`} onClick={() => nav('/progress')} cls="border-t border-border sm:border-t-0 sm:border-l" />
-        <MCell label="Due" value={due} red={due > 0} onClick={() => nav('/review')} cls="border-l border-t border-border sm:border-t-0" />
+        <MCell label="Progress" value={`${overall}%`} onClick={() => nav('/progress')}
+          bar={<Cells value={Math.round(overall / 10)} max={10} height={7} />} />
+        <MCell label="Streak" value={streak} cls="border-l border-border"
+          bar={<Cells value={Math.min(streak, 10)} max={10} height={7} accent={streak > 0 ? 'var(--color-red)' : undefined} />} />
+        <MCell label="Complete" value={`${completedDays.length}/${TOTAL_DAYS}`} onClick={() => nav('/progress')} cls="border-t border-border sm:border-t-0 sm:border-l"
+          bar={<Cells value={Math.round((completedDays.length / TOTAL_DAYS) * 10)} max={10} height={7} />} />
+        <MCell label="Due" value={due} red={due > 0} onClick={() => nav('/review')} cls="border-l border-t border-border sm:border-t-0"
+          bar={<Cells value={Math.min(due, 10)} max={10} height={7} accent={due > 0 ? 'var(--color-red)' : undefined} />} />
       </div>
 
       {/* two columns */}
@@ -164,7 +185,6 @@ export default function Dashboard() {
               {Object.entries(PHASE_INFO).map(([k, v], i) => {
                 const days = CURRICULUM.filter((l) => l.phase === Number(k)).map((d) => d.day)
                 const doneCount = days.filter((d) => completedDays.includes(d)).length
-                const pct = Math.round((doneCount / days.length) * 100)
                 return (
                   <div key={k} className={cn('grid grid-cols-[10px_1fr_auto] items-center gap-3 px-[18px] py-3.5', i > 0 && 'border-t border-border')}>
                     <span className="h-2.5 w-2.5 rounded-full" style={{ background: v.color }} />
@@ -173,7 +193,7 @@ export default function Dashboard() {
                         <span className="text-sm text-fg">{PHASE_EN[Number(k)]}</span>
                         <span className="font-mono text-[9.5px] uppercase tracking-[0.1em] text-fg-dim">{v.range}</span>
                       </div>
-                      <Bar value={pct} color={v.color} className="mt-1.5" />
+                      <Cells value={doneCount} max={days.length} accent={v.color} height={7} className="mt-2" />
                     </div>
                     <span className="t-tab text-sm text-fg-secondary">{doneCount}/{days.length}</span>
                   </div>
@@ -197,16 +217,16 @@ export default function Dashboard() {
       <Card className="animate-in-up">
         <CardHead
           title="Curriculum · 30D"
-          right={
-            <div className="flex flex-wrap gap-1.5">
-              {Object.entries(PHASE_INFO).map(([k, v]) => (
-                <span key={k} className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.1em]" style={{ background: v.softBg, color: v.color }}>
-                  <span className="h-1.5 w-1.5 rounded-full" style={{ background: v.color }} />{PHASE_EN[Number(k)]}
-                </span>
-              ))}
-            </div>
-          }
+          right={<span className="label-nd">{completedDays.length}/{TOTAL_DAYS}</span>}
         />
+        {/* phase legend — own full-width row (no more awkward header gap) */}
+        <div className="flex flex-wrap gap-1.5 border-b border-border px-[18px] py-3">
+          {Object.entries(PHASE_INFO).map(([k, v]) => (
+            <span key={k} className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.1em]" style={{ background: v.softBg, color: v.color }}>
+              <span className="h-1.5 w-1.5 rounded-full" style={{ background: v.color }} />{PHASE_EN[Number(k)]}
+            </span>
+          ))}
+        </div>
         <div className="p-[18px]">
           <div className="grid grid-cols-5 gap-2 md:grid-cols-10">
             {Array.from({ length: TOTAL_DAYS }, (_, i) => i + 1).map((d) => {
@@ -249,25 +269,28 @@ function MCell({
   red,
   onClick,
   cls,
+  bar,
 }: {
   label: string
   value: React.ReactNode
   red?: boolean
   onClick?: () => void
   cls?: string
+  bar?: React.ReactNode
 }) {
   const Tag = onClick ? 'button' : 'div'
   return (
     <Tag
       onClick={onClick}
       className={cn(
-        'block px-[18px] py-4 text-left transition-colors sm:py-5',
+        'block w-full px-[18px] py-4 text-left transition-colors sm:py-5',
         onClick && 'hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40',
         cls,
       )}
     >
       <div className="label-nd">{label}</div>
       <div className={cn('t-tab mt-2.5 text-[28px] font-semibold leading-none sm:text-[32px]', red ? 'text-red' : 'text-fg')}>{value}</div>
+      {bar && <div className="mt-3.5">{bar}</div>}
     </Tag>
   )
 }

@@ -215,6 +215,43 @@ export function Progress({
   )
 }
 
+// ---- Cells — segmented block bar (the nullframe signature data viz) ----
+// A row of small square cells; `value` of `max` are filled. Reads as a device
+// readout, not a smooth progress bar.
+export function Cells({
+  value,
+  max,
+  accent = 'var(--color-fg)',
+  className,
+  height = 10,
+}: {
+  value: number
+  max: number
+  accent?: string
+  className?: string
+  height?: number
+}) {
+  const filled = Math.max(0, Math.min(max, Math.round(value)))
+  return (
+    <div
+      className={cn('flex gap-[3px]', className)}
+      role="progressbar"
+      aria-valuenow={filled}
+      aria-valuemin={0}
+      aria-valuemax={max}
+      aria-label={`${filled}/${max}`}
+    >
+      {Array.from({ length: max }, (_, i) => (
+        <span
+          key={i}
+          className="flex-1 rounded-[1.5px] transition-colors duration-300"
+          style={{ height, background: i < filled ? accent : 'var(--color-border-strong)', opacity: i < filled ? 1 : 0.5 }}
+        />
+      ))}
+    </div>
+  )
+}
+
 // ---- Metric (telemetry readout cell) ----
 export function Metric({
   label,
