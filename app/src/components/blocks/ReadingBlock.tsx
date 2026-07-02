@@ -1,9 +1,23 @@
-import { Play } from 'lucide-react'
+import { useState, type ReactNode } from 'react'
+import { Play, ChevronDown } from 'lucide-react'
 import type { DayLesson } from '../../types'
 import { speak } from '../../lib/speech'
 import { QAItem, ReadableText, RowGroup } from '../shared'
-import { Button, Card, CardBody, SectionLabel, Segment } from '../ui'
+import { Button } from '../ui'
 import { cn } from '../../lib/utils'
+
+function Collapse({ label, count, children }: { label: string; count?: number; children: ReactNode }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="overflow-hidden rounded-2xl border border-border">
+      <button onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex w-full items-center justify-between px-5 py-4 transition-colors hover:bg-hover">
+        <span className="label-nd">{label}{count != null && <> · <span className="t-num text-fg-secondary">{count}</span></>}</span>
+        <ChevronDown size={17} className={cn('text-fg-muted transition-transform', open && 'rotate-180')} />
+      </button>
+      {open && <div className="border-t border-border">{children}</div>}
+    </div>
+  )
+}
 
 export default function ReadingBlock({
   lesson,
@@ -15,45 +29,37 @@ export default function ReadingBlock({
 }) {
   const r = lesson.reading
   return (
-    <Card>
-      <CardBody>
-        <h2 className="text-h2 font-semibold text-fg">阅读 · {r.title}</h2>
-        <p className="mt-1 text-sm text-fg-muted">
-          先通读理解大意，遇到生词 <b className="font-medium text-fg-secondary">点一下</b> 即可查释义并听发音。
-        </p>
-
-        <Button variant="secondary" size="sm" className="mt-3" onClick={() => speak(r.passage, 0.95)}>
-          <Play size={14} /> 朗读全文
-        </Button>
-
-        <Segment className="mt-3 p-4">
+    <div className="space-y-4">
+      {/* ===== HERO — immersive passage ===== */}
+      <div className="overflow-hidden rounded-[22px] border border-border-strong bg-surface">
+        <div className="flex items-center justify-between border-b border-border px-5 py-3">
+          <span className="label-nd">阅读 · {r.title}</span>
+          <Button variant="secondary" size="sm" onClick={() => speak(r.passage, 0.95)}><Play size={14} /> 朗读全文</Button>
+        </div>
+        <div className="px-6 py-6">
           <ReadableText text={r.passage} glossary={r.glossary} />
-        </Segment>
+          <p className="mt-5 border-t border-border pt-4 font-mono text-[10px] uppercase tracking-[0.1em] text-fg-dim">
+            遇到生词点一下 · 查释义 + 听发音
+          </p>
+        </div>
+      </div>
 
-        <SectionLabel>生词表</SectionLabel>
+      <Collapse label="生词表" count={r.glossary.length}>
         <RowGroup>
           {r.glossary.map((g, i) => (
-            <div
-              key={i}
-              className={cn(
-                'flex items-center justify-between gap-3 px-3.5 py-2.5 text-sm transition-colors hover:bg-hover',
-                i > 0 && 'border-t border-border-soft',
-              )}
-            >
+            <div key={i} className={cn('flex items-center justify-between gap-3 px-3.5 py-2.5 text-sm transition-colors hover:bg-hover', i > 0 && 'border-t border-border-soft')}>
               <b className="font-medium text-fg">{g.word}</b>
               <span className="text-fg-muted">{g.meaning_zh}</span>
             </div>
           ))}
         </RowGroup>
+      </Collapse>
 
-        <SectionLabel>理解自测</SectionLabel>
+      <Collapse label="理解自测" count={r.comprehension.length}>
         <RowGroup>
-          {r.comprehension.map((qa, i) => (
-            <QAItem key={i} q={qa.q} a={qa.a} />
-          ))}
+          {r.comprehension.map((qa, i) => <QAItem key={i} q={qa.q} a={qa.a} />)}
         </RowGroup>
-
-      </CardBody>
-    </Card>
+      </Collapse>
+    </div>
   )
 }
