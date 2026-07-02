@@ -89,13 +89,19 @@ export default function VocabBlock({
 
         {mode === 'quiz' && card && (
           <>
-            <button
+            <div
+              role="button"
+              tabIndex={0}
+              aria-label="翻转词卡"
               onClick={() => setFlip((f) => !f)}
-              className="mt-4 flex min-h-[240px] w-full flex-col items-center justify-center gap-2.5 rounded-xl border border-border bg-surface p-7 text-center shadow-[var(--shadow-card)]"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') setFlip((f) => !f)
+              }}
+              className="mt-4 flex min-h-[240px] w-full cursor-pointer flex-col items-center justify-center gap-2.5 rounded-xl border border-border bg-surface p-7 text-center shadow-[var(--shadow-card)]"
             >
               {!flip ? (
                 <>
-                  <div className="t-num text-hero font-medium text-fg">{card.word}</div>
+                  <div className="text-hero font-semibold text-fg">{card.word}</div>
                   <div className="font-mono text-h2 text-fg-muted">{card.ipa}</div>
                   <SpeakButton text={card.word} />
                   <div className="text-meta text-fg-dim">点击卡片翻面看释义</div>
@@ -107,7 +113,7 @@ export default function VocabBlock({
                   <div className="text-sm text-fg-dim">{card.example_zh}</div>
                 </>
               )}
-            </button>
+            </div>
             <div className="mt-3 flex items-center justify-between">
               <Button
                 variant="secondary"

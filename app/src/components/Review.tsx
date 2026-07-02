@@ -84,9 +84,19 @@ export default function Review() {
       </div>
       <Progress value={total ? (reviewed / total) * 100 : 0} />
 
-      {/* 3D flip card */}
+      {/* 3D flip card (div, not button — it contains SpeakButtons) */}
       <div className="[perspective:1200px]">
-        <button onClick={() => setFlip((f) => !f)} className={cardFlipCls(flip)} style={{ minHeight: 300 }}>
+        <div
+          role="button"
+          tabIndex={0}
+          aria-label="翻转词卡"
+          onClick={() => setFlip((f) => !f)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') setFlip((f) => !f)
+          }}
+          className={cardFlipCls(flip)}
+          style={{ minHeight: 300 }}
+        >
           <div className="flip-face absolute inset-0 flex flex-col items-center justify-center gap-2.5 rounded-xl border border-border bg-surface p-8 shadow-[var(--shadow-card)]">
             <div className="text-display font-semibold text-fg">{card.word}</div>
             <div className="font-mono text-h2 text-fg-muted">{card.ipa}</div>
@@ -100,7 +110,7 @@ export default function Review() {
             <div className="text-body-lg text-fg-secondary">{card.example_en}</div>
             <SpeakButton text={card.example_en} />
           </div>
-        </button>
+        </div>
       </div>
 
       {flip ? (
