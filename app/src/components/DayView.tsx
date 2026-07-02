@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, RotateCcw, Lightbulb, Check, ArrowRight, PartyPopper } from 'lucide-react'
+import { ArrowLeft, Check, ArrowRight, Target, SkipForward, PartyPopper } from 'lucide-react'
 import { BlockIcon } from './blockicons'
 import { useApp } from '../state'
 import { getLesson, TOTAL_DAYS } from '../data/curriculum'
@@ -13,9 +13,17 @@ import VocabBlock from './blocks/VocabBlock'
 import SpeakingBlock from './blocks/SpeakingBlock'
 import ReadingBlock from './blocks/ReadingBlock'
 import WritingBlock from './blocks/WritingBlock'
-import { SpeakButton } from './shared'
-import { Badge, Button, Card, CardBody, Callout, SectionLabel, Segmented } from './ui'
+import { Button } from './ui'
 import { useToast } from './ui/toast'
+import { cn } from '../lib/utils'
+
+const SHORT: Record<BlockKey, string> = {
+  listening: '精听',
+  vocab: '词汇',
+  speaking: '跟读',
+  reading: '阅读',
+  writing: '写作',
+}
 
 export default function DayView() {
   const { day } = useParams()
@@ -30,30 +38,27 @@ export default function DayView() {
   const done = (k: BlockKey) => !!prog?.[k]
   const dayComplete = isDayComplete(state, dayNum)
 
-  // Which block to open: an explicit ?b= deep-link wins, else the first incomplete one.
   const resolveBlock = (): BlockKey => {
     const b = searchParams.get('b')
     if (b && BLOCKS.some((x) => x.key === b)) return b as BlockKey
     return BLOCKS.find((x) => !done(x.key))?.key ?? BLOCKS[0].key
   }
   const [active, setActive] = useState<BlockKey>(resolveBlock)
+  const [goalsOpen, setGoalsOpen] = useState(false)
 
-  // Seed this day's vocabulary into the SRS deck (idempotent).
   useEffect(() => {
     if (lesson) addCards(lesson.vocabulary.map((v) => makeCard(v, lesson.day)))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dayNum])
 
-  // On day change (route param), re-resolve the active block + reset the
-  // completion baseline so navigating to an already-done day never re-toasts.
   const wasComplete = useRef(dayComplete)
   useEffect(() => {
     setActive(resolveBlock())
+    setGoalsOpen(false)
     wasComplete.current = dayComplete
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dayNum])
 
-  // Detect the false→true transition of "whole day complete" → streak toast.
   useEffect(() => {
     if (dayComplete && !wasComplete.current) {
       const s = displayStreak(state)
@@ -79,133 +84,172 @@ export default function DayView() {
     )
   }
 
+  const order = BLOCKS.map((b) => b.key)
+  const activeIdx = order.indexOf(active)
+  const nextKey = order[activeIdx + 1]
+
   const complete = (k: BlockKey) => {
     const willComplete = BLOCKS.every((b) => b.key === k || prog?.[b.key])
     markBlock(dayNum, k)
-    // Day-complete case: the transition effect fires the streak toast.
     if (willComplete) return
-    toast({ tone: 'success', title: `✓ ${BLOCKS.find((b) => b.key === k)!.title_zh} 已完成` })
-    // Hand-off: auto-advance to the next block still awaiting completion.
+    // Advance to the next still-incomplete block.
     const nextK = BLOCKS.find((b) => b.key !== k && !prog?.[b.key])?.key
     if (nextK) setActive(nextK)
   }
   const uncomplete = (k: BlockKey) => unmarkBlock(dayNum, k)
 
+  const blockEl = (() => {
+    const shared = { lesson, done: done(active), onComplete: () => complete(active), onUndo: () => uncomplete(active) }
+    switch (active) {
+      case 'listening': return <ListeningBlock {...shared} />
+      case 'vocab': return <VocabBlock {...shared} />
+      case 'speaking': return <SpeakingBlock {...shared} />
+      case 'reading': return <ReadingBlock {...shared} />
+      case 'writing': return <WritingBlock {...shared} />
+    }
+  })()
+
   return (
-    <div className="space-y-4">
-      <Card className="animate-in-up">
-        <CardBody>
-          <div className="flex items-center justify-between">
-            <button
-              className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-sm text-fg-muted transition-colors hover:bg-hover hover:text-fg md:hidden"
-              onClick={() => nav('/')}
-            >
-              <ArrowLeft size={15} /> 首页
-            </button>
-            <span className="hidden md:block" />
-            <Badge variant="accent">阶段 {lesson.phase} · Day {lesson.day}/30</Badge>
+    <div className="mx-auto max-w-[560px] pb-28">
+      {/* compact header */}
+      <div className="flex items-center gap-3">
+        <button
+          onClick={() => nav('/')}
+          aria-label="返回首页"
+          className="grid h-10 w-10 shrink-0 place-items-center rounded-lg text-fg-muted transition-colors hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+        >
+          <ArrowLeft size={18} />
+        </button>
+        <div className="min-w-0 flex-1">
+          <div className="label-nd">Day {lesson.day} · 阶段 {lesson.phase}</div>
+          <div className="truncate text-h2 font-semibold text-fg">{lesson.title_en}</div>
+        </div>
+        <button
+          onClick={() => setGoalsOpen((o) => !o)}
+          aria-label="今日目标"
+          aria-expanded={goalsOpen}
+          className={cn(
+            'grid h-10 w-10 shrink-0 place-items-center rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40',
+            goalsOpen ? 'border-border-strong bg-elevated text-fg' : 'border-border text-fg-muted hover:text-fg',
+          )}
+        >
+          <Target size={17} />
+        </button>
+      </div>
+
+      {/* collapsible goals — folded by default so you get to practice fast */}
+      <div className={cn('grid transition-[grid-template-rows] duration-300', goalsOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]')}>
+        <div className="overflow-hidden">
+          <div className="mt-3 rounded-xl border border-border bg-surface-2 p-4">
+            <div className="label-nd mb-2">今日目标</div>
+            <ul className="space-y-1.5">
+              {lesson.goals.map((g, i) => (
+                <li key={i} className="flex gap-2 text-sm text-fg-secondary">
+                  <span className="mt-1.5 h-1 w-1 shrink-0 rounded-[1px] bg-red" />{g}
+                </li>
+              ))}
+            </ul>
+            <div className="mt-3 border-t border-border pt-3 text-sm text-fg-muted">
+              <span className="font-medium text-fg-secondary">抗遗忘复习 · </span>{lesson.reviewFocus}
+            </div>
           </div>
-          <h1 className="mt-3 flex items-center gap-2 text-title font-semibold">
-            {lesson.title_en} <SpeakButton text={lesson.title_en} />
-          </h1>
-          <p className="text-sm text-fg-muted">{lesson.title_zh} · {lesson.theme}</p>
-
-          <SectionLabel>今日目标</SectionLabel>
-          <ul className="-mt-1 space-y-1.5">
-            {lesson.goals.map((g, i) => (
-              <li key={i} className="flex gap-2 text-sm text-fg-secondary">
-                <span className="text-brand">•</span>
-                {g}
-              </li>
-            ))}
-          </ul>
-
-          <Callout tone="warning" className="mt-4" icon={<RotateCcw size={15} className="text-warning" />}>
-            <span className="font-medium text-warning">抗遗忘复习：</span>
-            {lesson.reviewFocus}
-          </Callout>
-        </CardBody>
-      </Card>
-
-      {/* Sticky block switcher — accessible Segmented (roving tabindex + arrows) */}
-      <div className="sticky top-[62px] z-10 md:top-3">
-        <Segmented
-          full
-          ariaLabel="学习模块切换"
-          value={active}
-          onChange={setActive}
-          options={BLOCKS.map((b) => {
-            const isDone = done(b.key)
-            const short = b.title_zh.split(/[ +]/)[0]
-            return {
-              value: b.key,
-              label: (
-                <>
-                  <BlockIcon k={b.key} size={15} />
-                  <span className="hidden sm:inline">{short}</span>
-                  {isDone && <Check size={13} strokeWidth={2.5} aria-hidden />}
-                </>
-              ),
-            }
-          })}
-        />
+        </div>
       </div>
 
-      <div key={dayNum} id="block-panel" className="animate-in-up" role="tabpanel" tabIndex={0}>
-        {active === 'listening' && (
-          <ListeningBlock lesson={lesson} done={done('listening')} onComplete={() => complete('listening')} onUndo={() => uncomplete('listening')} />
-        )}
-        {active === 'vocab' && (
-          <VocabBlock lesson={lesson} done={done('vocab')} onComplete={() => complete('vocab')} onUndo={() => uncomplete('vocab')} />
-        )}
-        {active === 'speaking' && (
-          <SpeakingBlock lesson={lesson} done={done('speaking')} onComplete={() => complete('speaking')} onUndo={() => uncomplete('speaking')} />
-        )}
-        {active === 'reading' && (
-          <ReadingBlock lesson={lesson} done={done('reading')} onComplete={() => complete('reading')} onUndo={() => uncomplete('reading')} />
-        )}
-        {active === 'writing' && (
-          <WritingBlock lesson={lesson} done={done('writing')} onComplete={() => complete('writing')} onUndo={() => uncomplete('writing')} />
-        )}
+      {/* step rail — navigation + progress in one */}
+      <div role="tablist" aria-label="学习步骤" className="mt-4 flex gap-1.5">
+        {BLOCKS.map((b, i) => {
+          const isActive = active === b.key
+          const isDone = done(b.key)
+          return (
+            <button
+              key={b.key}
+              role="tab"
+              aria-selected={isActive}
+              aria-label={`${SHORT[b.key]}${isDone ? ' 已完成' : ''}`}
+              tabIndex={isActive ? 0 : -1}
+              onClick={() => setActive(b.key)}
+              className="group flex flex-1 flex-col items-center gap-1.5"
+            >
+              <span
+                className={cn(
+                  'relative grid h-10 w-full place-items-center rounded-lg border transition-all',
+                  isActive
+                    ? 'border-fg text-fg shadow-[0_0_0_1px_var(--color-fg)]'
+                    : isDone
+                    ? 'border-border-strong text-fg-secondary'
+                    : 'border-border text-fg-dim group-hover:text-fg-muted',
+                )}
+              >
+                <BlockIcon k={b.key} size={17} />
+                {isDone && (
+                  <span className="absolute -right-1 -top-1 grid h-[15px] w-[15px] place-items-center rounded-full bg-fg text-black">
+                    <Check size={9} strokeWidth={3.5} />
+                  </span>
+                )}
+              </span>
+              <span className={cn('font-mono text-[8.5px] uppercase tracking-[0.06em]', isActive ? 'text-fg' : 'text-fg-dim')}>
+                {SHORT[b.key]}
+              </span>
+              <span className="sr-only">{i + 1}</span>
+            </button>
+          )
+        })}
       </div>
 
-      {/* Day fully complete → inline hand-off call-to-action */}
+      {/* active block */}
+      <div key={`${dayNum}-${active}`} role="tabpanel" tabIndex={0} className="mt-4 animate-in-up">
+        {blockEl}
+      </div>
+
       {dayComplete && (
-        <Card className="animate-in-up border-border-strong">
-          <CardBody className="flex flex-col items-center gap-3 py-6 text-center">
-            <div className="grid h-11 w-11 place-items-center rounded-full bg-accent-soft">
-              <PartyPopper size={20} className="text-fg" />
-            </div>
-            <div>
-              <div className="text-h1 font-semibold text-fg">
-                <span className="t-num">Day {dayNum}</span> 全部完成
-              </div>
-              <p className="mt-1 text-sm text-fg-muted">
-                连胜 <span className="t-num text-fg">{displayStreak(state)}</span> 天 · 保持节奏，明天见
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center justify-center gap-2.5">
-              {dayNum < TOTAL_DAYS ? (
-                <Button onClick={() => nav(`/day/${dayNum + 1}`)}>
-                  进入 Day {dayNum + 1} <ArrowRight size={15} />
-                </Button>
-              ) : (
-                <Button onClick={() => nav('/progress')}>
-                  查看学习进度 <ArrowRight size={15} />
-                </Button>
-              )}
-              <Button variant="secondary" onClick={() => nav('/')}>返回首页</Button>
-            </div>
-          </CardBody>
-        </Card>
+        <div className="mt-5 flex flex-col items-center gap-3 rounded-xl border border-border-strong bg-surface px-5 py-6 text-center animate-in-up">
+          <div className="grid h-11 w-11 place-items-center rounded-full bg-accent-soft"><PartyPopper size={20} className="text-fg" /></div>
+          <div>
+            <div className="text-h1 font-semibold text-fg"><span className="t-num">Day {dayNum}</span> 全部完成</div>
+            <p className="mt-1 text-sm text-fg-muted">连胜 <span className="t-num text-fg">{displayStreak(state)}</span> 天 · 保持节奏</p>
+          </div>
+        </div>
       )}
 
-      <Card>
-        <CardBody className="flex items-center justify-center gap-2 py-3.5 text-center">
-          <Lightbulb size={15} className="shrink-0 text-warning" />
-          <span className="text-sm text-fg-muted">{lesson.dailyTip_zh}</span>
-        </CardBody>
-      </Card>
+      {/* persistent advance dock */}
+      <div className="fixed inset-x-0 bottom-0 z-30 mx-auto max-w-[560px] px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-4"
+        style={{ background: 'linear-gradient(to top, #000 55%, transparent)' }}>
+        <div className="flex gap-2.5">
+          {nextKey && (
+            <button
+              onClick={() => setActive(nextKey)}
+              className="grid h-14 shrink-0 place-items-center rounded-xl border border-border bg-surface px-5 text-sm text-fg-secondary transition-colors hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+            >
+              <span className="flex items-center gap-1.5"><SkipForward size={15} /> 跳过</span>
+            </button>
+          )}
+          {done(active) ? (
+            nextKey ? (
+              <Button size="lg" className="h-14 flex-1 rounded-xl text-base" onClick={() => setActive(nextKey)}>
+                下一步 · {SHORT[nextKey]} <ArrowRight size={18} />
+              </Button>
+            ) : dayNum < TOTAL_DAYS ? (
+              <Button size="lg" className="h-14 flex-1 rounded-xl text-base" onClick={() => nav(`/day/${dayNum + 1}`)}>
+                进入 Day {dayNum + 1} <ArrowRight size={18} />
+              </Button>
+            ) : (
+              <Button size="lg" className="h-14 flex-1 rounded-xl text-base" onClick={() => nav('/')}>
+                返回首页 <ArrowRight size={18} />
+              </Button>
+            )
+          ) : (
+            <Button size="lg" className="h-14 flex-1 rounded-xl text-base" onClick={() => complete(active)}>
+              完成{SHORT[active]}{nextKey ? ' · 下一步' : ''} <ArrowRight size={18} />
+            </Button>
+          )}
+        </div>
+        <div className="mt-2 flex items-center justify-center gap-1.5">
+          {order.map((k) => (
+            <span key={k} className={cn('h-1 w-6 rounded-full', done(k) ? 'bg-fg' : k === active ? 'bg-red' : 'bg-border-strong')} />
+          ))}
+        </div>
+      </div>
     </div>
   )
 }

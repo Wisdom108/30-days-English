@@ -7,7 +7,6 @@ import { AiGate } from '../ai'
 import { aiWriting, AIError, type WritingFeedback, type LessonCtx } from '../../lib/ai'
 import { Button, Card, CardBody, Callout, SectionLabel, Segment, Textarea } from '../ui'
 import { cn } from '../../lib/utils'
-import BlockFooter from './BlockFooter'
 
 function ctxOf(l: DayLesson): LessonCtx {
   return { day: l.day, theme: l.theme, title_en: l.title_en, grammar: l.grammarNote?.point_en, level: 'A2-B1' }
@@ -15,13 +14,10 @@ function ctxOf(l: DayLesson): LessonCtx {
 
 export default function WritingBlock({
   lesson,
-  done,
-  onComplete,
-  onUndo,
 }: {
   lesson: DayLesson
-  done: boolean
-  onComplete: () => void
+  done?: boolean
+  onComplete?: () => void
   onUndo?: () => void
 }) {
   const w = lesson.writing
@@ -157,7 +153,6 @@ export default function WritingBlock({
           )}
         </AiGate>
 
-        <BlockFooter done={done} onComplete={onComplete} onUndo={onUndo} />
       </CardBody>
     </Card>
   )

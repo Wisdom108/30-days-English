@@ -7,17 +7,13 @@ import { dueCards } from '../../lib/srs'
 import { cn } from '../../lib/utils'
 import { SpeakButton } from '../shared'
 import { Button, Card, CardBody, Callout, Segment, Segmented } from '../ui'
-import BlockFooter from './BlockFooter'
 
 export default function VocabBlock({
   lesson,
-  done,
-  onComplete,
-  onUndo,
 }: {
   lesson: DayLesson
-  done: boolean
-  onComplete: () => void
+  done?: boolean
+  onComplete?: () => void
   onUndo?: () => void
 }) {
   const { state } = useApp()
@@ -161,7 +157,6 @@ export default function VocabBlock({
           </div>
         )}
 
-        <BlockFooter done={done} onComplete={onComplete} onUndo={onUndo} />
       </CardBody>
     </Card>
   )

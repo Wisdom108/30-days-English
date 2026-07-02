@@ -9,7 +9,6 @@ import { SpeakButton, RowGroup } from '../shared'
 import { AiGate, ConversationPanel } from '../ai'
 import { Button, Card, CardBody, Callout, SectionLabel } from '../ui'
 import { cn } from '../../lib/utils'
-import BlockFooter from './BlockFooter'
 
 function ctxOf(l: DayLesson): LessonCtx {
   return { day: l.day, theme: l.theme, title_en: l.title_en, grammar: l.grammarNote?.point_en, level: 'A2-B1' }
@@ -182,13 +181,10 @@ function ShadowRow({
 
 export default function SpeakingBlock({
   lesson,
-  done,
-  onComplete,
-  onUndo,
 }: {
   lesson: DayLesson
-  done: boolean
-  onComplete: () => void
+  done?: boolean
+  onComplete?: () => void
   onUndo?: () => void
 }) {
   const s = lesson.speaking
@@ -278,7 +274,6 @@ export default function SpeakingBlock({
           <p className="mt-1.5 text-meta text-fg-muted">录下自己的回答，对比模仿。坚持“每天开口说”是流利的关键。</p>
         </Callout>
 
-        <BlockFooter done={done} onComplete={onComplete} onUndo={onUndo} />
       </CardBody>
     </Card>
   )

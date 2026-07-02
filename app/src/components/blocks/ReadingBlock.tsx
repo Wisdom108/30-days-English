@@ -4,17 +4,13 @@ import { speak } from '../../lib/speech'
 import { QAItem, ReadableText, RowGroup } from '../shared'
 import { Button, Card, CardBody, SectionLabel, Segment } from '../ui'
 import { cn } from '../../lib/utils'
-import BlockFooter from './BlockFooter'
 
 export default function ReadingBlock({
   lesson,
-  done,
-  onComplete,
-  onUndo,
 }: {
   lesson: DayLesson
-  done: boolean
-  onComplete: () => void
+  done?: boolean
+  onComplete?: () => void
   onUndo?: () => void
 }) {
   const r = lesson.reading
@@ -57,7 +53,6 @@ export default function ReadingBlock({
           ))}
         </RowGroup>
 
-        <BlockFooter done={done} onComplete={onComplete} onUndo={onUndo} />
       </CardBody>
     </Card>
   )

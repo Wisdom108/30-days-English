@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Today · 交互重构 v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Doto:wght@400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#000;--surface:#111113;--surface-2:#0b0b0c;--raised:#1a1a1d;
+  --border:#222;--border-vis:#333;--border-strong:#3a3a3a;
+  --dim:#666;--sec:#9a9a9a;--pri:#e8e8e8;--disp:#fff;
+  --red:#d71921;--red-soft:rgba(215,25,33,.14);
+  --ease:cubic-bezier(.4,0,.2,1);--back:cubic-bezier(.34,1.56,.64,1);
+  --disp-f:'Doto',monospace;--mono:'Space Mono',monospace;--sans:'Space Grotesk',system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--pri);font-family:var(--sans);font-size:15px;line-height:1.5;min-height:100vh;
+  background-image:radial-gradient(circle,#1a1a1a 1.1px,transparent 1.1px);background-size:16px 16px}
+.num{font-family:var(--disp-f);font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.lbl{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--sec)}
+.lbl-dim{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+svg{display:block}
+@keyframes ring{to{transform:rotate(360deg)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+@keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+
+.app{max-width:440px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column}
+
+/* top */
+.top{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:12px;padding:12px 14px;
+  background:rgba(0,0,0,.82);backdrop-filter:blur(12px);border-bottom:1px solid var(--border)}
+.top .back{display:grid;place-items:center;width:38px;height:38px;border-radius:10px;color:var(--sec);cursor:pointer}
+.top .back:hover{background:var(--raised);color:var(--disp)}
+.top .ttl{flex:1;min-width:0}
+.top .ttl .d{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
+.top .ttl .t{font-size:14px;font-weight:600;color:var(--disp);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.top .goal{display:grid;place-items:center;width:38px;height:38px;border-radius:10px;border:1px solid var(--border);color:var(--sec);cursor:pointer}
+
+/* step rail — compact, secondary */
+.rail{display:flex;gap:5px;padding:12px 14px 8px}
+.step{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;cursor:pointer}
+.step .ic{position:relative;display:grid;place-items:center;width:100%;height:38px;border-radius:9px;
+  border:1px solid var(--border);background:var(--surface);color:var(--dim);transition:.2s var(--ease)}
+.step .nm{font-family:var(--mono);font-size:8.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--dim)}
+.step.done .ic{color:var(--sec)}
+.step.done .ic .ck{position:absolute;top:-4px;right:-4px;width:14px;height:14px;background:var(--disp);color:#000;border-radius:50%;display:grid;place-items:center}
+.step.done .ic .ck svg{width:8px;height:8px}
+.step.active .ic{border-color:var(--disp);color:var(--disp);box-shadow:0 0 0 1px var(--disp)}
+.step.active .nm{color:var(--disp)}
+
+.body{flex:1;padding:8px 16px 130px}
+
+/* tiny context line above the hero */
+.ctx{display:flex;align-items:center;justify-content:space-between;margin:12px 2px 14px}
+.ctx .l{display:flex;align-items:center;gap:8px}
+.ctx .l .n{font-family:var(--disp-f);font-size:15px;color:var(--disp)}
+.ctx .r{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--sec)}
+
+/* ===== HERO: the audio + sentence = the star ===== */
+.hero{position:relative;border:1px solid var(--border-strong);border-radius:22px;overflow:hidden;
+  background:radial-gradient(120% 80% at 50% 0%, #17171a 0%, #0d0d0f 60%);padding:34px 24px 28px;text-align:center;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.04), 0 20px 60px -30px rgba(0,0,0,.9)}
+.hero .kick{font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--dim)}
+/* big play with progress ring */
+.orb{position:relative;width:112px;height:112px;margin:18px auto 20px}
+.orb .ring{position:absolute;inset:0;border-radius:50%}
+.orb .ring.track{border:2px solid var(--border-vis)}
+.orb svg.prog{position:absolute;inset:0;transform:rotate(-90deg)}
+.orb .btn{position:absolute;inset:14px;border-radius:50%;background:#fff;color:#000;display:grid;place-items:center;
+  cursor:pointer;transition:transform .18s var(--back);box-shadow:0 8px 30px -8px rgba(255,255,255,.35)}
+.orb .btn:active{transform:scale(.94)}
+.orb .btn svg{width:34px;height:34px}
+.orb .halo{position:absolute;inset:-10px;border-radius:50%;border:1px solid rgba(255,255,255,.06);animation:pulse 2.4s var(--ease) infinite}
+/* waveform */
+.wave{display:flex;align-items:center;justify-content:center;gap:3px;height:22px;margin:0 0 20px}
+.wave i{width:3px;border-radius:2px;background:var(--border-strong)}
+.wave i.on{background:var(--disp)}
+/* the sentence — LARGEST thing on screen */
+.sent{font-size:27px;line-height:1.35;font-weight:600;color:var(--disp);letter-spacing:-.01em}
+.sent .w{cursor:pointer;border-radius:4px;padding:0 2px}
+.sent .w:hover{background:rgba(255,255,255,.08)}
+.sent .cur{color:var(--red)}
+.scrub{display:flex;align-items:center;gap:10px;margin-top:22px}
+.scrub .t{font-family:var(--disp-f);font-size:12px;color:var(--dim)}
+.scrub .bar{flex:1;height:3px;border-radius:9px;background:var(--surface-2);overflow:hidden}
+.scrub .bar i{display:block;height:100%;width:34%;background:var(--red);border-radius:9px}
+.hero .slow{margin-top:18px;display:inline-flex;align-items:center;gap:7px;height:40px;padding:0 16px;border-radius:10px;
+  border:1px solid var(--border);background:rgba(255,255,255,.02);color:var(--sec);font-size:13px;cursor:pointer}
+.hero .slow svg{width:15px;height:15px}
+
+/* task — focused, one item at a time */
+.task{margin-top:28px}
+.task .h{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.task .h .lbl{color:var(--sec)}
+.task .h .cnt{font-family:var(--disp-f);font-size:13px;color:var(--dim)}
+.fill{border:1px solid var(--border);border-radius:16px;background:var(--surface);padding:22px 20px}
+.fill .q{font-size:20px;line-height:1.7;color:var(--pri)}
+.fill .q .blank{display:inline-block;min-width:96px;border-bottom:2px solid var(--red);margin:0 4px;text-align:center;
+  color:var(--disp);font-weight:600}
+.fill .act{display:flex;gap:10px;margin-top:20px}
+.fill .replay{display:grid;place-items:center;width:48px;height:48px;border-radius:12px;border:1px solid var(--border);color:var(--sec);cursor:pointer;flex:none}
+.fill .replay svg{width:18px;height:18px}
+.fill .in{flex:1;height:48px;border-radius:12px;border:1px solid var(--border-strong);background:var(--surface-2);
+  padding:0 16px;color:var(--disp);font-size:16px;outline:none}
+.fill .in::placeholder{color:var(--dim)}
+.dots{display:flex;justify-content:center;gap:6px;margin-top:16px}
+.dots i{width:7px;height:7px;border-radius:2px;border:1px solid var(--border-strong)}
+.dots i.on{background:var(--disp);border-color:var(--disp)}
+.dots i.cur{background:var(--red);border-color:var(--red)}
+
+/* persistent advance */
+.dock{position:fixed;left:0;right:0;bottom:0;z-index:30;max-width:440px;margin:0 auto;
+  padding:16px 16px calc(16px + env(safe-area-inset-bottom));background:linear-gradient(to top,#000 55%,transparent)}
+.dock .row{display:flex;gap:10px}
+.dock .skip{display:grid;place-items:center;height:56px;padding:0 20px;border-radius:16px;border:1px solid var(--border);color:var(--sec);font-size:14px;background:var(--surface);cursor:pointer}
+.dock .next{flex:1;display:flex;align-items:center;justify-content:center;gap:10px;height:56px;border-radius:16px;background:#fff;color:#000;font-weight:700;font-size:16px;border:0;cursor:pointer;transition:transform .18s var(--back)}
+.dock .next:active{transform:scale(.98)}
+.dock .next svg{width:18px;height:18px}
+.dock .hint{text-align:center;font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);margin-top:9px}
+.note{max-width:440px;margin:0 auto;padding:6px 16px 40px;font-family:var(--mono);font-size:10px;letter-spacing:.05em;color:var(--dim);line-height:1.9}
+.note b{color:var(--sec);font-weight:400}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top">
+    <div class="back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="18" height="18"><path d="M15 18l-6-6 6-6"/></svg></div>
+    <div class="ttl"><div class="d">Day 1</div><div class="t">Hello! Nice to Meet You</div></div>
+    <div class="goal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" width="16" height="16"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l2.5 2.5"/></svg></div>
+  </div>
+
+  <div class="rail">
+    <div class="step active"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="19" height="19"><path d="M11 5 6 9H2v6h4l5 4V5zM19 5a9 9 0 0 1 0 14"/></svg></div><span class="nm">精听</span></div>
+    <div class="step"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="19" height="19"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 8h10M7 12h6"/></svg></div><span class="nm">词汇</span></div>
+    <div class="step"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="19" height="19"><path d="M12 2a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3zM5 11a7 7 0 0 0 14 0M12 18v3"/></svg></div><span class="nm">跟读</span></div>
+    <div class="step"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="19" height="19"><path d="M4 5h16v14H4zM8 5v14"/></svg></div><span class="nm">阅读</span></div>
+    <div class="step"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="19" height="19"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></div><span class="nm">写作</span></div>
+  </div>
+
+  <div class="body">
+    <div class="ctx">
+      <span class="l"><span class="lbl">Step</span> <span class="n">1</span><span class="lbl" style="color:var(--dim)">/ 5 · 精听</span></span>
+      <span class="r"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="13" height="13"><path d="M12 8a4 4 0 0 1 4 4M3 16h18M12 3v3"/></svg> 晨起 · <span class="num" style="letter-spacing:0">30′</span></span>
+    </div>
+
+    <!-- HERO -->
+    <div class="hero">
+      <div class="kick">Now listening · 盲听 2–3 遍</div>
+      <div class="orb">
+        <div class="halo"></div>
+        <div class="ring track"></div>
+        <svg class="prog" viewBox="0 0 112 112"><circle cx="56" cy="56" r="55" fill="none" stroke="var(--red)" stroke-width="2" stroke-linecap="round" stroke-dasharray="345" stroke-dashoffset="228"/></svg>
+        <div class="btn"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>
+      </div>
+      <div class="wave">
+        <i class="on" style="height:8px"></i><i class="on" style="height:14px"></i><i class="on" style="height:20px"></i><i class="on" style="height:12px"></i><i class="on" style="height:18px"></i><i style="height:9px"></i><i style="height:15px"></i><i style="height:7px"></i><i style="height:12px"></i><i style="height:6px"></i>
+      </div>
+      <div class="sent">
+        <span class="w">Good</span> <span class="w">morning.</span><br>
+        <span class="w">My</span> <span class="w cur">name</span> <span class="w">is</span> <span class="w">Anna.</span>
+      </div>
+      <div class="scrub"><span class="t">0:05</span><span class="bar"><i></i></span><span class="t">0:14</span></div>
+      <button class="slow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M11 5 6 9H2v6h4l5 4V5z"/></svg> 慢速重听</button>
+    </div>
+
+    <!-- TASK: one blank at a time -->
+    <div class="task">
+      <div class="h"><span class="lbl">听写</span><span class="cnt">1 / 3</span></div>
+      <div class="fill">
+        <div class="q">Good morning. My name <span class="blank">is</span> Anna.</div>
+        <div class="act">
+          <button class="replay"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M11 5 6 9H2v6h4l5 4V5zM19 5a9 9 0 0 1 0 14"/></svg></button>
+          <input class="in" placeholder="听到的词…">
+        </div>
+        <div class="dots"><i class="cur"></i><i></i><i></i></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="dock">
+    <div class="row">
+      <button class="skip">跳过</button>
+      <button class="next">完成精听 · 下一步 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+    </div>
+    <div class="hint">核心=正在听的这句 · 一步一焦点 · 一拇指推进全天</div>
+  </div>
+</div>
+
+<div class="note">
+  v2 · <b>正在练的内容 = 视觉主角</b>:大播放环 + 波形 + 27px 大字句子(点词可听,当前词标红) ·
+  听写<b>一次只聚焦一句</b>(大空格标红 + 进度点) · UI 全部退成极小 mono · 强层级、有重点、不平
+</div>
+</body>
+</html>

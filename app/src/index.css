@@ -124,11 +124,11 @@
   .font-display { font-family: var(--font-display); }
   .font-mono { font-family: var(--font-mono); }
 
-  /* Doto dot-matrix numerals — the Nothing signature. Reserved for LARGE
-     display numbers (Day, streak, stats, grid). Small inline counters use
-     .t-tab (plain tabular Space Grotesk) so they stay clean, not messy. */
+  /* Doto dot-matrix numerals — the Nothing signature. ALL numbers use Doto
+     for a single, unified numeric typeface (Day, streak, stats, grid, counters,
+     scores, pagination). t-tab is an alias kept for call sites. */
   .t-num { font-family: var(--font-display); font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
-  .t-tab { font-variant-numeric: tabular-nums; }
+  .t-tab { font-family: var(--font-display); font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
 
   /* Nothing-style uppercase mono micro-label */
   .label-nd {
@@ -162,6 +162,10 @@
     50% { opacity: 0.35; }
   }
   .pulse-live { animation: pulseRed 2.4s var(--ease-out) infinite; }
+
+  /* audio waveform bars (animate only while playing) */
+  @keyframes waveBar { 0%, 100% { transform: scaleY(0.35); } 50% { transform: scaleY(1); } }
+  .wave-anim > i { animation: waveBar 0.9s var(--ease-out) infinite; }
 
   .flip-3d { transform-style: preserve-3d; transition: transform 0.4s var(--ease-out); }
   .flip-3d.flipped { transform: rotateY(180deg); }
