@@ -34,37 +34,48 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     saveState(state)
   }, [state])
 
-  const markBlock = useCallback((day: number, block: BlockKey) => {
-    setState((s) => completeBlock(s, day, block))
+  // Every LOCAL mutation stamps updatedAt so the cloud merge can pick the newer
+  // side for editable fields (writings, SRS cards). importAll/reset do NOT stamp
+  // — they adopt an already-merged state and must preserve its timestamp.
+  const mutate = useCallback((fn: (s: AppState) => AppState) => {
+    setState((s) => {
+      const next = fn(s)
+      if (next === s) return s // no-op reducer (e.g. addCards with nothing new)
+      return { ...next, updatedAt: Date.now() }
+    })
   }, [])
+
+  const markBlock = useCallback((day: number, block: BlockKey) => {
+    mutate((s) => completeBlock(s, day, block))
+  }, [mutate])
 
   const unmarkBlock = useCallback((day: number, block: BlockKey) => {
-    setState((s) => uncompleteBlock(s, day, block))
-  }, [])
+    mutate((s) => uncompleteBlock(s, day, block))
+  }, [mutate])
 
   const addCards = useCallback((cards: SrsCard[]) => {
-    setState((s) => upsertCards(s, cards))
-  }, [])
+    mutate((s) => upsertCards(s, cards))
+  }, [mutate])
 
   const reviewOne = useCallback((card: SrsCard) => {
-    setState((s) => updateCard(s, card))
-  }, [])
+    mutate((s) => updateCard(s, card))
+  }, [mutate])
 
   const storeWriting = useCallback((day: number, text: string) => {
-    setState((s) => saveWriting(s, day, text))
-  }, [])
+    mutate((s) => saveWriting(s, day, text))
+  }, [mutate])
 
   const importAll = useCallback((next: AppState) => {
     setState(next)
   }, [])
 
   const dismissGuide = useCallback(() => {
-    setState((s) => ({ ...s, guideDismissed: true }))
-  }, [])
+    mutate((s) => ({ ...s, guideDismissed: true }))
+  }, [mutate])
 
   const unlockAllDays = useCallback(() => {
-    setState((s) => ({ ...s, unlockAll: true }))
-  }, [])
+    mutate((s) => ({ ...s, unlockAll: true }))
+  }, [mutate])
 
   const reset = useCallback(() => {
     clearState()

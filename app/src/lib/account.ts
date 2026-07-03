@@ -43,13 +43,18 @@ export const pullProgress = () =>
 export const pushProgress = (state: AppState) =>
   req<{ updatedAt: number }>('PUT', '/progress', { data: state })
 
-/** Merge local + cloud learning state, never losing progress from either side:
- *  a block completed anywhere stays completed; SRS cards keep whichever copy
- *  has advanced further; writings keep the longer draft. */
+/** Merge local + cloud learning state.
+ *  - Completion (days/blocks) is MONOTONIC → union (never un-completes).
+ *  - Editable fields (writings, SRS cards, streak) are LAST-WRITER-WINS by
+ *    `updatedAt`: the more recently written side wins per key, so a newer rewrite
+ *    (even if shorter) or a legitimately failed review (reps reset) is preserved
+ *    instead of being resurrected by an older device's stale copy. */
 export function mergeStates(a: AppState, b: AppState): AppState {
   const out: AppState = { ...defaultState() }
+  const newer = (a.updatedAt ?? 0) >= (b.updatedAt ?? 0) ? a : b
+  const older = newer === a ? b : a
 
-  // days — OR the block completion of both sides
+  // days — OR the block completion of both sides (monotonic; safe to union)
   const dayKeys = new Set([...Object.keys(a.days), ...Object.keys(b.days)])
   for (const k of dayKeys) {
     const day = Number(k)
@@ -66,36 +71,25 @@ export function mergeStates(a: AppState, b: AppState): AppState {
     out.days[day] = { completedBlocks: blocks, completedAt: da.completedAt || db.completedAt }
   }
 
-  // cards — keep the more-practiced copy of each
-  out.cards = { ...a.cards }
-  for (const [id, cb] of Object.entries(b.cards)) {
-    const ca = out.cards[id]
-    out.cards[id] =
-      !ca ||
-      cb.repetitions > ca.repetitions ||
-      (cb.repetitions === ca.repetitions && cb.dueDate > ca.dueDate)
-        ? cb
-        : ca
-  }
+  // cards — union of ids; the NEWER side wins on a shared card (so a reset-on-fail
+  // is kept, not overwritten by an older higher-repetitions copy)
+  out.cards = { ...older.cards, ...newer.cards }
 
-  // scalars — most-progressed / earliest-start wins
+  // writings — union of days; the NEWER side wins on a shared day (a shorter
+  // rewrite is a legitimate edit, not data to discard)
+  out.writings = { ...older.writings, ...newer.writings }
+
+  // currentDay — monotonic (max); streak/lastStudyDate — last-writer-wins
   out.currentDay = Math.max(a.currentDay, b.currentDay)
-  const later = (a.lastStudyDate || '') >= (b.lastStudyDate || '') ? a : b
-  out.streak = later.streak
-  out.lastStudyDate = later.lastStudyDate
+  out.streak = newer.streak
+  out.lastStudyDate = newer.lastStudyDate
   out.startDate =
     a.startDate && b.startDate
       ? a.startDate < b.startDate ? a.startDate : b.startDate
       : a.startDate || b.startDate
   out.guideDismissed = a.guideDismissed || b.guideDismissed
   out.unlockAll = a.unlockAll || b.unlockAll
-
-  // writings — keep the longer draft per day
-  out.writings = { ...a.writings }
-  for (const [d, text] of Object.entries(b.writings)) {
-    const cur = out.writings[Number(d)]
-    if (!cur || text.length > cur.length) out.writings[Number(d)] = text
-  }
+  out.updatedAt = Math.max(a.updatedAt ?? 0, b.updatedAt ?? 0)
 
   return out
 }

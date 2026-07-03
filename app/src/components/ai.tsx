@@ -3,8 +3,10 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { Sparkles, LogIn, LogOut, Send, Bot, Loader2, KeyRound, X, Ticket } from 'lucide-react'
 import { useAuth } from '../auth'
 import { features } from '../config'
-import { accessLogin, logout, setPasscode } from '../lib/access'
+import { accessLogin, getIdentity, logout, setPasscode } from '../lib/access'
 import { login as accountLogin, register as accountRegister, accountLogout, activateCode } from '../lib/account'
+import { useApp } from '../state'
+import { defaultState } from '../lib/storage'
 import { aiChat, aiTutor, AIError, type ChatMsg, type LessonCtx } from '../lib/ai'
 import { Button, Callout, IconButton, Input, Skeleton, Badge, Sheet, SCRIM } from './ui'
 import { cn } from '../lib/utils'
@@ -22,28 +24,35 @@ export const openAccount = () => window.dispatchEvent(new Event('open-account'))
 // Login — server picks the mode: Cloudflare Access (redirect) or passcode gate.
 // ============================================================================
 
-/** Passcode entry — stores it locally, refreshes auth, surfaces wrong-passcode. */
+/** Passcode entry — stores it locally, verifies directly, surfaces wrong-passcode. */
 function PasscodeForm({ onDone }: { onDone?: () => void }) {
-  const { refresh, user, loading } = useAuth()
+  const { refresh } = useAuth()
   const [pc, setPc] = useState('')
-  const [submitted, setSubmitted] = useState(false)
+  const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // After a submit triggers a refresh, watch the resolved identity: close on
-  // success, show an inline error on failure (instead of silently closing).
-  useEffect(() => {
-    if (!submitted || loading) return
-    setSubmitted(false)
-    if (user) onDone?.()
-    else setError('口令不正确，请重试')
-  }, [submitted, loading, user]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const submit = () => {
-    if (!pc.trim()) return
+  // Verify against /me directly (no reliance on provider-effect timing, which
+  // used to flash a false error before the refresh resolved).
+  const submit = async () => {
+    if (!pc.trim() || busy) return
     setError(null)
+    setBusy(true)
     setPasscode(pc.trim())
-    setSubmitted(true)
-    refresh()
+    try {
+      const { user } = await getIdentity()
+      if (user) {
+        refresh()
+        onDone?.()
+      } else {
+        setPasscode('')
+        setError('口令不正确，请重试')
+      }
+    } catch {
+      setPasscode('')
+      setError('网络错误，请重试')
+    } finally {
+      setBusy(false)
+    }
   }
   return (
     <div className="space-y-2">
@@ -57,7 +66,7 @@ function PasscodeForm({ onDone }: { onDone?: () => void }) {
           onKeyDown={(e) => e.key === 'Enter' && submit()}
           className="min-w-0 flex-1"
         />
-        <Button onClick={submit} disabled={submitted}>进入</Button>
+        <Button onClick={submit} disabled={busy}>{busy ? <Loader2 size={14} className="animate-spin" /> : '进入'}</Button>
       </div>
       {error && <p role="alert" className="text-sm text-danger">{error}</p>}
     </div>
@@ -69,6 +78,7 @@ function PasscodeForm({ onDone }: { onDone?: () => void }) {
 // ============================================================================
 function AccountSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const { user, refresh } = useAuth()
+  const { importAll } = useApp()
   const [tab, setTab] = useState<'login' | 'register'>('login')
   const [name, setName] = useState('')
   const [pw, setPw] = useState('')
@@ -111,6 +121,12 @@ function AccountSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o:
 
   const doLogout = async () => {
     await accountLogout()
+    // Also drop any passcode fallback identity (a worker with BOTH D1 and
+    // APP_PASSCODE would otherwise keep you "signed in"), and clear this browser's
+    // local progress so the next person starts clean (their cloud copy re-adopts
+    // on login). SYNC_OWNER stays so a returning user still merges, not wipes.
+    setPasscode('')
+    importAll(defaultState())
     refresh()
     onOpenChange(false)
   }
@@ -218,7 +234,10 @@ export function AuthControls() {
   }, [])
 
   if (!authEnabled || mode === 'open') return null
-  if (loading) return <Skeleton className="h-11 w-11 rounded-lg" />
+  // Only show the skeleton on the FIRST load. During a refresh() we already have
+  // a user, so keep rendering the avatar + open sheet (a refresh must not unmount
+  // AccountSheet — that used to wipe the activation message and flicker the sheet).
+  if (loading && !user) return <Skeleton className="h-11 w-11 rounded-lg" />
 
   // ---- account mode (D1 membership) ----
   if (mode === 'account') {

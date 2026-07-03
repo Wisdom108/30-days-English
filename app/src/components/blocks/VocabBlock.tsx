@@ -9,6 +9,7 @@ export default function VocabBlock({ lesson }: { lesson: DayLesson }) {
   const [i, setI] = useState(0)
   const [flip, setFlip] = useState(false)
   const touchX = useRef<number | null>(null)
+  const swiped = useRef(false)
 
   const words = lesson.vocabulary
   const card = words[i]
@@ -25,13 +26,15 @@ export default function VocabBlock({ lesson }: { lesson: DayLesson }) {
       <div style={{ perspective: '1400px' }}>
         {/* keyed by index: each word remounts at the FRONT face (no un-flip replay
             of the previous card's back) and slides in cleanly */}
+        {/* outer wrapper stays MOUNTED across cards so keyboard focus (and arrow
+            nav) survives; only the inner flip container is keyed by i, remounting
+            at the front face with a clean entrance. */}
         <div
-          key={i}
           role="button"
           tabIndex={0}
           aria-label="翻转词卡"
           aria-pressed={flip}
-          onClick={() => setFlip((f) => !f)}
+          onClick={() => { if (swiped.current) { swiped.current = false; return } setFlip((f) => !f) }}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setFlip((f) => !f) }
             else if (e.key === 'ArrowRight') go(1)
@@ -42,10 +45,13 @@ export default function VocabBlock({ lesson }: { lesson: DayLesson }) {
             if (touchX.current == null) return
             const dx = e.changedTouches[0].clientX - touchX.current
             touchX.current = null
-            if (Math.abs(dx) > 48) go(dx < 0 ? 1 : -1) // swipe left → next
+            if (Math.abs(dx) > 48) { swiped.current = true; go(dx < 0 ? 1 : -1) } // swipe → nav, not flip
           }}
-          className="press w-full cursor-pointer select-none rounded-xl animate-in-up focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+          className="press w-full cursor-pointer select-none rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
         >
+          {/* keyed entrance wrapper (opacity/translate) — kept OFF the flip-3d so
+              its `both` fill can't pin transform and block the rotateY flip */}
+          <div key={i} className="animate-in-up">
           <div className={cn('flip-3d grid min-h-[320px] w-full', flip && 'flipped')}>
             {/* front */}
             <div className="hero-card flip-face col-start-1 row-start-1 flex flex-col overflow-hidden rounded-xl border border-border-strong">
@@ -74,6 +80,7 @@ export default function VocabBlock({ lesson }: { lesson: DayLesson }) {
                 <div className="text-sm text-fg-muted">{card.example_zh}</div>
               </div>
             </div>
+          </div>
           </div>
         </div>
       </div>

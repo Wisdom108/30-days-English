@@ -6,7 +6,7 @@ import type {
   ReactNode,
   TextareaHTMLAttributes,
 } from 'react'
-import { forwardRef, useState } from 'react'
+import { forwardRef, useEffect, useRef, useState } from 'react'
 import * as TooltipPrimitive from '@radix-ui/react-tooltip'
 import * as AlertDialogPrimitive from '@radix-ui/react-alert-dialog'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
@@ -157,6 +157,16 @@ export function Collapse({
   className?: string
 }) {
   const [open, setOpen] = useState(!!defaultOpen)
+  const bodyRef = useRef<HTMLDivElement>(null)
+  // Children stay MOUNTED when closed (so e.g. the AI chat keeps its state), but
+  // `inert` pulls the zero-height content out of the tab order + AT tree so you
+  // can't Tab into invisible controls.
+  useEffect(() => {
+    const el = bodyRef.current
+    if (!el) return
+    if (open) el.removeAttribute('inert')
+    else el.setAttribute('inert', '')
+  }, [open])
   return (
     <div className={cn('overflow-hidden rounded-xl border border-border', className)}>
       <button
@@ -177,7 +187,7 @@ export function Collapse({
         className={cn('grid transition-[grid-template-rows] duration-200', open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]')}
         style={{ transitionTimingFunction: 'var(--ease-out)' }}
       >
-        <div className="overflow-hidden">
+        <div ref={bodyRef} className="overflow-hidden">
           <div className="border-t border-border">{children}</div>
         </div>
       </div>

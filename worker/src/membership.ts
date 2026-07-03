@@ -15,6 +15,10 @@ import {
 const USERNAME_RE = /^[a-zA-Z0-9_一-龥]{3,20}$/ // letters/digits/_/CJK, 3-20 chars
 const MAX_PROGRESS_CHARS = 200_000 // serialized progress blob cap
 const LOGIN_FAIL_CAP = 30 // failed password attempts per IP per day
+// Fixed decoy salt+hash so a login for a NON-existent user still spends one
+// PBKDF2 — equalizes timing so latency can't enumerate usernames.
+const DUMMY_SALT = '00000000000000000000000000000000'
+const DUMMY_HASH = '0000000000000000000000000000000000000000000000000000000000000000'
 
 interface UserRow {
   id: number
@@ -88,7 +92,13 @@ export async function handleAuthLogin(req: Request, env: Env): Promise<Response>
         .bind(username)
         .first<UserRow & { pass_hash: string; salt: string }>()
     : null
-  const ok = row ? await verifyPassword(password, row.salt, row.pass_hash) : false
+  // Always run a PBKDF2 (against a dummy hash when the user is absent) so the
+  // response time doesn't reveal whether a username exists (enumeration oracle).
+  const ok = await verifyPassword(
+    password,
+    row?.salt ?? DUMMY_SALT,
+    row?.pass_hash ?? DUMMY_HASH,
+  )
   if (!row || !ok) {
     await bump(env, 'lg', ip)
     return json({ error: '用户名或密码错误' }, env, 401, req)
@@ -125,15 +135,18 @@ export async function handleActivate(req: Request, env: Env): Promise<Response> 
     .bind(uid, now, code)
     .run()
   if (!claim.meta.changes) return json({ error: '激活码已被使用' }, env, 409, req)
-  const user = await db
-    .prepare('SELECT id, username, member_until FROM users WHERE id = ?')
-    .bind(uid)
-    .first<UserRow>()
-  if (!user) return json({ error: '需要登录' }, env, 401, req)
-  // Extend from whichever is later — now, or the current expiry — so codes stack.
-  const until = Math.max(now, user.member_until ?? 0) + found.days * 86_400_000
-  await db.prepare('UPDATE users SET member_until = ? WHERE id = ?').bind(until, uid).run()
-  return json({ user: userShape({ username: user.username, member_until: until }) }, env, 200, req)
+  // Accumulate in ONE statement — MAX(now, current expiry) + days — so two
+  // concurrent redemptions can't lose a code's days via read-modify-write.
+  const add = found.days * 86_400_000
+  const updated = await db
+    .prepare(
+      'UPDATE users SET member_until = MAX(?1, COALESCE(member_until, 0)) + ?2 WHERE id = ?3 ' +
+        'RETURNING username, member_until',
+    )
+    .bind(now, add, uid)
+    .first<{ username: string; member_until: number }>()
+  if (!updated) return json({ error: '需要登录' }, env, 401, req)
+  return json({ user: userShape(updated) }, env, 200, req)
 }
 
 // ---------------------------------------------------------------- progress sync

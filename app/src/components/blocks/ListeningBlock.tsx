@@ -47,11 +47,18 @@ export default function ListeningBlock({ lesson }: { lesson: DayLesson }) {
   const [di, setDi] = useState(0)
   const [ans, setAns] = useState('')
   const [result, setResult] = useState<null | 'ok' | 'bad'>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const stopPlay = () => { playingRef.current = false; stopSpeaking(); setPlaying(false) }
+
+  // Stop narration when the block unmounts (leaving 精听) so it can't keep reading
+  // over the next screen, and a re-entry can't spawn a dueling second loop.
+  useEffect(() => () => { playingRef.current = false; stopSpeaking() }, [])
 
   // The orb reads sequentially FROM the current sentence — display always
   // matches audio, the dots advance as it plays. Tap again to stop.
   const playAll = async () => {
-    if (playingRef.current) { playingRef.current = false; stopSpeaking(); setPlaying(false); return }
+    if (playingRef.current) { stopPlay(); return }
     playingRef.current = true
     setPlaying(true)
     for (let i = si; i < sentences.length && playingRef.current; i++) {
@@ -62,14 +69,22 @@ export default function ListeningBlock({ lesson }: { lesson: DayLesson }) {
     playingRef.current = false
     setPlaying(false)
   }
-  const step = (d: number) => setSi((p) => Math.min(Math.max(p + d, 0), sentences.length - 1))
+  // Stepping / word-tapping is a manual choice → stop auto-play first so the
+  // loop doesn't override the user's sentence or skip ahead.
+  const step = (d: number) => { if (playingRef.current) stopPlay(); setSi((p) => Math.min(Math.max(p + d, 0), sentences.length - 1)) }
+  const sayWord = (w: string) => { if (playingRef.current) stopPlay(); speak(w, rate) }
 
   const dict = l.dictation[di]
   const total = l.dictation.length
   const dictDone = di >= total
   const parts = dict ? dict.sentence.split('____') : ['', '']
-  const check = () => setResult(norm(ans) === norm(dict.answer) ? 'ok' : 'bad')
+  // Empty input counts as "don't know" → reveals the answer (never a dead tap).
+  const check = () => setResult(ans.trim() && norm(ans) === norm(dict.answer) ? 'ok' : 'bad')
   const next = () => { setDi((n) => n + 1); setAns(''); setResult(null) }
+
+  // Keep keyboard focus in the input across items (the card is no longer keyed,
+  // which used to eject focus on every advance).
+  useEffect(() => { if (!dictDone) inputRef.current?.focus() }, [di, dictDone])
 
   // tappable words in the current sentence
   const words = cur.split(/(\s+)/)
@@ -105,7 +120,7 @@ export default function ListeningBlock({ lesson }: { lesson: DayLesson }) {
                 return (
                   <span
                     key={i}
-                    onClick={() => clean && speak(clean, rate)}
+                    onClick={() => clean && sayWord(clean)}
                     className="cursor-pointer rounded px-0.5 transition-colors hover:bg-accent-soft active:bg-accent-soft"
                   >
                     {w}
@@ -144,8 +159,10 @@ export default function ListeningBlock({ lesson }: { lesson: DayLesson }) {
             <Button variant="ghost" size="sm" className="ml-auto" onClick={() => { setDi(0); setAns(''); setResult(null) }}>重做</Button>
           </div>
         ) : (
-          <div key={di} className="animate-in-up rounded-xl border border-border bg-surface p-5">
-            <div className="text-[19px] leading-[1.7] text-fg">
+          <div className="rounded-xl border border-border bg-surface p-5">
+            {/* only the prompt line animates per item — the input stays mounted so
+                focus survives the check→next Enter flow */}
+            <div key={di} className="animate-in-up text-[19px] leading-[1.7] text-fg">
               {parts[0]}
               <span className={cn(
                 'mx-1 inline-block min-w-[92px] border-b-2 text-center font-semibold',
@@ -159,9 +176,10 @@ export default function ListeningBlock({ lesson }: { lesson: DayLesson }) {
             <div className="mt-4 flex items-center gap-2.5">
               <SpeakButton text={dict.sentence.replace('____', dict.answer)} />
               <input
+                ref={inputRef}
                 value={ans}
                 onChange={(e) => { setAns(e.target.value); setResult(null) }}
-                onKeyDown={(e) => { if (e.key !== 'Enter') return; if (result !== null) next(); else if (ans.trim()) check() }}
+                onKeyDown={(e) => { if (e.key !== 'Enter') return; result !== null ? next() : check() }}
                 placeholder="听到的词…"
                 aria-label={`听写填空 第 ${di + 1} 题`}
                 className="h-12 flex-1 rounded-xl border border-border-strong bg-surface-2 px-4 text-body-lg text-fg outline-none placeholder:text-fg-dim focus:border-brand focus:ring-2 focus:ring-brand/30"
@@ -181,7 +199,7 @@ export default function ListeningBlock({ lesson }: { lesson: DayLesson }) {
               ) : result === 'bad' ? (
                 <Button variant="secondary" size="sm" onClick={next}>知道了 · 下一句</Button>
               ) : (
-                <Button size="sm" disabled={!ans.trim()} onClick={check}>检查</Button>
+                <Button size="sm" onClick={check}>{ans.trim() ? '检查' : '不会 · 看答案'}</Button>
               )}
             </div>
           </div>

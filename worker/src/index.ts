@@ -58,11 +58,15 @@ function cors(env: Env, req?: Request): Record<string, string> {
   const h: Record<string, string> = {
     'Access-Control-Allow-Origin': allowOrigin,
     'Access-Control-Allow-Methods': 'GET, POST, PUT, OPTIONS',
-    'Access-Control-Allow-Headers': 'content-type',
+    'Access-Control-Allow-Headers': 'content-type, x-app-passcode',
     'Access-Control-Max-Age': '86400',
     Vary: 'Origin',
   }
-  if (allowOrigin !== '*') h['Access-Control-Allow-Credentials'] = 'true'
+  // Credentials ONLY for an explicitly-configured exact origin — never paired
+  // with a reflected/wildcard origin (that would let any site read a victim's
+  // credentialed responses). Same-origin cookie auth still works without this
+  // header: CORS credential rules apply to cross-origin requests only.
+  if (allowed !== '*' && allowOrigin === allowed) h['Access-Control-Allow-Credentials'] = 'true'
   return h
 }
 

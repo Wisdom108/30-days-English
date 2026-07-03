@@ -146,11 +146,17 @@ export function clearState() {
 
 export function upsertCards(state: AppState, cards: SrsCard[]): AppState {
   const merged = { ...state.cards }
+  let added = false
   for (const c of cards) {
     // Do not overwrite existing SM-2 progress for a card already in the deck.
-    if (!merged[c.id]) merged[c.id] = c
+    if (!merged[c.id]) {
+      merged[c.id] = c
+      added = true
+    }
   }
-  return { ...state, cards: merged }
+  // No new cards → return the SAME state so callers (e.g. DayView mount) don't
+  // churn updatedAt / trigger a needless cloud sync on every day open.
+  return added ? { ...state, cards: merged } : state
 }
 
 export function updateCard(state: AppState, card: SrsCard): AppState {
