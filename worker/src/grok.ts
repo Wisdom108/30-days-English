@@ -21,7 +21,7 @@ function tutorInstructions(lesson: ReturnType<typeof lessonFrom>): string {
   )
 }
 
-/** POST /grok/token → { token, model, voice } (ephemeral secret for the browser WS). */
+/** POST /grok/token → { token, model, voice, instructions } (ephemeral secret + session config for the browser WS). */
 export async function handleGrokToken(req: Request, env: Env): Promise<Response> {
   if (!env.XAI_API_KEY) return json({ error: '实时语音(Grok)未启用' }, env, 503, req)
   const ident = await identify(req, env)
@@ -37,23 +37,18 @@ export async function handleGrokToken(req: Request, env: Env): Promise<Response>
   const lesson = lessonFrom(body.lesson)
   const model = env.XAI_REALTIME_MODEL || GROK_MODEL
   const voice = env.XAI_REALTIME_VOICE || 'eve'
+  const instructions = tutorInstructions(lesson)
 
   try {
-    // Mint an ephemeral client secret (OpenAI-Realtime-compatible shape).
-    // NOTE: if xAI changes the mint endpoint/body, adjust here — the client only
-    // needs the returned token string.
+    // Mint an ephemeral client secret. Per xAI docs the mint body accepts ONLY
+    // `expires_after` — session config (model/voice/instructions/turn_detection)
+    // is NOT accepted here and must be sent by the client via `session.update`
+    // after the WebSocket opens. We hand `instructions`/`voice`/`model` back to
+    // the browser so it can apply them there.
     const res = await fetch('https://api.x.ai/v1/realtime/client_secrets', {
       method: 'POST',
       headers: { Authorization: `Bearer ${env.XAI_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        session: {
-          type: 'realtime',
-          model,
-          instructions: tutorInstructions(lesson),
-          voice,
-          turn_detection: { type: 'server_vad' },
-        },
-      }),
+      body: JSON.stringify({ expires_after: { seconds: 600 } }),
     })
     if (!res.ok) return json({ error: '实时语音初始化失败' }, env, 502, req)
     const data = (await res.json().catch(() => ({}))) as {
@@ -65,7 +60,7 @@ export async function handleGrokToken(req: Request, env: Env): Promise<Response>
     const token = data.value || data.client_secret?.value || data.secret
     if (!token) return json({ error: '实时语音初始化失败' }, env, 502, req)
     await bump(env, 'rt', ident.uid)
-    return json({ token, model, voice }, env, 200, req)
+    return json({ token, model, voice, instructions }, env, 200, req)
   } catch {
     return json({ error: '实时语音初始化失败' }, env, 502, req)
   }

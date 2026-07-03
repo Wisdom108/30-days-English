@@ -68,9 +68,17 @@ export async function startGrok(opts: StartOpts): Promise<GrokSession> {
     headers: { 'content-type': 'application/json', ...authHeaders() },
     body: JSON.stringify({ lesson }),
   })
-  const data = (await res.json().catch(() => ({}))) as { token?: string; model?: string; error?: string }
+  const data = (await res.json().catch(() => ({}))) as {
+    token?: string
+    model?: string
+    voice?: string
+    instructions?: string
+    error?: string
+  }
   if (!res.ok || !data.token) throw new Error(data.error || '连接失败')
   const model = data.model || 'grok-voice-latest'
+  const voice = data.voice || 'eve'
+  const instructions = data.instructions || ''
   const proto = data.token.startsWith('xai-client-secret.') ? data.token : `xai-client-secret.${data.token}`
 
   // 2. WebSocket (ephemeral token as subprotocol).
@@ -105,15 +113,17 @@ export async function startGrok(opts: StartOpts): Promise<GrokSession> {
   let aiRunning = ''
 
   ws.onopen = async () => {
-    // Reinforce audio formats + server VAD (instructions/voice were set at mint).
+    // The ephemeral-token mint does NOT accept session config, so we apply it
+    // here: instructions/voice/VAD + enable input transcription for subtitles.
+    // Audio stays the default (24kHz PCM), which matches our capture/playback —
+    // no format override needed (a wrong nesting would break audio).
     ws.send(JSON.stringify({
       type: 'session.update',
       session: {
+        ...(instructions ? { instructions } : {}),
+        voice,
         turn_detection: { type: 'server_vad' },
-        audio: {
-          input: { format: { type: 'audio/pcm', rate: RATE } },
-          output: { format: { type: 'audio/pcm', rate: RATE } },
-        },
+        input_audio_transcription: {},
       },
     }))
     try {
@@ -152,15 +162,22 @@ export async function startGrok(opts: StartOpts): Promise<GrokSession> {
       case 'response.audio.delta':
         if (evt.delta) playChunk(base64ToF32(evt.delta))
         break
+      // The tutor's spoken text: xAI emits `response.output_text.delta`; the
+      // `*audio_transcript*` variants are kept as OpenAI-compat fallbacks.
+      case 'response.output_text.delta':
       case 'response.output_audio_transcript.delta':
       case 'response.audio_transcript.delta':
         aiRunning += evt.delta ?? ''
         onAiText(aiRunning, false)
         break
+      case 'response.output_text.done':
       case 'response.output_audio_transcript.done':
       case 'response.audio_transcript.done':
         onAiText(evt.transcript ?? aiRunning, true)
         aiRunning = ''
+        break
+      case 'response.done':
+        if (aiRunning) { onAiText(aiRunning, true); aiRunning = '' }
         break
       case 'error':
         onError(evt.error?.message || '出错了')
