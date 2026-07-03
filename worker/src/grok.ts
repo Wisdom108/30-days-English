@@ -11,13 +11,36 @@ import { json, underQuota, bump, lessonFrom, type Env } from './index'
 
 const GROK_MODEL = 'grok-voice-latest'
 
-function tutorInstructions(lesson: ReturnType<typeof lessonFrom>): string {
-  const topic = lesson.title_en || lesson.theme || "today's topic"
+// Character presets: voice + a one-line tone. The learner picks one; each maps to
+// a real Grok voice (eve/ara/rex/sal/leo) so the tutor sounds like a distinct
+// person, not one generic bot.
+const PERSONAS: Record<string, { voice: string; name: string; tone: string }> = {
+  emma: { voice: 'eve', name: 'Emma', tone: 'warm, friendly and genuinely curious, like a kind friend at a cafe' },
+  aria: { voice: 'ara', name: 'Aria', tone: 'bright, upbeat and playful, full of energy, loves a little laugh' },
+  rex: { voice: 'rex', name: 'Rex', tone: 'calm, clear and articulate, a supportive mentor who keeps you at ease' },
+  leo: { voice: 'leo', name: 'Leo', tone: 'confident and motivating, an encouraging coach who cheers you on' },
+  sam: { voice: 'sal', name: 'Sam', tone: 'easygoing, balanced and chill, like talking to a good buddy' },
+}
+const DEFAULT_PERSONA = 'emma'
+
+function personaFrom(key?: unknown): { voice: string; name: string; tone: string } {
+  return PERSONAS[typeof key === 'string' ? key : ''] || PERSONAS[DEFAULT_PERSONA]
+}
+
+// Human-feeling conversation prompt. The old version read like a worksheet
+// ("restate the mistake, ask a follow-up") — which is exactly the robotic feel to
+// kill. This one asks the model to just be a real, warm person on a call.
+function tutorInstructions(lesson: ReturnType<typeof lessonFrom>, persona: { name: string; tone: string }): string {
+  const topic = lesson.title_en || lesson.theme || 'anything on your mind'
   return (
-    'You are a warm, encouraging English conversation tutor for a Chinese learner at CEFR A2-B1. ' +
-    `Today's topic: ${topic}. ` +
-    'Speak ONLY in simple, clear English at a natural but slightly slow pace. Keep every reply to 1-2 short sentences. ' +
-    'Gently correct a major mistake by restating it correctly, then ask a short follow-up question. Be patient and positive; never switch to Chinese.'
+    `You are ${persona.name}, a real native English speaker on a friendly voice call with a Chinese friend who is practicing spoken English (around CEFR A2-B1). ` +
+    `Your vibe: ${persona.tone}. This is a genuine chat, NOT a lesson. ` +
+    'Sound like an actual person: warm everyday English, contractions, and light natural reactions ("oh nice!", "haha", "right?", "hmm", "totally"). ' +
+    'React to what they actually say — be curious, ask about them, share a tiny bit about yourself, let it flow. ' +
+    'Keep YOUR turns short (usually one sentence, sometimes two) so they get to talk most of the time. Speak clearly at a slightly relaxed pace with simple words. ' +
+    'Do NOT correct every little thing — only if a mistake really blocks meaning, just say it back the natural way once and keep chatting, never lecture. ' +
+    `Right now you two are casually talking about: ${topic}, but follow the conversation wherever it naturally goes. ` +
+    'Always stay in English and stay encouraging; never switch to Chinese.'
   )
 }
 
@@ -33,11 +56,12 @@ export async function handleGrokToken(req: Request, env: Env): Promise<Response>
     return json({ error: ident.member ? '今日实时对话额度已用完' : '免费体验额度已用完，开通会员解锁' }, env, 429, req)
   }
 
-  const body = (await req.json().catch(() => ({}))) as { lesson?: unknown }
+  const body = (await req.json().catch(() => ({}))) as { lesson?: unknown; persona?: unknown }
   const lesson = lessonFrom(body.lesson)
   const model = env.XAI_REALTIME_MODEL || GROK_MODEL
-  const voice = env.XAI_REALTIME_VOICE || 'eve'
-  const instructions = tutorInstructions(lesson)
+  const persona = personaFrom(body.persona)
+  const voice = persona.voice
+  const instructions = tutorInstructions(lesson, persona)
 
   try {
     // Mint an ephemeral client secret. Per xAI docs the mint body accepts ONLY

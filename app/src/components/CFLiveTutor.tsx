@@ -79,7 +79,7 @@ export default function CFLiveTutor({ lesson: _lesson }: { lesson: LessonCtx }) 
             ))}
             {interim && (
               <div className="flex justify-end">
-                <div className="max-w-[85%] rounded-lg bg-brand/50 px-3 py-2 text-body italic text-brand-fg">{interim}</div>
+                <div className="max-w-[85%] rounded-lg border border-border bg-surface-2 px-3 py-2 text-body italic text-fg-secondary">{interim}</div>
               </div>
             )}
             <div ref={endRef} />

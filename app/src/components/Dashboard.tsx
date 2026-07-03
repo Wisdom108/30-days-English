@@ -127,7 +127,7 @@ export default function Dashboard() {
                     done && 'opacity-70',
                   )}
                 >
-                  <span className={cn('grid h-[22px] w-[22px] place-items-center rounded-sm border', done ? 'border-fg bg-fg text-black' : 'border-border-strong')}>
+                  <span className={cn('grid h-[22px] w-[22px] place-items-center rounded-sm border', done ? 'border-fg bg-fg text-bg' : 'border-border-strong')}>
                     {done && <Check size={13} strokeWidth={3} />}
                   </span>
                   <BlockIcon k={b.key} size={18} className="text-fg-secondary" />

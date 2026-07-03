@@ -47,15 +47,16 @@ export const BLOCKS: BlockMeta[] = [
 
 export const TOTAL_MINUTES = BLOCKS.reduce((s, b) => s + b.minutes, 0)
 
-// Phase colors mirror the brand mono+red palette (fg white → fg-muted gray →
-// red) as a white→gray→red intensity arc = increasing difficulty. Kept as JS
-// hex (not CSS vars) because they are consumed in inline styles, alpha
-// concatenation, and the <Progress> Bar color prop, none of which accept var().
+// Phase colors — an INK → AMBER → VERMILION intensity arc on paper (increasing
+// difficulty), matching the "Ink & Paper" theme (--color-fg / --color-warning /
+// --color-red). Kept as JS hex (not CSS vars) because they are consumed in inline
+// styles, alpha concatenation, and the <Progress> Bar color prop, none of which
+// accept var(). Must stay legible on the cream surfaces (#f8f3e8) they render on.
 export const PHASE_INFO: Record<
   number,
   { name_zh: string; range: string; color: string; softBg: string; dot: string }
 > = {
-  1: { name_zh: '生存基础', range: 'Day 1–10', color: '#ffffff', softBg: 'rgba(255,255,255,0.10)', dot: '' },
-  2: { name_zh: '日常生活', range: 'Day 11–20', color: '#8a8a8a', softBg: 'rgba(138,138,138,0.16)', dot: '' },
-  3: { name_zh: '流利冲刺', range: 'Day 21–30', color: '#d71921', softBg: 'rgba(215,25,33,0.16)', dot: '' },
+  1: { name_zh: '生存基础', range: 'Day 1–10', color: '#262019', softBg: 'rgba(38,32,25,0.08)', dot: '' },
+  2: { name_zh: '日常生活', range: 'Day 11–20', color: '#9a7526', softBg: 'rgba(154,117,38,0.14)', dot: '' },
+  3: { name_zh: '流利冲刺', range: 'Day 21–30', color: '#cb3a24', softBg: 'rgba(203,58,36,0.14)', dot: '' },
 }

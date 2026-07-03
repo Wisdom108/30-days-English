@@ -118,7 +118,7 @@ export default function ListeningBlock({ lesson }: { lesson: DayLesson }) {
             <button
               onClick={playAll}
               aria-label={playing ? '停止' : '从本句播放'}
-              className="press absolute inset-3.5 grid place-items-center rounded-full bg-brand text-brand-fg shadow-[0_8px_30px_-8px_rgba(255,255,255,.35)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
+              className="press absolute inset-3.5 grid place-items-center rounded-full bg-brand text-brand-fg shadow-[0_8px_30px_-8px_rgba(74,58,32,.35)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
             >
               {playing ? <Pause size={30} /> : <Play size={30} className="translate-x-0.5" fill="currentColor" />}
             </button>
@@ -129,7 +129,7 @@ export default function ListeningBlock({ lesson }: { lesson: DayLesson }) {
           {/* current sentence — LARGEST thing on screen, tap a word to hear it */}
           <p key={si} className="animate-in-up mt-5 px-1 text-left">
             {isDialogue && curSpeaker && (
-              <span className={cn('mb-2 inline-grid h-6 w-6 place-items-center rounded-full text-[11px] font-bold', curKey === 'a' ? 'bg-fg text-black' : 'bg-red text-white')}>
+              <span className={cn('mb-2 inline-grid h-6 w-6 place-items-center rounded-full text-[11px] font-bold', curKey === 'a' ? 'bg-fg text-bg' : 'bg-red text-white')}>
                 {curSpeaker}
               </span>
             )}
@@ -174,7 +174,7 @@ export default function ListeningBlock({ lesson }: { lesson: DayLesson }) {
 
         {dictDone ? (
           <div className="flex items-center gap-3 rounded-xl border border-border bg-surface px-5 py-5">
-            <span className="grid h-9 w-9 place-items-center rounded-full bg-fg text-black"><Check size={18} strokeWidth={3} /></span>
+            <span className="grid h-9 w-9 place-items-center rounded-full bg-fg text-bg"><Check size={18} strokeWidth={3} /></span>
             <div className="text-sm text-fg-secondary">听写完成 · 共 <span className="t-tab">{total}</span> 句</div>
             <Button variant="ghost" size="sm" className="ml-auto" onClick={() => { setDi(0); setAns(''); setResult(null) }}>重做</Button>
           </div>

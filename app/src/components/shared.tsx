@@ -319,7 +319,7 @@ export function DialoguePlayer({ lines }: { lines: { speaker: string; line: stri
               active === i ? 'bg-accent-soft' : 'hover:bg-hover',
             )}
           >
-            <span className={cn('mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full text-[10px] font-bold', keyOf(d.speaker) === 'a' ? 'bg-fg text-black' : 'bg-red text-white')}>
+            <span className={cn('mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full text-[10px] font-bold', keyOf(d.speaker) === 'a' ? 'bg-fg text-bg' : 'bg-red text-white')}>
               {d.speaker}
             </span>
             <span className="flex-1 text-body text-fg-secondary">{d.line}</span>

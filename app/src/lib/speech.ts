@@ -196,11 +196,16 @@ export function prefetchSpeak(text: string): void {
 
 function browserSpeak(text: string, rate = 1, onStart?: () => void, voiceKey?: VoiceKey): Promise<void> {
   return new Promise((resolve) => {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+    const synth = typeof window !== 'undefined' && 'speechSynthesis' in window ? window.speechSynthesis : null
+    if (!synth) {
       resolve()
       return
     }
-    window.speechSynthesis.cancel()
+    try { synth.cancel() } catch { /* ignore */ }
+    // Un-stick the engine: Chrome/Safari can leave speechSynthesis wedged in a
+    // paused state — especially after an AudioContext/getUserMedia session (the
+    // Grok/CF live tutor) grabbed the audio route. resume() revives tap-to-hear.
+    try { synth.resume() } catch { /* ignore */ }
     const u = new SpeechSynthesisUtterance(text)
     if (!cachedVoice) cachedVoice = pickEnglishVoice()
     if (!cachedVoice2) cachedVoice2 = pickSecondaryVoice(cachedVoice)
@@ -212,10 +217,22 @@ function browserSpeak(text: string, rate = 1, onStart?: () => void, voiceKey?: V
     // Lower B's pitch — guarantees a distinct 2nd speaker even if only one system
     // voice exists (so single-voice devices still get an A/B contrast).
     u.pitch = isB ? 0.82 : 1.0
+    let settled = false
+    const done = () => { if (!settled) { settled = true; resolve() } }
     u.onstart = () => onStart?.()
-    u.onend = () => resolve()
-    u.onerror = () => resolve()
-    window.speechSynthesis.speak(u)
+    u.onend = done
+    u.onerror = done
+    // Safety net: speechSynthesis onstart/onend are notoriously unreliable on
+    // iOS Safari / Chrome — if neither fires, the caller (and a SpeakButton's
+    // loading spinner) would hang forever. Resolve after a GENEROUS estimate,
+    // scaled by the speaking rate (slower rate → longer speech) with a wide cap,
+    // so it only trips when the events truly flaked and never cuts off real
+    // playback still in progress (slow mode, or a long passage chunk).
+    const estMs = Math.min(60000, Math.max(3000, (text.length * 110 + 1500) / Math.max(0.5, rate)))
+    setTimeout(done, estMs)
+    synth.speak(u)
+    // Chrome sometimes queues the utterance paused — nudge it once more.
+    try { synth.resume() } catch { /* ignore */ }
   })
 }
 
