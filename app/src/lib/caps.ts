@@ -10,6 +10,7 @@ export interface ServerCaps {
   speech: boolean // Azure neural TTS + phoneme assessment
   cfVoice: boolean // Cloudflare Aura-2 TTS + Whisper STT
   realtime: boolean // OpenAI Realtime voice conversation (needs server-side OpenAI key)
+  grokRealtime: boolean // xAI Grok native realtime voice (needs server-side xAI key)
   voiceAgent: boolean // Cloudflare Agents realtime voice tutor (Workers AI, free, no key)
 }
 
@@ -18,6 +19,7 @@ let caps: ServerCaps = {
   speech: false,
   cfVoice: features.worker,
   realtime: false,
+  grokRealtime: false,
   voiceAgent: features.worker,
 }
 
@@ -35,6 +37,11 @@ export function voiceAgentAvailable(): boolean {
   return caps.voiceAgent
 }
 
+/** True when the Worker has the xAI Grok native realtime voice configured. */
+export function grokRealtimeAvailable(): boolean {
+  return caps.grokRealtime
+}
+
 /** Fetch /health once and cache the real capabilities. Safe to call repeatedly. */
 export async function loadCaps(): Promise<ServerCaps> {
   if (!features.worker) return caps
@@ -47,6 +54,7 @@ export async function loadCaps(): Promise<ServerCaps> {
         speech: !!d.features?.speech,
         cfVoice: !!d.features?.cfVoice,
         realtime: !!d.features?.realtime,
+        grokRealtime: !!d.features?.grokRealtime,
         voiceAgent: d.features?.voiceAgent ?? features.worker,
       }
     }

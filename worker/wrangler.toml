@@ -64,6 +64,11 @@ OPENAI_REALTIME_VOICE = "alloy"
 # Daily realtime-session mints per user (each is an expensive OpenAI voice session).
 DAILY_REALTIME_QUOTA = "20"
 FREE_REALTIME_QUOTA = "2"
+# xAI Grok realtime voice (native speech-to-speech). Enable with:
+#   wrangler secret put XAI_API_KEY   (usage-billed by xAI)
+# Voices: eve / ara / rex / sal / leo.
+XAI_REALTIME_MODEL = "grok-voice-latest"
+XAI_REALTIME_VOICE = "eve"
 
 # Per-user daily quota counter. Create with:
 #   wrangler kv namespace create QUOTA

@@ -9,6 +9,7 @@ import {
   handlePutProgress,
 } from './membership'
 import { handleRealtimeToken } from './realtime'
+import { handleGrokToken } from './grok'
 // Re-export the voice-agent Durable Object so Wrangler registers the class.
 export { VoiceTutor } from './voiceAgent'
 import {
@@ -50,6 +51,10 @@ export interface Env {
   OPENAI_REALTIME_VOICE?: string // default alloy
   DAILY_REALTIME_QUOTA?: string // daily realtime sessions for members (default 20)
   FREE_REALTIME_QUOTA?: string // daily realtime sessions for non-members (default 2)
+  // xAI Grok realtime voice (native speech-to-speech) — OPTIONAL secret.
+  XAI_API_KEY?: string // secret: wrangler secret put XAI_API_KEY
+  XAI_REALTIME_MODEL?: string // default grok-voice-latest
+  XAI_REALTIME_VOICE?: string // default eve
   // Cloudflare Agents voice tutor (realtime voice, all on Workers AI, no key).
   VoiceTutor: DurableObjectNamespace
 }
@@ -439,6 +444,7 @@ export default {
               speech: !!(env.AZURE_SPEECH_KEY && env.AZURE_SPEECH_REGION), // Azure premium
               cfVoice: true, // Workers AI TTS (Aura) + STT (Whisper), always on
               realtime: !!env.OPENAI_API_KEY, // OpenAI Realtime voice conversation
+              grokRealtime: !!env.XAI_API_KEY, // xAI Grok native realtime voice
               voiceAgent: true, // Cloudflare Agents voice tutor (Workers AI, free)
               loginRequired: !!env.CF_ACCESS_TEAM_DOMAIN,
               membership: !!env.DB, // D1 accounts + activation codes + progress sync
@@ -461,6 +467,7 @@ export default {
       if (pathname === '/speech/tts' && req.method === 'POST') return handleTts(req, env)
       if (pathname === '/speech/stt' && req.method === 'POST') return handleStt(req, env)
       if (pathname === '/realtime/token' && req.method === 'POST') return handleRealtimeToken(req, env)
+      if (pathname === '/grok/token' && req.method === 'POST') return handleGrokToken(req, env)
       if (pathname.startsWith('/ai/') && req.method === 'POST') return handleAI(pathname, req, env)
       return json({ error: 'not found' }, env, 404)
     }
