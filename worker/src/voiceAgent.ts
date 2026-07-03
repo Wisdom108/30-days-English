@@ -25,7 +25,9 @@ export class VoiceTutor extends VoiceAgentBase<Env> {
   async onTurn(transcript: string, context: VoiceTurnContext) {
     const workersAi = createWorkersAI({ binding: this.env.AI })
     const result = streamText({
-      model: workersAi('@cf/meta/llama-3.3-70b-instruct-fp8-fast'),
+      // Small fp8 model — voice turns need low latency far more than raw smarts,
+      // and replies are only 1-2 short sentences.
+      model: workersAi('@cf/meta/llama-3.1-8b-instruct-fp8'),
       system: TUTOR_SYSTEM,
       messages: [
         ...context.messages.map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),

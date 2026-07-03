@@ -92,9 +92,16 @@ let speakGen = 0
  *  UI). `voiceKey` selects speaker A vs B so dialogue sounds like two people
  *  (system voice only — HD stays single-voice). Resolves when playback finishes
  *  (or is interrupted/superseded). */
-export async function speak(text: string, rate = 1, onStart?: () => void, voiceKey?: VoiceKey): Promise<void> {
-  const myGen = ++speakGen
-  const superseded = () => myGen !== speakGen
+// Speak ONE short chunk (word/sentence) through the current tier. Does NOT touch
+// speakGen — the caller owns the generation token (so speak() and speakPassage()
+// can each guard interruption their own way).
+async function speakOne(
+  text: string,
+  rate: number,
+  onStart: (() => void) | undefined,
+  voiceKey: VoiceKey | undefined,
+  superseded: () => boolean,
+): Promise<void> {
   const t = text.trim()
   const isWord = !!t && !/\s/.test(t) && /^[A-Za-z][A-Za-z'-]*$/.test(t)
   const hd = getVoiceMode() === 'hd' && hdVoiceAvailable()
@@ -102,9 +109,9 @@ export async function speak(text: string, rate = 1, onStart?: () => void, voiceK
   // SYSTEM mode (default): the phone voice, instantly. No network, no login.
   if (!hd) return browserSpeak(text, rate, onStart, voiceKey)
 
-  // HD mode: natural neural voices (slower). Single words prefer a real HUMAN
-  // recording (neural TTS renders a lone word with trailing intonation — it
-  // "sounds cut from a sentence"). Budget the foreign dictionary host to 900ms.
+  // HD mode: natural neural voices. Single words prefer a real HUMAN recording
+  // (neural TTS renders a lone word with trailing intonation). Budget the
+  // foreign dictionary host to 900ms.
   if (isWord) {
     try {
       const url = await Promise.race([
@@ -120,18 +127,15 @@ export async function speak(text: string, rate = 1, onStart?: () => void, voiceK
       /* fall through to synth */
     }
   }
-  // Azure natural neural voice.
   if (!superseded() && azureAvailable()) {
     try {
-      onStart?.() // SDK plays via its own pipeline; treat dispatch as start
+      onStart?.()
       await azureSpeak(text, rate)
       return
     } catch {
       /* fall through */
     }
   }
-  // Cloudflare Aura-2 neural voice. Append a period to a lone word so Aura gives
-  // it complete, standalone intonation.
   if (!superseded() && cfVoiceAvailable()) {
     try {
       await cfSpeak(isWord ? `${t}.` : text, rate, onStart)
@@ -142,6 +146,33 @@ export async function speak(text: string, rate = 1, onStart?: () => void, voiceK
   }
   if (superseded()) return
   return browserSpeak(text, rate, onStart)
+}
+
+/** Speak `text`. `onStart` fires when sound actually begins. `voiceKey` picks
+ *  speaker A/B (system voice) so dialogue sounds like two people. */
+export async function speak(text: string, rate = 1, onStart?: () => void, voiceKey?: VoiceKey): Promise<void> {
+  const myGen = ++speakGen
+  return speakOne(text, rate, onStart, voiceKey, () => myGen !== speakGen)
+}
+
+// Split a passage into speakable sentences.
+function toSentences(text: string): string[] {
+  const parts = text.match(/[^.!?]+[.!?]+["'”’]?/g)
+  return (parts && parts.length ? parts : [text]).map((s) => s.trim()).filter(Boolean)
+}
+
+/** Read a LONG passage reliably: system voices choke / cut off on long
+ *  utterances, so speak it sentence-by-sentence. Interruptible via
+ *  stopSpeaking() (or any newer speak()). `onStart` fires on the first sound. */
+export async function speakPassage(text: string, rate = 1, onStart?: () => void): Promise<void> {
+  const myGen = ++speakGen
+  const superseded = () => myGen !== speakGen
+  const sentences = toSentences(text)
+  let started = false
+  for (const s of sentences) {
+    if (superseded()) return
+    await speakOne(s, rate, () => { if (!started) { started = true; onStart?.() } }, undefined, superseded)
+  }
 }
 
 /** Fire-and-forget cache warm for speech the user is ABOUT to tap (the visible

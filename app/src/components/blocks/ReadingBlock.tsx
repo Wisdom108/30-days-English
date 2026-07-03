@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Play, Square, Loader2 } from 'lucide-react'
 import type { DayLesson } from '../../types'
-import { speak, stopSpeaking } from '../../lib/speech'
+import { speakPassage, stopSpeaking } from '../../lib/speech'
 import { QAItem, ReadableText, RowGroup, BlockHead } from '../shared'
 import { Button, Collapse } from '../ui'
 
@@ -15,7 +15,7 @@ export default function ReadingBlock({ lesson }: { lesson: DayLesson }) {
       return
     }
     setPhase('loading')
-    await speak(r.passage, 0.95, () => setPhase('playing'))
+    await speakPassage(r.passage, 0.95, () => setPhase('playing'))
     setPhase('idle')
   }
 
