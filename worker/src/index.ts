@@ -7,6 +7,7 @@ import {
   handleGetProgress,
   handlePutProgress,
 } from './membership'
+import { handleRealtimeToken } from './realtime'
 import {
   conversationSystem,
   writingSystem,
@@ -39,6 +40,13 @@ export interface Env {
   SESSION_SECRET?: string // HMAC key for session cookies (wrangler secret put)
   FREE_AI_QUOTA?: string // daily AI calls for non-members (default 5)
   FREE_SPEECH_QUOTA?: string // daily speech calls for non-members (default 20)
+  // OpenAI Realtime (voice conversation) — OPTIONAL. Absent key → /realtime/token
+  // answers 503 and /health reports realtime:false; everything else unchanged.
+  OPENAI_API_KEY?: string // secret: wrangler secret put OPENAI_API_KEY
+  OPENAI_REALTIME_MODEL?: string // default gpt-4o-realtime-preview
+  OPENAI_REALTIME_VOICE?: string // default alloy
+  DAILY_REALTIME_QUOTA?: string // daily realtime sessions for members (default 20)
+  FREE_REALTIME_QUOTA?: string // daily realtime sessions for non-members (default 2)
 }
 
 interface Msg {
@@ -137,13 +145,13 @@ function parseJson(raw: string): unknown {
   return JSON.parse(s)
 }
 
-const cap = (s: unknown, n: number): string | undefined =>
+export const cap = (s: unknown, n: number): string | undefined =>
   typeof s === 'string' ? s.slice(0, n) : undefined
 
 // Non-members (only possible once D1 membership is on) get a small taste quota.
 const FREE_QUOTA_MSG = '免费体验额度已用完，激活会员解锁完整额度'
 
-function lessonFrom(v: unknown): LessonCtx {
+export function lessonFrom(v: unknown): LessonCtx {
   const o = (v || {}) as Record<string, unknown>
   // Cap every client string that reaches a prompt — bounds cost / DoS amplification.
   return {
@@ -417,6 +425,7 @@ export default {
               ai: true, // Workers AI binding is always present
               speech: !!(env.AZURE_SPEECH_KEY && env.AZURE_SPEECH_REGION), // Azure premium
               cfVoice: true, // Workers AI TTS (Aura) + STT (Whisper), always on
+              realtime: !!env.OPENAI_API_KEY, // OpenAI Realtime voice conversation
               loginRequired: !!env.CF_ACCESS_TEAM_DOMAIN,
               membership: !!env.DB, // D1 accounts + activation codes + progress sync
             },
@@ -437,6 +446,7 @@ export default {
       if (pathname === '/speech/token' && req.method === 'GET') return handleSpeechToken(req, env)
       if (pathname === '/speech/tts' && req.method === 'POST') return handleTts(req, env)
       if (pathname === '/speech/stt' && req.method === 'POST') return handleStt(req, env)
+      if (pathname === '/realtime/token' && req.method === 'POST') return handleRealtimeToken(req, env)
       if (pathname.startsWith('/ai/') && req.method === 'POST') return handleAI(pathname, req, env)
       return json({ error: 'not found' }, env, 404)
     }

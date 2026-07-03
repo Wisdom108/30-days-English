@@ -88,3 +88,20 @@ npx wrangler d1 execute thirty-days-en-db --remote --file=codes.sql
 ```
 
 接口：`POST /auth/register|login|logout|activate`、`GET/PUT /progress`；`/me` 变 `mode:"account"`（返回 `member`/`memberUntil`）。原口令 `APP_PASSCODE` 仍有效（视为会员）。会话是 HMAC 签名 cookie（180 天）；密码 PBKDF2 加盐存 D1，不可逆。
+
+---
+
+## 可选增强 2 · 实时语音对话（OpenAI Realtime）
+浏览器直接和 OpenAI 建 WebRTC 语音会话，跟 AI 老师**边说边聊**（不是逐句录音，是连续对话）。**默认关闭**：不设 key 则 `/realtime/token` 返回 503 `实时语音未启用`，`/health` 里 `realtime:false`，其余一切照旧。
+
+需要一个**开通了 Realtime 权限的 OpenAI API key**（按用量计费，走你的 OpenAI 账户，不是免费额度）：
+```bash
+cd worker
+npx wrangler secret put OPENAI_API_KEY             # 终端粘 key，不进 git/聊天
+npx wrangler deploy
+```
+可选调模型/音色（wrangler.toml `[vars]`，非敏感）：`OPENAI_REALTIME_MODEL`（默认 `gpt-4o-realtime-preview`）、`OPENAI_REALTIME_VOICE`（默认 `alloy`）。
+
+原理：Worker 用你的真 key 换一枚**短时效临时令牌**（ephemeral token）给浏览器，真 key 永不出后端。因为**烧钱**，按人分级限流：会员每日 `DAILY_REALTIME_QUOTA=20` 次，免费体验 `FREE_REALTIME_QUOTA=2` 次（超额 429）。
+
+接口：`POST /realtime/token`（body 可带 `{lesson}`，用于生成当天主题的老师人设）→ `{token, model, expiresAt}`。前端拿 `token` 直连 OpenAI Realtime WebRTC。

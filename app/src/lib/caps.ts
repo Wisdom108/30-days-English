@@ -9,12 +9,18 @@ export interface ServerCaps {
   ai: boolean
   speech: boolean // Azure neural TTS + phoneme assessment
   cfVoice: boolean // Cloudflare Aura-2 TTS + Whisper STT
+  realtime: boolean // OpenAI Realtime voice conversation (needs server-side OpenAI key)
 }
 
-let caps: ServerCaps = { ai: features.worker, speech: false, cfVoice: features.worker }
+let caps: ServerCaps = { ai: features.worker, speech: false, cfVoice: features.worker, realtime: false }
 
 export function serverCaps(): ServerCaps {
   return caps
+}
+
+/** True when the Worker has the OpenAI Realtime voice path configured. */
+export function realtimeAvailable(): boolean {
+  return caps.realtime
 }
 
 /** Fetch /health once and cache the real capabilities. Safe to call repeatedly. */
@@ -28,6 +34,7 @@ export async function loadCaps(): Promise<ServerCaps> {
         ai: !!d.features?.ai,
         speech: !!d.features?.speech,
         cfVoice: !!d.features?.cfVoice,
+        realtime: !!d.features?.realtime,
       }
     }
   } catch {

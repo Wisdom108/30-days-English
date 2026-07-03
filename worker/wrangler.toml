@@ -44,6 +44,13 @@ DAILY_SPEECH_QUOTA = "60"
 # system (below) is enabled; without D1 everyone gets the full quotas as before.
 FREE_AI_QUOTA = "5"
 FREE_SPEECH_QUOTA = "20"
+# OpenAI Realtime (voice conversation) — OPTIONAL. The key is a secret (below);
+# leaving OPENAI_API_KEY unset keeps realtime OFF (endpoint 503, /health realtime:false).
+OPENAI_REALTIME_MODEL = "gpt-4o-realtime-preview"
+OPENAI_REALTIME_VOICE = "alloy"
+# Daily realtime-session mints per user (each is an expensive OpenAI voice session).
+DAILY_REALTIME_QUOTA = "20"
+FREE_REALTIME_QUOTA = "2"
 
 # Per-user daily quota counter. Create with:
 #   wrangler kv namespace create QUOTA
@@ -75,4 +82,9 @@ id = "871eceea03fa450aa75e89833dc325ef"
 #                      assessment. Without it, the app uses the browser voice.
 #   SESSION_SECRET     OPTIONAL — HMAC key for membership session cookies; only
 #                      needed once the D1 block above is enabled.
+#   OPENAI_API_KEY     OPTIONAL — OpenAI key with Realtime access, for the live
+#                      voice-conversation feature. Set with:
+#                        wrangler secret put OPENAI_API_KEY
+#                      Leaving it unset keeps realtime off (endpoint 503,
+#                      /health realtime:false); everything else runs as before.
 # (AI text = Workers AI binding, no key. Login = optional Cloudflare Access, no secret.)

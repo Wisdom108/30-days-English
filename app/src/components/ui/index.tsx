@@ -287,15 +287,23 @@ export function Cells({
   className?: string
   height?: number
 }) {
-  const filled = Math.max(0, Math.min(max, Math.round(value)))
+  const target = Math.max(0, Math.min(max, Math.round(value)))
+  // Boot-up: start empty, fill to `target` on mount so the segments light up
+  // left→right (the per-cell transitionDelay does the sweep).
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => {
+    const r = requestAnimationFrame(() => setMounted(true))
+    return () => cancelAnimationFrame(r)
+  }, [])
+  const filled = mounted ? target : 0
   return (
     <div
       className={cn('flex gap-[3px]', className)}
       role="progressbar"
-      aria-valuenow={filled}
+      aria-valuenow={target}
       aria-valuemin={0}
       aria-valuemax={max}
-      aria-label={`${filled}/${max}`}
+      aria-label={`${target}/${max}`}
     >
       {Array.from({ length: max }, (_, i) => (
         <span

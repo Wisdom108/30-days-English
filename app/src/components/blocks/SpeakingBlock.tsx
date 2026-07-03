@@ -5,8 +5,10 @@ import { prefetchSpeak, recognizeOnce, scorePronunciation, sttSupported } from '
 import { azureAvailable, azureAssess, type PronScore } from '../../lib/azureSpeech'
 import { cfVoiceAvailable, cfRecordAndTranscribe, stopCfRecording } from '../../lib/cfSpeech'
 import { aiCoach, AIError, type LessonCtx } from '../../lib/ai'
+import { realtimeAvailable } from '../../lib/caps'
 import { SpeakButton, RowGroup, BlockHead } from '../shared'
 import { AiGate, ConversationPanel } from '../ai'
+import LiveTutor from '../LiveTutor'
 import { Button, Callout, Collapse, Stepper } from '../ui'
 import { cn } from '../../lib/utils'
 
@@ -151,6 +153,7 @@ export default function SpeakingBlock({ lesson }: { lesson: DayLesson }) {
   const scenario = s.miniDialogue.length > 0
     ? `${lesson.theme} — e.g. ${s.miniDialogue.map((d) => d.line).slice(0, 3).join(' / ')}`
     : lesson.theme
+  const realtime = realtimeAvailable()
 
   return (
     <div className="space-y-4">
@@ -166,11 +169,15 @@ export default function SpeakingBlock({ lesson }: { lesson: DayLesson }) {
         <p className="mt-1.5 text-meta text-fg-muted">录下自己的回答，对比模仿。坚持"每天开口说"是流利的关键。</p>
       </Callout>
 
-      {/* AI partner */}
-      <Collapse label="AI 陪练" hint="和 AI 用今天的情景聊，实时纠错">
-        <div className="p-4">
-          <AiGate><ConversationPanel lesson={ctxOf(lesson)} scenario={scenario} /></AiGate>
-        </div>
+      {/* AI partner — live voice when the Worker has OpenAI Realtime, else text chat */}
+      <Collapse label="AI 陪练" hint={realtime ? '和 AI 老师实时语音对话 · 边说边纠错' : '和 AI 用今天的情景聊，实时纠错'}>
+        {realtime ? (
+          <LiveTutor lesson={ctxOf(lesson)} />
+        ) : (
+          <div className="p-4">
+            <AiGate><ConversationPanel lesson={ctxOf(lesson)} scenario={scenario} /></AiGate>
+          </div>
+        )}
       </Collapse>
 
       {/* dialogue */}

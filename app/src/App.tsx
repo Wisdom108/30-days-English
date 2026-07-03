@@ -75,6 +75,12 @@ export default function App() {
 
   return (
     <div className="min-h-screen">
+      {/* ambient life behind the dot-grid — slow-drifting glows */}
+      <div className="ambient" aria-hidden="true">
+        <span className="ambient-blob a" />
+        <span className="ambient-blob b" />
+        <span className="ambient-blob c" />
+      </div>
       {/* Top bar */}
       <header
         className={cn(
@@ -123,6 +129,12 @@ export default function App() {
           </nav>
 
           <div className="flex-1" />
+
+          {/* system-online readout — telemetry vibe, one quiet chip */}
+          <span className="mr-1 hidden items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-fg-dim sm:flex">
+            <span className="live-dot h-1.5 w-1.5 rounded-full bg-[#3ad07a]" />
+            <span>Day {String(current).padStart(2, '0')}/{TOTAL_DAYS}</span>
+          </span>
 
           {/* auth (account / passcode) — unlocks AI + neural voice + cloud sync */}
           <AuthControls />

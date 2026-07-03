@@ -7,6 +7,10 @@ ANTHROPIC_API_KEY=sk-ant-REPLACE_ME
 # Azure Speech resource key (region is set in wrangler.toml [vars]).
 AZURE_SPEECH_KEY=REPLACE_ME
 
+# OpenAI API key with Realtime access — powers the live voice-conversation
+# feature (/realtime/token). OPTIONAL: leave unset to keep realtime off.
+OPENAI_API_KEY=sk-REPLACE_ME
+
 # Local-only: bypass Cloudflare Access auth so `wrangler dev` works without a
 # Zero Trust tenant. NEVER set this in production.
 DEV_BYPASS_AUTH=true

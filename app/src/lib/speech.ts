@@ -1,11 +1,28 @@
-// Speech wrappers. Voice tiers, best first:
-//   1. Azure neural TTS + phoneme pronunciation assessment (if AZURE key set)
-//   2. Cloudflare Workers AI: Aura-2 neural TTS + Whisper STT (free, no key)
-//   3. Browser Web Speech API (offline fallback)
-// speak() tries each in order, falling back on any error.
+// Speech wrappers.
+//
+// DEFAULT = the phone's own system voice (SpeechSynthesis): 0ms, offline, no
+// login. Neural TTS round-trips ~2.5s through the Worker, which feels broken for
+// tap-to-hear — so the natural-but-slow Aura/Azure voices are opt-in "HD" mode.
+//   system mode → browser voice (instant)
+//   HD mode     → word: human dictionary clip → Azure/CF neural; sentence: Azure/CF
+// Either way it falls back down the chain on error.
 import { azureAvailable, azureSpeak } from './azureSpeech'
 import { cfVoiceAvailable, cfSpeak, playUrl, prefetchTts, stopCfSpeak } from './cfSpeech'
 import { wordAudio } from './dictionary'
+
+// ---- Voice mode (persisted) ----
+export type VoiceMode = 'system' | 'hd'
+const VOICE_KEY = 'voice-mode'
+export function getVoiceMode(): VoiceMode {
+  try { return localStorage.getItem(VOICE_KEY) === 'hd' ? 'hd' : 'system' } catch { return 'system' }
+}
+export function setVoiceMode(m: VoiceMode): void {
+  try { localStorage.setItem(VOICE_KEY, m) } catch { /* ignore */ }
+}
+/** Whether an HD neural voice is even reachable (needs the Worker backend). */
+export function hdVoiceAvailable(): boolean {
+  return azureAvailable() || cfVoiceAvailable()
+}
 
 export function ttsSupported(): boolean {
   // Azure / Cloudflare neural TTS or the browser's SpeechSynthesis.
@@ -24,12 +41,22 @@ function pickEnglishVoice(): SpeechSynthesisVoice | null {
   if (!browserTts()) return null
   const voices = window.speechSynthesis.getVoices()
   if (!voices.length) return null
-  // Prefer a natural en-US / en-GB voice.
-  const preferred =
-    voices.find((v) => /en-US/i.test(v.lang) && /natural|google|samantha|female/i.test(v.name)) ||
-    voices.find((v) => /en-US/i.test(v.lang)) ||
-    voices.find((v) => /^en/i.test(v.lang))
-  return preferred || voices[0] || null
+  const en = voices.filter((v) => /^en(-|_|$)/i.test(v.lang))
+  const pool = en.length ? en : voices
+  // Score for the most natural available voice: iOS/macOS enhanced/premium and
+  // Siri voices, Google/Microsoft Natural, then any en-US. Higher = better.
+  const score = (v: SpeechSynthesisVoice) => {
+    const n = v.name.toLowerCase()
+    let s = 0
+    if (/en-us/i.test(v.lang)) s += 3
+    else if (/en-gb/i.test(v.lang)) s += 1
+    if (/siri|neural|natural|premium|enhanced/.test(n)) s += 6
+    if (/google|microsoft/.test(n)) s += 3
+    if (/samantha|aaron|nicky|evan|ava|allison|joelle/.test(n)) s += 4 // good default iOS voices
+    if (v.localService) s += 1 // on-device = instant, no network hiccup
+    return s
+  }
+  return [...pool].sort((a, b) => score(b) - score(a))[0] || null
 }
 
 // Bumped on every speak()/stopSpeaking(); a call whose async work resolves after
@@ -43,12 +70,14 @@ export async function speak(text: string, rate = 1, onStart?: () => void): Promi
   const superseded = () => myGen !== speakGen
   const t = text.trim()
   const isWord = !!t && !/\s/.test(t) && /^[A-Za-z][A-Za-z'-]*$/.test(t)
+  const hd = getVoiceMode() === 'hd' && hdVoiceAvailable()
 
-  // Single words: prefer a real HUMAN recording. Sentence-trained neural TTS
-  // renders a lone word with trailing intonation (it "sounds cut from a
-  // sentence"); a dictionary recording is a clean, natural, consistent word.
-  // Budget the (foreign, sometimes slow) dictionary host to 900ms — past that
-  // the neural voice takes over; the fetch keeps warming the cache for replays.
+  // SYSTEM mode (default): the phone voice, instantly. No network, no login.
+  if (!hd) return browserSpeak(text, rate, onStart)
+
+  // HD mode: natural neural voices (slower). Single words prefer a real HUMAN
+  // recording (neural TTS renders a lone word with trailing intonation — it
+  // "sounds cut from a sentence"). Budget the foreign dictionary host to 900ms.
   if (isWord) {
     try {
       const url = await Promise.race([
@@ -64,8 +93,7 @@ export async function speak(text: string, rate = 1, onStart?: () => void): Promi
       /* fall through to synth */
     }
   }
-
-  // Tier 1: Azure natural neural voice (fixes the robotic browser-TTS feel).
+  // Azure natural neural voice.
   if (!superseded() && azureAvailable()) {
     try {
       onStart?.() // SDK plays via its own pipeline; treat dispatch as start
@@ -75,8 +103,8 @@ export async function speak(text: string, rate = 1, onStart?: () => void): Promi
       /* fall through */
     }
   }
-  // Tier 2: Cloudflare Aura-2 neural voice (free, no key). Append a period to a
-  // lone word so Aura gives it complete, standalone intonation.
+  // Cloudflare Aura-2 neural voice. Append a period to a lone word so Aura gives
+  // it complete, standalone intonation.
   if (!superseded() && cfVoiceAvailable()) {
     try {
       await cfSpeak(isWord ? `${t}.` : text, rate, onStart)
@@ -90,9 +118,10 @@ export async function speak(text: string, rate = 1, onStart?: () => void): Promi
 }
 
 /** Fire-and-forget cache warm for speech the user is ABOUT to tap (the visible
- *  flashcard word, the current listening sentence, the shadowing line). Words
- *  warm the free dictionary recording first, then fall back to neural TTS. */
+ *  flashcard word, the current listening sentence, the shadowing line). Only
+ *  meaningful in HD mode — the system voice has nothing to warm. */
 export function prefetchSpeak(text: string): void {
+  if (getVoiceMode() !== 'hd' || !hdVoiceAvailable()) return
   const t = text.trim()
   if (!t) return
   const isWord = !/\s/.test(t) && /^[A-Za-z][A-Za-z'-]*$/.test(t)

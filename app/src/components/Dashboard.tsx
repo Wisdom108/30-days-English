@@ -7,6 +7,7 @@ import { dueCards } from '../lib/srs'
 import { BLOCKS, PHASE_INFO, TOTAL_MINUTES } from '../blocks'
 import { Card, CardHead, Segment, Button, Badge, Cells, Collapse } from './ui'
 import { BlockIcon } from './blockicons'
+import { useCountUp } from '../lib/useCountUp'
 import { cn } from '../lib/utils'
 
 const MOD: Record<string, string> = {
@@ -36,19 +37,26 @@ export default function Dashboard() {
   const { state, unlockAllDays } = useApp()
   const nav = useNavigate()
 
-  if (CURRICULUM.length === 0) {
-    return <div className="py-16 text-center text-fg-muted">课程内容正在生成中…</div>
-  }
-
   const completedDays = Array.from({ length: TOTAL_DAYS }, (_, i) => i + 1).filter((d) =>
     isDayComplete(state, d),
   )
   const due = dueCards(state.cards).length
   const current = Math.min(state.currentDay, TOTAL_DAYS)
   const streak = displayStreak(state)
+
+  // count-up readouts (hooks — must run before any early return)
+  const dayN = useCountUp(current)
+  const doneN = useCountUp(completedDays.length)
+  const streakN = useCountUp(streak)
+  const dueN = useCountUp(due)
+
+  if (CURRICULUM.length === 0) {
+    return <div className="py-16 text-center text-fg-muted">课程内容正在生成中…</div>
+  }
+
   const lesson = CURRICULUM.find((l) => l.day === current)
   const phase = lesson?.phase ?? 1
-  const dd = String(current).padStart(2, '0')
+  const dd = String(dayN).padStart(2, '0')
 
   return (
     <div className="space-y-4">
@@ -81,7 +89,7 @@ export default function Dashboard() {
         {/* whole-journey progress as segmented cells */}
         <div className="flex items-center gap-3 border-t border-border px-5 py-3">
           <Cells value={completedDays.length} max={TOTAL_DAYS} height={8} className="flex-1" />
-          <span className="t-tab shrink-0 text-meta text-fg-muted">{completedDays.length}/{TOTAL_DAYS}</span>
+          <span className="t-tab shrink-0 text-meta text-fg-muted">{doneN}/{TOTAL_DAYS}</span>
         </div>
         {/* the single primary action, above the fold */}
         <div className="px-5 pb-5">
@@ -93,9 +101,9 @@ export default function Dashboard() {
 
       {/* ===== the two numbers that change daily ===== */}
       <div className="grid grid-cols-2 overflow-hidden rounded-xl border border-border">
-        <MCell label="Streak" value={streak} unit="天"
+        <MCell label="Streak" value={streakN} unit="天"
           bar={<Cells value={Math.min(streak, 10)} max={10} height={7} accent={streak > 0 ? 'var(--color-red)' : undefined} />} />
-        <MCell label="Due" value={due} unit="卡" red={due > 0} onClick={() => nav('/review')} cls="border-l border-border"
+        <MCell label="Due" value={dueN} unit="卡" red={due > 0} onClick={() => nav('/review')} cls="border-l border-border"
           bar={<Cells value={Math.min(due, 10)} max={10} height={7} accent={due > 0 ? 'var(--color-red)' : undefined} />} />
       </div>
 
@@ -162,9 +170,9 @@ export default function Dashboard() {
                   onClick={() => !locked && nav(`/day/${d}`)}
                   aria-label={`Day ${d}${done ? ' 已完成' : locked ? ' 未解锁' : ''}`}
                   className={cn(
-                    'press relative grid aspect-square place-items-center rounded-sm border text-center transition-colors',
+                    'press relative grid aspect-square place-items-center rounded-sm border text-center transition-all duration-200',
                     isCurrent && 'border-fg shadow-[0_0_0_1px_var(--color-fg)]',
-                    locked ? 'cursor-not-allowed border-border bg-surface-2 opacity-45' : 'hover:border-border-strong',
+                    locked ? 'cursor-not-allowed border-border bg-surface-2 opacity-45' : 'hover:border-border-strong hover:shadow-[0_0_14px_-3px_var(--color-fg)] hover:-translate-y-0.5',
                   )}
                   style={done ? { background: v.softBg, borderColor: v.color + '66' } : !locked ? { borderColor: v.color + '40' } : {}}
                 >
