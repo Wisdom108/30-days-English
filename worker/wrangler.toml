@@ -32,8 +32,11 @@ ALLOWED_ORIGIN = "*"
 # team domain like "myteam.cloudflareaccess.com" + the Access app's Audience (AUD) tag.
 CF_ACCESS_TEAM_DOMAIN = ""
 CF_ACCESS_AUD = ""
-# Azure Speech region (e.g. "eastus"). The key is a secret (below).
-AZURE_SPEECH_REGION = ""
+# Azure Speech (neural TTS + phoneme pronunciation scoring) — OPTIONAL. Both the
+# key AND the region are secrets so enabling it is two commands, no redeploy:
+#   wrangler secret put AZURE_SPEECH_KEY       (paste KEY1 from the Azure portal)
+#   wrangler secret put AZURE_SPEECH_REGION    (paste the Location, e.g. eastasia)
+# Leave unset → the app uses the free system/Aura voice and the CF match-score.
 # Default Azure neural voice.
 AZURE_VOICE = "en-US-AvaMultilingualNeural"
 # Daily AI-call quota per user.
