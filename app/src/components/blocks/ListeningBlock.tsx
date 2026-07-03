@@ -106,7 +106,7 @@ export default function ListeningBlock({ lesson }: { lesson: DayLesson; done?: b
             className="mt-5 block w-full rounded-lg px-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30"
             aria-label="重听本句"
           >
-            <span className="text-[21px] font-semibold leading-[1.45] tracking-[-0.01em] text-fg">
+            <span className="t-serif text-[23px] font-semibold leading-[1.5] text-fg">
               {words.map((w, i) => {
                 if (/^\s+$/.test(w)) return w
                 const clean = w.replace(/[^A-Za-z'-]/g, '')

@@ -65,9 +65,9 @@ export default function VocabBlock({
                 <SpeakButton text={card.word} />
               </div>
               <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
-                <div className="text-[42px] font-semibold leading-none text-fg">{card.word}</div>
+                <div className="t-serif text-[48px] font-semibold leading-none text-fg">{card.word}</div>
                 <div className="flex items-center gap-2 text-fg-muted">
-                  <span className="text-h2">{card.ipa}</span>
+                  <span className="font-mono text-h3">{card.ipa}</span>
                   <span className="text-sm italic text-fg-dim">{card.pos}</span>
                 </div>
                 <div className="mt-2 font-mono text-[10px] uppercase tracking-[0.12em] text-fg-dim">点击翻面看释义</div>
@@ -81,7 +81,7 @@ export default function VocabBlock({
               </div>
               <div className="flex flex-1 flex-col items-center justify-center gap-2.5 p-6 text-center">
                 <div className="text-h1 font-semibold text-fg">{card.meaning_zh}</div>
-                <div className="text-body-lg text-fg-secondary">{card.example_en}</div>
+                <div className="t-serif text-[19px] leading-snug text-fg-secondary">{card.example_en}</div>
                 <div className="text-sm text-fg-muted">{card.example_zh}</div>
               </div>
             </div>

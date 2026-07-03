@@ -82,7 +82,7 @@ function ShadowHero({ text, tip, idx, total, sttOk, lesson }: { text: string; ti
       </div>
 
       <div className="flex flex-col items-center px-6 pb-7 pt-6 text-center">
-        <div className="text-[22px] font-semibold leading-[1.4] tracking-[-0.01em] text-fg">{text}</div>
+        <div className="t-serif text-[23px] font-semibold leading-[1.45] text-fg">{text}</div>
         {tip && <div className="mt-2 text-sm text-fg-muted">{tip}</div>}
 
         {/* big record orb */}

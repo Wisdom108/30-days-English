@@ -85,7 +85,7 @@ export function SpeakButton({
 // ---- Reading text with click-to-define words ----
 // Curated per-lesson glossary is checked FIRST (instant + offline); the network
 // dictionary is a supplement for phonetics / fuller English definitions.
-export function ReadableText({ text, glossary = [] }: { text: string; glossary?: GlossaryItem[] }) {
+export function ReadableText({ text, glossary = [], serif }: { text: string; glossary?: GlossaryItem[]; serif?: boolean }) {
   const gloss = new Map(glossary.map((g) => [g.word.toLowerCase(), g.meaning_zh]))
 
   const [popover, setPopover] = useState<{
@@ -118,7 +118,7 @@ export function ReadableText({ text, glossary = [] }: { text: string; glossary?:
 
   return (
     <>
-      <div className="text-read text-fg" onClick={() => setPopover(null)}>
+      <div className={cn('text-read text-fg', serif && 't-serif text-[17px]')} onClick={() => setPopover(null)}>
         {tokens.map((tok, i) => {
           if (/^\s+$/.test(tok)) return <span key={i}>{tok}</span>
           const m = tok.match(/^([^A-Za-z']*)([A-Za-z][A-Za-z'-]*)(.*)$/)

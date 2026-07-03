@@ -98,7 +98,7 @@ export default function Dashboard() {
         />
         <div className="flex items-center gap-4 p-5">
           <div className="min-w-0 flex-1">
-            <h1 className="text-h1 font-semibold leading-tight sm:text-title">
+            <h1 className="t-serif text-[26px] font-semibold leading-[1.15] sm:text-[30px]">
               Day {current} <span className="text-fg-secondary">/ {lesson?.title_en ?? lesson?.title_zh}</span>
             </h1>
             <div className="mt-2 font-mono text-[11px] uppercase tracking-[0.1em] text-fg-muted">
@@ -289,7 +289,7 @@ function MCell({
       )}
     >
       <div className="label-nd">{label}</div>
-      <div className={cn('t-tab mt-2.5 text-[28px] font-semibold leading-none sm:text-[32px]', red ? 'text-red' : 'text-fg')}>{value}</div>
+      <div className={cn('t-doto mt-2.5 text-[30px] font-semibold leading-none sm:text-[34px]', red ? 'text-red' : 'text-fg')}>{value}</div>
       {bar && <div className="mt-3.5">{bar}</div>}
     </Tag>
   )

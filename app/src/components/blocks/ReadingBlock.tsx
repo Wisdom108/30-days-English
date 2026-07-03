@@ -40,7 +40,7 @@ export default function ReadingBlock({
           }
         />
         <div className="px-6 py-6">
-          <ReadableText text={r.passage} glossary={r.glossary} />
+          <ReadableText text={r.passage} glossary={r.glossary} serif />
           <p className="mt-5 border-t border-border pt-4 font-mono text-[10px] uppercase tracking-[0.1em] text-fg-dim">
             遇到生词点一下 · 查释义 + 听发音
           </p>

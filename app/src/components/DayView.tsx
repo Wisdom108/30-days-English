@@ -122,7 +122,7 @@ export default function DayView() {
         </button>
         <div className="min-w-0 flex-1">
           <div className="label-nd">Day {lesson.day} · 阶段 {lesson.phase}</div>
-          <div className="truncate text-h2 font-semibold text-fg">{lesson.title_en}</div>
+          <div className="t-serif truncate text-[19px] font-semibold text-fg">{lesson.title_en}</div>
         </div>
         <button
           onClick={() => setGoalsOpen((o) => !o)}

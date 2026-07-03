@@ -1,5 +1,6 @@
 @import 'tailwindcss';
 @import '@fontsource-variable/space-grotesk';
+@import '@fontsource-variable/fraunces';
 @import '@fontsource/space-mono/400.css';
 @import '@fontsource/space-mono/700.css';
 @import '@fontsource/doto/500.css';
@@ -62,6 +63,9 @@
     'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
   --font-display: 'Doto', ui-monospace, monospace;
   --font-mono: 'Space Mono', ui-monospace, 'SFMono-Regular', monospace;
+  /* refined editorial serif for the LEARNING CONTENT (words, sentences,
+     passages, lesson titles) — reads as premium against the mono chrome. */
+  --font-serif: 'Fraunces Variable', 'Fraunces', ui-serif, Georgia, 'Songti SC', serif;
 
   /* motion — slams and settles */
   --ease-out: cubic-bezier(0.4, 0, 0.2, 1);
@@ -123,6 +127,14 @@
 @layer utilities {
   .font-display { font-family: var(--font-display); }
   .font-mono { font-family: var(--font-mono); }
+
+  /* Editorial serif for learning content — optical sizing makes big titles
+     elegant and body text readable. */
+  .t-serif {
+    font-family: var(--font-serif);
+    font-optical-sizing: auto;
+    letter-spacing: -0.006em;
+  }
 
   /* Numeric discipline (nullframe):
      · t-doto  → Doto dot-matrix, the Nothing SIGNATURE. Reserve for ONE large

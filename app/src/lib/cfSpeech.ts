@@ -10,23 +10,52 @@ export function cfVoiceAvailable(): boolean {
   return serverCaps().cfVoice
 }
 
-// --- TTS (Aura-2) ---------------------------------------------------------
-let activeAudio: HTMLAudioElement | null = null
+// ---------------------------------------------------------------------------
+// Shared, iOS-unlocked <audio> element.
+//
+// iOS Safari blocks programmatic audio.play() that isn't tied to a live user
+// gesture — and a fetch()→play() sequence loses the gesture across the await,
+// so a fresh `new Audio()` per call is REJECTED and the app silently falls back
+// to the robotic browser voice (which is why the neural voice "sounded weird /
+// different every time"). Fix: reuse ONE element and "bless" it by playing a
+// silent clip during the first user gesture; afterwards post-await plays work.
+// ---------------------------------------------------------------------------
+const SILENT_WAV =
+  'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAgD4AAAB9AAACABAAZGF0YQAAAAA='
+let el: HTMLAudioElement | null = null
+let unlocked = false
 
-export function stopCfSpeak() {
-  if (activeAudio) {
-    try {
-      activeAudio.pause()
-    } catch {
-      /* ignore */
-    }
-    activeAudio = null
+function audioEl(): HTMLAudioElement {
+  if (!el) {
+    el = new Audio()
+    el.setAttribute('playsinline', 'true')
+    el.preload = 'auto'
+  }
+  return el
+}
+
+function unlock() {
+  if (unlocked || typeof window === 'undefined') return
+  unlocked = true
+  const a = audioEl()
+  a.src = SILENT_WAV
+  a.play().then(() => { a.pause(); a.currentTime = 0 }).catch(() => {})
+}
+if (typeof window !== 'undefined') {
+  const on = () => unlock()
+  for (const ev of ['pointerdown', 'touchend', 'keydown'] as const) {
+    window.addEventListener(ev, on, { once: true, capture: true })
   }
 }
 
-/** Synthesize `text` with a neural voice and play it. Rejects on any failure so
- *  the caller can fall back to the browser voice. */
-export async function cfSpeak(text: string, rate = 1): Promise<void> {
+// TTS cache: same text → identical audio (kills the "different every time"
+// feel and saves the daily speech quota on repeated taps).
+const ttsCache = new Map<string, string>()
+const MAX_CACHE = 60
+
+async function ttsUrl(text: string): Promise<string> {
+  const hit = ttsCache.get(text)
+  if (hit) return hit
   const res = await fetch(`${config.workerUrl}/speech/tts`, {
     method: 'POST',
     credentials: 'include',
@@ -35,22 +64,51 @@ export async function cfSpeak(text: string, rate = 1): Promise<void> {
   })
   if (res.status === 401) throw new Error('请先登录')
   if (!res.ok) throw new Error('语音合成失败')
-  const blob = await res.blob()
-  const url = URL.createObjectURL(blob)
-  stopCfSpeak()
-  const audio = new Audio(url)
-  audio.playbackRate = rate
-  activeAudio = audio
-  try {
-    await new Promise<void>((resolve, reject) => {
-      audio.onended = () => resolve()
-      audio.onerror = () => reject(new Error('播放失败'))
-      audio.play().catch(reject)
-    })
-  } finally {
-    if (activeAudio === audio) activeAudio = null
-    URL.revokeObjectURL(url)
+  const url = URL.createObjectURL(await res.blob())
+  ttsCache.set(text, url)
+  if (ttsCache.size > MAX_CACHE) {
+    const oldest = ttsCache.keys().next().value
+    if (oldest && oldest !== text) {
+      const u = ttsCache.get(oldest)
+      if (u && u !== audioEl().src) URL.revokeObjectURL(u)
+      ttsCache.delete(oldest)
+    }
   }
+  return url
+}
+
+// One element is shared, so a new play (or a stop) must settle the previous
+// promise — otherwise its awaiter (e.g. a SpeakButton) stays stuck "busy".
+let settlePrev: (() => void) | null = null
+
+export function stopCfSpeak() {
+  if (settlePrev) { settlePrev(); settlePrev = null }
+  if (el) {
+    try { el.pause() } catch { /* ignore */ }
+  }
+}
+
+/** Play a ready audio URL (blob or remote) through the unlocked element. Rejects
+ *  on failure so the caller can fall back to the browser voice. */
+export function playUrl(url: string, rate = 1): Promise<void> {
+  unlock()
+  const a = audioEl()
+  if (settlePrev) { settlePrev(); settlePrev = null }
+  try { a.pause() } catch { /* ignore */ }
+  a.src = url
+  a.playbackRate = rate
+  return new Promise<void>((resolve, reject) => {
+    const cleanup = () => { a.onended = null; a.onerror = null; settlePrev = null }
+    settlePrev = () => { cleanup(); resolve() } // interrupted → treat as done
+    a.onended = () => { cleanup(); resolve() }
+    a.onerror = () => { cleanup(); reject(new Error('播放失败')) }
+    a.play().catch((e) => { cleanup(); reject(e instanceof Error ? e : new Error('播放失败')) })
+  })
+}
+
+/** Synthesize `text` with the neural voice and play it (cached). */
+export async function cfSpeak(text: string, rate = 1): Promise<void> {
+  await playUrl(await ttsUrl(text), rate)
 }
 
 // --- STT (Whisper) --------------------------------------------------------

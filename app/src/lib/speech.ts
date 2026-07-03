@@ -4,7 +4,8 @@
 //   3. Browser Web Speech API (offline fallback)
 // speak() tries each in order, falling back on any error.
 import { azureAvailable, azureSpeak } from './azureSpeech'
-import { cfVoiceAvailable, cfSpeak, stopCfSpeak } from './cfSpeech'
+import { cfVoiceAvailable, cfSpeak, playUrl, stopCfSpeak } from './cfSpeech'
+import { wordAudio } from './dictionary'
 
 export function ttsSupported(): boolean {
   // Azure / Cloudflare neural TTS or the browser's SpeechSynthesis.
@@ -32,6 +33,24 @@ function pickEnglishVoice(): SpeechSynthesisVoice | null {
 }
 
 export async function speak(text: string, rate = 1): Promise<void> {
+  const t = text.trim()
+  const isWord = !!t && !/\s/.test(t) && /^[A-Za-z][A-Za-z'-]*$/.test(t)
+
+  // Single words: prefer a real HUMAN recording. Sentence-trained neural TTS
+  // renders a lone word with trailing intonation (it "sounds cut from a
+  // sentence"); a dictionary recording is a clean, natural, consistent word.
+  if (isWord) {
+    try {
+      const url = await wordAudio(t)
+      if (url) {
+        await playUrl(url, rate)
+        return
+      }
+    } catch {
+      /* fall through to synth */
+    }
+  }
+
   // Tier 1: Azure natural neural voice (fixes the robotic browser-TTS feel).
   if (azureAvailable()) {
     try {
@@ -41,10 +60,11 @@ export async function speak(text: string, rate = 1): Promise<void> {
       /* fall through */
     }
   }
-  // Tier 2: Cloudflare Aura-2 neural voice (free, no key).
+  // Tier 2: Cloudflare Aura-2 neural voice (free, no key). Append a period to a
+  // lone word so Aura gives it complete, standalone intonation.
   if (cfVoiceAvailable()) {
     try {
-      await cfSpeak(text, rate)
+      await cfSpeak(isWord ? `${t}.` : text, rate)
       return
     } catch {
       /* fall through */
