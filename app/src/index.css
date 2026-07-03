@@ -136,13 +136,23 @@
     letter-spacing: -0.006em;
   }
 
+  /* IPA phonetics — the subsetted @fontsource fonts (Space Mono/Grotesk) are
+     MISSING common symbols (ˈ ɪ ʊ ː ʃ θ), so they render as a mismatched mix or
+     tofu. A system stack (SF / Roboto / Segoe) carries full IPA, keeping a
+     transcription in ONE consistent typeface. */
+  .t-ipa {
+    font-family: 'Charis SIL', 'Doulos SIL', 'Gentium Plus', system-ui,
+      -apple-system, 'Segoe UI', Roboto, sans-serif;
+    font-variant-ligatures: none;
+  }
+
   /* Numeric discipline (nullframe):
-     · t-doto  → Doto dot-matrix, the Nothing SIGNATURE. Reserve for ONE large
-                 hero numeral per screen (Day readout, big scores ≥40px). Below
-                 that size the dot-matrix turns to illegible noise.
+     · t-doto  → Doto dot-matrix, the Nothing SIGNATURE. For LARGE numerals only:
+                 the hero Day readout, big scores, and dashboard stat DIGITS.
+                 Keep separators/units ( / % ) OUT of Doto — render them in mono;
+                 the dot-matrix '/' and '%' glyphs read as noise at stat sizes.
      · t-num / t-tab → Space Mono tabular. The everyday data numeral: counters,
-                 stats, dates, pagination, grid, minutes. Clean + unified, so the
-                 rare Doto number reads as a deliberate statement, not clutter. */
+                 stats, dates, pagination, grid, minutes, and those units. */
   .t-doto { font-family: var(--font-display); font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
   .t-num,
   .t-tab { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-feature-settings: 'tnum'; letter-spacing: -0.01em; }

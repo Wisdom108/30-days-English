@@ -67,11 +67,16 @@ async function ttsUrl(text: string): Promise<string> {
   const url = URL.createObjectURL(await res.blob())
   ttsCache.set(text, url)
   if (ttsCache.size > MAX_CACHE) {
-    const oldest = ttsCache.keys().next().value
-    if (oldest && oldest !== text) {
-      const u = ttsCache.get(oldest)
-      if (u && u !== audioEl().src) URL.revokeObjectURL(u)
-      ttsCache.delete(oldest)
+    // Evict the oldest entry that ISN'T the currently-loaded blob — revoking or
+    // dropping the playing src would leak it AND force a re-fetch on replay.
+    const curSrc = audioEl().src
+    for (const k of ttsCache.keys()) {
+      if (k === text) continue
+      const u = ttsCache.get(k)
+      if (u && u === curSrc) continue
+      if (u) URL.revokeObjectURL(u)
+      ttsCache.delete(k)
+      break
     }
   }
   return url
@@ -79,6 +84,10 @@ async function ttsUrl(text: string): Promise<string> {
 
 // One element is shared, so a new play (or a stop) must settle the previous
 // promise — otherwise its awaiter (e.g. a SpeakButton) stays stuck "busy".
+// `playSeq` tags each play so a SUPERSEDED call's late events (notably the
+// AbortError that a.pause() throws into the previous play() promise) can't wipe
+// the CURRENT playback's handlers and strand its awaiter forever.
+let playSeq = 0
 let settlePrev: (() => void) | null = null
 
 export function stopCfSpeak() {
@@ -95,14 +104,23 @@ export function playUrl(url: string, rate = 1): Promise<void> {
   const a = audioEl()
   if (settlePrev) { settlePrev(); settlePrev = null }
   try { a.pause() } catch { /* ignore */ }
+  const mySeq = ++playSeq
   a.src = url
   a.playbackRate = rate
   return new Promise<void>((resolve, reject) => {
-    const cleanup = () => { a.onended = null; a.onerror = null; settlePrev = null }
-    settlePrev = () => { cleanup(); resolve() } // interrupted → treat as done
-    a.onended = () => { cleanup(); resolve() }
-    a.onerror = () => { cleanup(); reject(new Error('播放失败')) }
-    a.play().catch((e) => { cleanup(); reject(e instanceof Error ? e : new Error('播放失败')) })
+    // Only the live play touches shared state; a stale call returns early so it
+    // can't null the current play's handlers/settlePrev.
+    const finish = (settle: () => void) => {
+      if (mySeq !== playSeq) return
+      a.onended = null
+      a.onerror = null
+      settlePrev = null
+      settle()
+    }
+    settlePrev = () => finish(resolve) // interrupted → treat as done
+    a.onended = () => finish(resolve)
+    a.onerror = () => finish(() => reject(new Error('播放失败')))
+    a.play().catch((e) => finish(() => reject(e instanceof Error ? e : new Error('播放失败'))))
   })
 }
 

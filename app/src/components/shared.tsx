@@ -118,7 +118,10 @@ export function ReadableText({ text, glossary = [], serif }: { text: string; glo
 
   return (
     <>
-      <div className={cn('text-read text-fg', serif && 't-serif text-[17px]')} onClick={() => setPopover(null)}>
+      {/* NB: don't combine `text-read` with `text-[17px]` — both are font-size
+          utilities, so tailwind-merge drops text-read (and its 1.85 leading).
+          Serif path sets its own size + leading explicitly. */}
+      <div className={cn('text-fg', serif ? 't-serif text-[17px] leading-[1.75]' : 'text-read')} onClick={() => setPopover(null)}>
         {tokens.map((tok, i) => {
           if (/^\s+$/.test(tok)) return <span key={i}>{tok}</span>
           const m = tok.match(/^([^A-Za-z']*)([A-Za-z][A-Za-z'-]*)(.*)$/)

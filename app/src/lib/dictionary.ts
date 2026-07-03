@@ -10,56 +10,80 @@ export interface LookupResult {
 const cache = new Map<string, LookupResult | null>()
 const audioCache = new Map<string, string | null>()
 
-/** Real human pronunciation URL for a single word (Free Dictionary API media),
- *  US preferred. Sounds far better + more consistent than sentence-trained
- *  neural TTS on a lone word. null when the word has no recording. */
+// One entry fetch shared by wordAudio + lookupWord (a word tap fires both), with
+// in-flight dedup so it's ONE request, and a hard timeout so a stalled/blocked
+// dictionary host (common from mainland China) never hangs the voice path.
+const ENTRY_TIMEOUT_MS = 2500
+const entryCache = new Map<string, any[] | null>()
+const entryInFlight = new Map<string, Promise<any[] | null>>()
+
+const normalize = (raw: string) => raw.toLowerCase().replace(/[^a-z'-]/g, '')
+
+async function fetchEntry(word: string): Promise<any[] | null> {
+  if (entryCache.has(word)) return entryCache.get(word)!
+  const pending = entryInFlight.get(word)
+  if (pending) return pending
+  const p = (async () => {
+    const ctrl = new AbortController()
+    const timer = setTimeout(() => ctrl.abort(), ENTRY_TIMEOUT_MS)
+    try {
+      const res = await fetch(
+        `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`,
+        { signal: ctrl.signal },
+      )
+      if (!res.ok) {
+        // 404 = genuinely no entry → cache the miss. Other statuses (5xx) →
+        // do NOT cache, so a later retry can still succeed.
+        if (res.status === 404) entryCache.set(word, null)
+        return null
+      }
+      const data = await res.json()
+      const entries = Array.isArray(data) ? data : null
+      if (entries) entryCache.set(word, entries)
+      return entries
+    } catch {
+      // Timeout / offline / network — do NOT cache, allow retry when back.
+      return null
+    } finally {
+      clearTimeout(timer)
+      entryInFlight.delete(word)
+    }
+  })()
+  entryInFlight.set(word, p)
+  return p
+}
+
+/** Real human pronunciation URL for a single word (Free Dictionary API media).
+ *  US then UK only — the whole app speaks en-US, so a random AU/regional clip
+ *  is dropped and the word falls through to the en-US neural voice instead.
+ *  null when there's no suitable recording. */
 export async function wordAudio(raw: string): Promise<string | null> {
-  const word = raw.toLowerCase().replace(/[^a-z'-]/g, '')
+  const word = normalize(raw)
   if (!word) return null
   if (audioCache.has(word)) return audioCache.get(word)!
-  try {
-    const res = await fetch(
-      `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`,
-    )
-    if (!res.ok) {
-      if (res.status === 404) audioCache.set(word, null)
-      return null
-    }
-    const data = await res.json()
-    const phonetics: any[] = (Array.isArray(data) ? data : []).flatMap(
-      (e: any) => e?.phonetics || [],
-    )
-    const pick =
-      phonetics.find((p) => p?.audio && /-us\.mp3$/i.test(p.audio)) ||
-      phonetics.find((p) => p?.audio && /-uk\.mp3$/i.test(p.audio)) ||
-      phonetics.find((p) => p?.audio)
-    let url: string | null = pick?.audio || null
-    if (url && url.startsWith('//')) url = 'https:' + url
-    audioCache.set(word, url)
-    return url
-  } catch {
-    return null
-  }
+  const entries = await fetchEntry(word)
+  if (!entries) return null // transient/miss — uncached, so retry stays possible
+  const phonetics: any[] = entries.flatMap((e: any) => e?.phonetics || [])
+  const pick =
+    phonetics.find((p) => p?.audio && /-us\.mp3$/i.test(p.audio)) ||
+    phonetics.find((p) => p?.audio && /-uk\.mp3$/i.test(p.audio))
+  let url: string | null = pick?.audio || null
+  if (url && url.startsWith('//')) url = 'https:' + url
+  // Cache the result (incl. "no us/uk clip" → null) so replays skip straight to
+  // the neural voice instead of re-deriving.
+  audioCache.set(word, url)
+  return url
 }
 
 export async function lookupWord(raw: string): Promise<LookupResult | null> {
-  const word = raw.toLowerCase().replace(/[^a-z'-]/g, '')
+  const word = normalize(raw)
   if (!word) return null
   if (cache.has(word)) return cache.get(word)!
 
-  try {
-    const res = await fetch(
-      `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`,
-    )
-    if (!res.ok) {
-      // 404 = the word genuinely has no entry → cache the miss.
-      // Any other status (5xx, offline reachable-but-erroring) → do NOT cache,
-      // so a later retry (or reconnection) can still succeed.
-      if (res.status === 404) cache.set(word, null)
-      return null
-    }
-    const data = await res.json()
-    const entry = Array.isArray(data) ? data[0] : null
+  const entries = await fetchEntry(word)
+  if (!entries) return null // transient/miss — uncached (entryCache holds 404s)
+  {
+    const entry = entries[0]
     if (!entry) {
       cache.set(word, null)
       return null
@@ -78,8 +102,5 @@ export async function lookupWord(raw: string): Promise<LookupResult | null> {
     const result: LookupResult = { word: entry.word || word, phonetic, meanings }
     cache.set(word, result)
     return result
-  } catch {
-    // Network error / offline — do not cache, allow retry when back online.
-    return null
   }
 }

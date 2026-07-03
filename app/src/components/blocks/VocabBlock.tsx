@@ -67,7 +67,7 @@ export default function VocabBlock({
               <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
                 <div className="t-serif text-[48px] font-semibold leading-none text-fg">{card.word}</div>
                 <div className="flex items-center gap-2 text-fg-muted">
-                  <span className="font-mono text-h3">{card.ipa}</span>
+                  <span className="t-ipa text-h2">{card.ipa}</span>
                   <span className="text-sm italic text-fg-dim">{card.pos}</span>
                 </div>
                 <div className="mt-2 font-mono text-[10px] uppercase tracking-[0.12em] text-fg-dim">点击翻面看释义</div>
@@ -122,7 +122,7 @@ export default function VocabBlock({
                   <span className="text-h3 font-semibold text-fg">{w.word} <span className="text-meta font-normal italic text-fg-muted">{w.pos}</span></span>
                   <SpeakButton text={w.word} />
                 </div>
-                <div className="text-sm text-fg-muted">{w.ipa}</div>
+                <div className="t-ipa text-sm text-fg-muted">{w.ipa}</div>
                 <div className="mt-0.5 text-body text-fg-secondary">{w.meaning_zh}</div>
               </Segment>
             ))}

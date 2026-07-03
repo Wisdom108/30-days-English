@@ -120,11 +120,11 @@ export default function Dashboard() {
 
       {/* metric readout — number + segmented cell bar */}
       <div className="grid grid-cols-2 overflow-hidden rounded-xl border border-border sm:grid-cols-4 animate-in-up">
-        <MCell label="Progress" value={`${overall}%`} onClick={() => nav('/progress')}
+        <MCell label="Progress" value={overall} unit="%" onClick={() => nav('/progress')}
           bar={<Cells value={Math.round(overall / 10)} max={10} height={7} />} />
         <MCell label="Streak" value={streak} cls="border-l border-border"
           bar={<Cells value={Math.min(streak, 10)} max={10} height={7} accent={streak > 0 ? 'var(--color-red)' : undefined} />} />
-        <MCell label="Complete" value={`${completedDays.length}/${TOTAL_DAYS}`} onClick={() => nav('/progress')} cls="border-t border-border sm:border-t-0 sm:border-l"
+        <MCell label="Complete" value={completedDays.length} unit={`/${TOTAL_DAYS}`} onClick={() => nav('/progress')} cls="border-t border-border sm:border-t-0 sm:border-l"
           bar={<Cells value={Math.round((completedDays.length / TOTAL_DAYS) * 10)} max={10} height={7} />} />
         <MCell label="Due" value={due} red={due > 0} onClick={() => nav('/review')} cls="border-l border-t border-border sm:border-t-0"
           bar={<Cells value={Math.min(due, 10)} max={10} height={7} accent={due > 0 ? 'var(--color-red)' : undefined} />} />
@@ -266,13 +266,15 @@ export default function Dashboard() {
 function MCell({
   label,
   value,
+  unit,
   red,
   onClick,
   cls,
   bar,
 }: {
   label: string
-  value: React.ReactNode
+  value: React.ReactNode // the big Doto DIGITS
+  unit?: string // separator/unit ( / % ) — kept in mono, out of the dot-matrix
   red?: boolean
   onClick?: () => void
   cls?: string
@@ -289,7 +291,10 @@ function MCell({
       )}
     >
       <div className="label-nd">{label}</div>
-      <div className={cn('t-doto mt-2.5 text-[30px] font-semibold leading-none sm:text-[34px]', red ? 'text-red' : 'text-fg')}>{value}</div>
+      <div className={cn('mt-2.5 flex items-baseline gap-0.5 leading-none', red ? 'text-red' : 'text-fg')}>
+        <span className="t-doto text-[30px] font-semibold sm:text-[34px]">{value}</span>
+        {unit && <span className="t-num text-[15px] font-medium text-fg-muted">{unit}</span>}
+      </div>
       {bar && <div className="mt-3.5">{bar}</div>}
     </Tag>
   )

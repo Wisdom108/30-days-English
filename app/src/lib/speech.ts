@@ -32,7 +32,13 @@ function pickEnglishVoice(): SpeechSynthesisVoice | null {
   return preferred || voices[0] || null
 }
 
+// Bumped on every speak()/stopSpeaking(); a call whose async work resolves after
+// a newer tap bails instead of playing out of order on the shared audio element.
+let speakGen = 0
+
 export async function speak(text: string, rate = 1): Promise<void> {
+  const myGen = ++speakGen
+  const superseded = () => myGen !== speakGen
   const t = text.trim()
   const isWord = !!t && !/\s/.test(t) && /^[A-Za-z][A-Za-z'-]*$/.test(t)
 
@@ -42,6 +48,7 @@ export async function speak(text: string, rate = 1): Promise<void> {
   if (isWord) {
     try {
       const url = await wordAudio(t)
+      if (superseded()) return
       if (url) {
         await playUrl(url, rate)
         return
@@ -52,7 +59,7 @@ export async function speak(text: string, rate = 1): Promise<void> {
   }
 
   // Tier 1: Azure natural neural voice (fixes the robotic browser-TTS feel).
-  if (azureAvailable()) {
+  if (!superseded() && azureAvailable()) {
     try {
       await azureSpeak(text, rate)
       return
@@ -62,7 +69,7 @@ export async function speak(text: string, rate = 1): Promise<void> {
   }
   // Tier 2: Cloudflare Aura-2 neural voice (free, no key). Append a period to a
   // lone word so Aura gives it complete, standalone intonation.
-  if (cfVoiceAvailable()) {
+  if (!superseded() && cfVoiceAvailable()) {
     try {
       await cfSpeak(isWord ? `${t}.` : text, rate)
       return
@@ -70,6 +77,7 @@ export async function speak(text: string, rate = 1): Promise<void> {
       /* fall through */
     }
   }
+  if (superseded()) return
   return browserSpeak(text, rate)
 }
 
@@ -92,6 +100,7 @@ function browserSpeak(text: string, rate = 1): Promise<void> {
 }
 
 export function stopSpeaking() {
+  speakGen++ // invalidate any in-flight speak() so it won't start a late playback
   stopCfSpeak()
   if (browserTts()) window.speechSynthesis.cancel()
 }
