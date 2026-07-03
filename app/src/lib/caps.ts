@@ -12,6 +12,7 @@ export interface ServerCaps {
   realtime: boolean // OpenAI Realtime voice conversation (needs server-side OpenAI key)
   grokRealtime: boolean // xAI Grok native realtime voice (needs server-side xAI key)
   voiceAgent: boolean // Cloudflare Agents realtime voice tutor (Workers AI, free, no key)
+  payment: boolean // Stripe self-serve checkout (needs server-side Stripe key)
 }
 
 let caps: ServerCaps = {
@@ -21,10 +22,16 @@ let caps: ServerCaps = {
   realtime: false,
   grokRealtime: false,
   voiceAgent: features.worker,
+  payment: false,
 }
 
 export function serverCaps(): ServerCaps {
   return caps
+}
+
+/** True when the Worker has Stripe self-serve checkout configured. */
+export function paymentAvailable(): boolean {
+  return caps.payment
 }
 
 /** True when the Worker has the OpenAI Realtime voice path configured. */
@@ -56,6 +63,7 @@ export async function loadCaps(): Promise<ServerCaps> {
         realtime: !!d.features?.realtime,
         grokRealtime: !!d.features?.grokRealtime,
         voiceAgent: d.features?.voiceAgent ?? features.worker,
+        payment: !!d.features?.payment,
       }
     }
   } catch {

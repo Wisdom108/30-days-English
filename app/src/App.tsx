@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
-import { Home, RotateCcw, TrendingUp, BookOpen } from 'lucide-react'
+import { Home, RotateCcw, TrendingUp, BookOpen, Sparkles } from 'lucide-react'
 import Dashboard from './components/Dashboard'
 import DayView from './components/DayView'
 import Review from './components/Review'
 import Progress from './components/Progress'
+import AiHub from './components/AiHub'
 import { useApp } from './state'
+import { useAuth } from './auth'
 import { TOTAL_DAYS, getLesson } from './data/curriculum'
 import { dueCards } from './lib/srs'
 import { LogoMark } from './components/ui/brand'
@@ -44,17 +46,31 @@ function useScrolled() {
 const NAV = [
   { to: '/', end: true, icon: Home, label: 'HOME' },
   { to: 'today', icon: BookOpen, label: 'TODAY' },
+  { to: '/ai', icon: Sparkles, label: 'AI' },
   { to: '/review', icon: RotateCcw, label: 'REVIEW', badge: true },
   { to: '/progress', icon: TrendingUp, label: 'PROGRESS' },
 ]
 
 export default function App() {
   const { current, due } = useNav()
+  const { refresh } = useAuth()
   const nav = useNavigate()
   const loc = useLocation()
   const onDayRoute = loc.pathname.startsWith('/day/')
   const scrolled = useScrolled()
   useScrollTop()
+
+  // Returning from Stripe Checkout (success_url=/?pay=success): membership is
+  // granted by the webhook, which may land a beat after the redirect — refresh
+  // now and once more shortly, then clean the query off the URL.
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search)
+    if (p.get('pay') !== 'success') return
+    refresh()
+    const t = setTimeout(refresh, 2800)
+    window.history.replaceState({}, '', window.location.pathname + window.location.hash)
+    return () => clearTimeout(t)
+  }, [refresh])
 
   // Lesson context for the AI tutor — reflect the day being viewed, else today.
   const dayMatch = loc.pathname.match(/^\/day\/(\d+)/)
@@ -147,6 +163,7 @@ export default function App() {
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/day/:day" element={<DayView />} />
+            <Route path="/ai" element={<AiHub />} />
             <Route path="/review" element={<Review />} />
             <Route path="/progress" element={<Progress />} />
           </Routes>

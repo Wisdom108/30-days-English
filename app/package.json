@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@cloudflare/voice": "^0.3.3",
+    "@fontsource-variable/caveat": "^5.2.8",
     "@fontsource-variable/geist": "^5.2.9",
     "@fontsource-variable/geist-mono": "^5.2.8",
     "@fontsource/doto": "^5.2.10",

@@ -10,6 +10,7 @@ import {
 } from './membership'
 import { handleRealtimeToken } from './realtime'
 import { handleGrokToken } from './grok'
+import { handleCheckout, handleStripeWebhook, payEnabled } from './pay'
 // Re-export the voice-agent Durable Object so Wrangler registers the class.
 export { VoiceTutor } from './voiceAgent'
 import {
@@ -57,6 +58,13 @@ export interface Env {
   XAI_REALTIME_VOICE?: string // default eve
   // Cloudflare Agents voice tutor (realtime voice, all on Workers AI, no key).
   VoiceTutor: DurableObjectNamespace
+  // Stripe self-serve membership — OPTIONAL. Absent key → /pay/* answers 503 and
+  // /health payment:false; the app falls back to activation codes.
+  STRIPE_SECRET_KEY?: string // secret: wrangler secret put STRIPE_SECRET_KEY
+  STRIPE_WEBHOOK_SECRET?: string // secret: wrangler secret put STRIPE_WEBHOOK_SECRET
+  STRIPE_PRICE_MONTH?: string // Stripe Price ID for the monthly plan
+  STRIPE_PRICE_QUARTER?: string // Stripe Price ID for the quarterly plan
+  STRIPE_PRICE_YEAR?: string // Stripe Price ID for the yearly plan
 }
 
 interface Msg {
@@ -448,6 +456,7 @@ export default {
               voiceAgent: true, // Cloudflare Agents voice tutor (Workers AI, free)
               loginRequired: !!env.CF_ACCESS_TEAM_DOMAIN,
               membership: !!env.DB, // D1 accounts + activation codes + progress sync
+              payment: payEnabled(env), // Stripe self-serve checkout
             },
           },
           env,
@@ -468,6 +477,8 @@ export default {
       if (pathname === '/speech/stt' && req.method === 'POST') return handleStt(req, env)
       if (pathname === '/realtime/token' && req.method === 'POST') return handleRealtimeToken(req, env)
       if (pathname === '/grok/token' && req.method === 'POST') return handleGrokToken(req, env)
+      if (pathname === '/pay/checkout' && req.method === 'POST') return handleCheckout(req, env)
+      if (pathname === '/pay/webhook' && req.method === 'POST') return handleStripeWebhook(req, env)
       if (pathname.startsWith('/ai/') && req.method === 'POST') return handleAI(pathname, req, env)
       return json({ error: 'not found' }, env, 404)
     }

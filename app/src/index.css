@@ -1,9 +1,12 @@
 @import 'tailwindcss';
-/* Geist family — Vercel's technical-minimal typeface (the nullframe font):
-   one family, two cuts. Sans for content+UI, Mono for labels/data. Doto stays
-   as the single dot-matrix signature (large hero numerals only). */
+/* Type system for the "Ink & Paper" art direction:
+   · Geist Sans  — clean content + UI body (kept from the nullframe system).
+   · Geist Mono  — labels / tabular data.
+   · Doto        — the Nothing dot-matrix SIGNATURE, large numerals only (kept).
+   · Caveat      — hand-drawn ink accent for eyebrows, titles, marginalia. */
 @import '@fontsource-variable/geist';
 @import '@fontsource-variable/geist-mono';
+@import '@fontsource-variable/caveat';
 @import '@fontsource/doto/500.css';
 @import '@fontsource/doto/700.css';
 @import '@fontsource/doto/900.css';
@@ -16,54 +19,57 @@
    Token NAMES are stable (utilities app-wide depend on them); values retuned.
    ============================================================================ */
 @theme {
-  --color-bg: #000000;
-  --color-surface: #111113;        /* card face */
-  --color-surface-2: #0b0b0c;      /* inset / sharp segment (darker than card) */
-  --color-elevated: #1a1a1d;       /* raised / selected / popover */
-  --color-hover: #1e1e21;
+  /* ---- Ink & Paper palette: warm paper base, ink text, vermilion stamp ---- */
+  --color-bg: #efe7d6;             /* warm paper */
+  --color-surface: #f8f3e8;        /* card face — lighter cream */
+  --color-surface-2: #e7ddc9;      /* inset / segment (darker warm) */
+  --color-elevated: #fffdf6;       /* raised / selected / popover — brightest */
+  --color-hover: #ece2cf;
 
-  --color-border: #222222;
-  --color-border-soft: #191919;
-  --color-border-strong: #333333;
+  --color-border: #dccfb6;         /* soft tan rule */
+  --color-border-soft: #e7ddc9;
+  --color-border-strong: #c6b492;  /* stronger ink-tan */
 
-  --color-fg: #ffffff;             /* display / headings */
-  --color-fg-secondary: #b4b4b4;
-  --color-fg-muted: #8f8f8f;       /* labels / secondary text (AA on surface) */
-  --color-fg-dim: #666666;         /* placeholder / disabled ONLY */
+  --color-fg: #262019;             /* ink */
+  --color-fg-secondary: #554c3d;
+  --color-fg-muted: #837868;       /* labels / secondary (AA on paper) */
+  --color-fg-dim: #a89a80;         /* placeholder / disabled ONLY */
 
-  /* mono "ink" accent = white; brand-fg is black (for white buttons) */
-  --color-brand: #ffffff;
-  --color-brand-hover: #e8e8e8;
-  --color-brand-fg: #000000;
-  --color-accent-soft: rgba(255, 255, 255, 0.08);
+  /* primary = ink; brand-fg = paper (for dark ink buttons) */
+  --color-brand: #262019;
+  --color-brand-hover: #3b3327;
+  --color-brand-fg: #f6f0e1;
+  --color-accent-soft: rgba(38, 32, 25, 0.06);
 
-  /* Nothing red — appears rarely (current day, due, record, danger) */
-  --color-red: #d71921;
-  --color-red-soft: rgba(215, 25, 33, 0.14);
+  /* Vermilion — the red-ink stamp: current day, due, record, danger (used sparingly) */
+  --color-red: #cb3a24;
+  --color-red-soft: rgba(203, 58, 36, 0.12);
 
-  /* LIVE indicator (only status green — telemetry heartbeat, not UI accent) */
-  --color-live: #4a9e5c;
+  /* LIVE indicator (status green — heartbeat) */
+  --color-live: #3f9558;
 
-  --color-success: #ffffff;
-  --color-success-soft: rgba(255, 255, 255, 0.08);
-  --color-warning: #b4b4b4;
-  --color-warning-soft: rgba(255, 255, 255, 0.06);
-  --color-danger: #d71921;
-  --color-danger-soft: rgba(215, 25, 33, 0.14);
+  --color-success: #2f8a55;
+  --color-success-soft: rgba(47, 138, 85, 0.14);
+  --color-warning: #9a7526;
+  --color-warning-soft: rgba(154, 117, 38, 0.12);
+  --color-danger: #cb3a24;
+  --color-danger-soft: rgba(203, 58, 36, 0.12);
 
-  /* Phase colors (white→gray→red intensity arc) live in blocks.ts PHASE_INFO. */
+  /* Phase colors (intensity arc) live in blocks.ts PHASE_INFO. */
 
   --radius: 10px;
 
-  --shadow-rest: 0 0 0 1px rgba(255, 255, 255, 0.02);
-  --shadow-raised: 0 0 0 1px rgba(255, 255, 255, 0.08);
-  --shadow-popover: 0 24px 80px -12px rgba(0, 0, 0, 0.85);
-  --shadow-card: 0 0 0 1px rgba(255, 255, 255, 0.03);
+  /* warm, soft paper shadows (ink cast, not white rings) */
+  --shadow-rest: 0 1px 2px rgba(74, 58, 32, 0.06);
+  --shadow-raised: 0 4px 16px -6px rgba(74, 58, 32, 0.16);
+  --shadow-popover: 0 26px 64px -16px rgba(50, 38, 20, 0.34);
+  --shadow-card: 0 1px 2px rgba(74, 58, 32, 0.05), 0 12px 32px -20px rgba(74, 58, 32, 0.20);
 
   --font-sans: 'Geist Variable', -apple-system, BlinkMacSystemFont,
     'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
   --font-display: 'Doto', ui-monospace, monospace;
   --font-mono: 'Geist Mono Variable', ui-monospace, 'SFMono-Regular', monospace;
+  --font-hand: 'Caveat Variable', 'Comic Sans MS', cursive; /* hand-drawn ink accent */
 
   /* motion — slams and settles */
   --ease-out: cubic-bezier(0.4, 0, 0.2, 1);
@@ -102,9 +108,12 @@
   body {
     margin: 0;
     background-color: var(--color-bg);
-    /* Nothing dot-grid texture — the signature ambient structure */
-    background-image: radial-gradient(circle, #1a1a1a 1.1px, transparent 1.1px);
-    background-size: 16px 16px;
+    /* Paper grain (subtle fibrous noise) + a faint warm dot-grid — the Nothing
+       dot signature translated onto paper instead of black. */
+    background-image:
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='p'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23p)' opacity='0.05'/%3E%3C/svg%3E"),
+      radial-gradient(circle, rgba(140, 112, 66, 0.05) 1px, transparent 1px);
+    background-size: 160px 160px, 18px 18px;
     background-attachment: fixed;
     color: var(--color-fg);
     font-family: var(--font-sans);
@@ -118,8 +127,8 @@
   ::selection { background: var(--color-red); color: #fff; }
 
   ::-webkit-scrollbar { width: 8px; height: 8px; }
-  ::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 999px; }
-  ::-webkit-scrollbar-thumb:hover { background: var(--color-border-strong); }
+  ::-webkit-scrollbar-thumb { background: var(--color-border-strong); border-radius: 999px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--color-fg-muted); }
 }
 
 @layer utilities {
@@ -210,9 +219,9 @@
     position: absolute; width: 62vmax; height: 62vmax; border-radius: 9999px;
     filter: blur(70px); opacity: 0.5; will-change: transform;
   }
-  .ambient-blob.a { background: radial-gradient(circle, rgba(60,60,66,0.5), transparent 66%); top: -18%; left: -12%; animation: drift1 34s ease-in-out infinite; }
-  .ambient-blob.b { background: radial-gradient(circle, rgba(40,40,44,0.55), transparent 66%); bottom: -22%; right: -14%; animation: drift2 46s ease-in-out infinite; }
-  .ambient-blob.c { background: radial-gradient(circle, rgba(255,60,60,0.10), transparent 62%); top: 30%; left: 55%; animation: drift3 40s ease-in-out infinite; }
+  .ambient-blob.a { background: radial-gradient(circle, rgba(224,188,120,0.40), transparent 66%); top: -18%; left: -12%; animation: drift1 34s ease-in-out infinite; }
+  .ambient-blob.b { background: radial-gradient(circle, rgba(205,150,110,0.34), transparent 66%); bottom: -22%; right: -14%; animation: drift2 46s ease-in-out infinite; }
+  .ambient-blob.c { background: radial-gradient(circle, rgba(203,58,36,0.07), transparent 62%); top: 30%; left: 55%; animation: drift3 40s ease-in-out infinite; }
   @keyframes drift1 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(12%,16%) scale(1.12); } }
   @keyframes drift2 { 0%,100% { transform: translate(0,0) scale(1.05); } 50% { transform: translate(-14%,-10%) scale(1); } }
   @keyframes drift3 { 0%,100% { transform: translate(0,0); opacity: 0.10; } 50% { transform: translate(-18%,12%); opacity: 0.05; } }
@@ -227,7 +236,7 @@
 
   /* shared hero-card surface (listening orb / shadowing / vocab front) */
   .hero-card {
-    background: radial-gradient(120% 80% at 50% 0%, #17171a 0%, #0d0d0f 62%);
+    background: radial-gradient(120% 90% at 50% 0%, #fffdf6 0%, #f0e7d4 72%);
   }
 
   /* audio waveform bars (animate only while playing) */
@@ -239,6 +248,34 @@
   .flip-3d.flipped { transform: rotateY(180deg); }
   .flip-face { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
   .flip-back { transform: rotateY(180deg); }
+
+  /* ---- Hand-drawn ink accents — the "Ink & Paper" personality ---- */
+  .font-hand { font-family: var(--font-hand); font-weight: 600; letter-spacing: 0.01em; }
+
+  /* Wobbly hand-sketched frame — asymmetric radii read as a pen outline. Opt-in
+     on cards / callouts that want the drawn-by-hand look. */
+  .hand-frame { border: 1.5px solid var(--color-fg); border-radius: 14px 30px 16px 26px / 26px 14px 30px 16px; }
+  .hand-frame-soft { border: 1.5px solid var(--color-border-strong); border-radius: 18px 26px 14px 30px / 28px 16px 26px 14px; }
+
+  /* Red-pen underline — a hand-drawn vermilion stroke under a word or heading. */
+  .ink-underline {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 12' preserveAspectRatio='none'%3E%3Cpath d='M2,7 Q30,2 60,6 T118,5' stroke='%23cb3a24' stroke-width='2.6' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: 0 100%; background-size: 100% 0.42em; padding-bottom: 0.12em;
+  }
+
+  /* Wavy hand-drawn divider rule. */
+  .sketch-divider {
+    height: 8px; border: 0;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 8' preserveAspectRatio='none'%3E%3Cpath d='M0,4 Q20,0 40,4 T80,4 T120,4 T160,4 T200,4 T240,4' stroke='%23c6b492' stroke-width='1.6' fill='none'/%3E%3C/svg%3E") repeat-x center / 240px 8px;
+  }
+
+  /* Playful hover jiggle for interactive art elements. */
+  .wiggle:hover { animation: wiggle 0.42s var(--ease-out); }
+  @keyframes wiggle { 0%,100% { transform: rotate(0); } 25% { transform: rotate(-1.6deg); } 75% { transform: rotate(1.6deg); } }
+
+  /* Ink stroke growing in (decorative reveal). */
+  .ink-grow { animation: inkGrow 0.5s var(--ease-out) both; transform-origin: left center; }
+  @keyframes inkGrow { from { transform: scaleX(0); opacity: 0; } to { transform: scaleX(1); opacity: 1; } }
 }
 
 @media (prefers-reduced-motion: reduce) {

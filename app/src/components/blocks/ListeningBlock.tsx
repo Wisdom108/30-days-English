@@ -129,7 +129,7 @@ export default function ListeningBlock({ lesson }: { lesson: DayLesson }) {
           {/* current sentence — LARGEST thing on screen, tap a word to hear it */}
           <p key={si} className="animate-in-up mt-5 px-1 text-left">
             {isDialogue && curSpeaker && (
-              <span className={cn('mb-2 inline-grid h-6 w-6 place-items-center rounded-full text-[11px] font-bold', curKey === 'a' ? 'bg-fg text-black' : 'bg-red text-white')}>
+              <span className={cn('mb-2 inline-grid h-6 w-6 place-items-center rounded-full text-[11px] font-bold', curKey === 'a' ? 'bg-fg text-bg' : 'bg-red text-white')}>
                 {curSpeaker}
               </span>
             )}
@@ -174,7 +174,7 @@ export default function ListeningBlock({ lesson }: { lesson: DayLesson }) {
 
         {dictDone ? (
           <div className="flex items-center gap-3 rounded-xl border border-border bg-surface px-5 py-5">
-            <span className="grid h-9 w-9 place-items-center rounded-full bg-fg text-black"><Check size={18} strokeWidth={3} /></span>
+            <span className="grid h-9 w-9 place-items-center rounded-full bg-fg text-bg"><Check size={18} strokeWidth={3} /></span>
             <div className="text-sm text-fg-secondary">听写完成 · 共 <span className="t-tab">{total}</span> 句</div>
             <Button variant="ghost" size="sm" className="ml-auto" onClick={() => { setDi(0); setAns(''); setResult(null) }}>重做</Button>
           </div>

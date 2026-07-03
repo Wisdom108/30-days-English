@@ -35,6 +35,10 @@ export const accountLogout = () => req<unknown>('POST', '/auth/logout').catch(()
 export const activateCode = (code: string) =>
   req<{ user: AccountUser }>('POST', '/auth/activate', { code }).then((r) => r.user)
 
+/** Start a Stripe Checkout for a membership plan → returns the URL to redirect to. */
+export const startCheckout = (plan: 'month' | 'quarter' | 'year') =>
+  req<{ url: string }>('POST', '/pay/checkout', { plan }).then((r) => r.url)
+
 // ---- Progress cloud sync -----------------------------------------------
 
 export const pullProgress = () =>

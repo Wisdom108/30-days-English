@@ -11,12 +11,23 @@ import { cn } from '../lib/utils'
 // CF tutor, driven by the Grok WebSocket/PCM engine.
 type Turn = { role: 'user' | 'ai'; text: string }
 
+// Character presets (mirror the Worker's PERSONAS). Picking one changes the
+// tutor's voice AND personality, so it feels like a distinct real person.
+const CHARACTERS = [
+  { key: 'emma', name: 'Emma', blurb: '温柔 · 咖啡馆朋友' },
+  { key: 'aria', name: 'Aria', blurb: '元气 · 活力搭子' },
+  { key: 'sam', name: 'Sam', blurb: '随和 · 哥们儿' },
+  { key: 'rex', name: 'Rex', blurb: '沉稳 · 私教导师' },
+  { key: 'leo', name: 'Leo', blurb: '热血 · 陪练教练' },
+] as const
+
 export default function GrokLiveTutor({ lesson }: { lesson: LessonCtx }) {
   const [status, setStatus] = useState<'idle' | GrokStatus>('idle')
   const [turns, setTurns] = useState<Turn[]>([])
   const [muted, setMuted] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [connecting, setConnecting] = useState(false)
+  const [persona, setPersona] = useState<string>('emma')
   const sessionRef = useRef<GrokSession | null>(null)
   const endRef = useRef<HTMLDivElement>(null)
 
@@ -29,6 +40,7 @@ export default function GrokLiveTutor({ lesson }: { lesson: LessonCtx }) {
     try {
       sessionRef.current = await startGrok({
         lesson,
+        persona,
         onStatus: (s) => setStatus(s),
         onUserText: (t) => t && setTurns((prev) => upsert(prev, 'user', t)),
         onAiText: (t, _done) => t && setTurns((prev) => upsert(prev, 'ai', t)),
@@ -71,6 +83,28 @@ export default function GrokLiveTutor({ lesson }: { lesson: LessonCtx }) {
               </div>
             ))}
             <div ref={endRef} />
+          </div>
+        )}
+
+        {/* character picker — choose who you talk to (before the call) */}
+        {status === 'idle' && (
+          <div className="mb-4 w-full">
+            <div className="label-nd mb-2 text-center">选个搭档</div>
+            <div className="flex flex-wrap justify-center gap-2">
+              {CHARACTERS.map((c) => (
+                <button
+                  key={c.key}
+                  onClick={() => setPersona(c.key)}
+                  className={cn(
+                    'press rounded-full border px-3 py-1.5 text-sm transition-colors',
+                    persona === c.key ? 'border-fg bg-elevated text-fg' : 'border-border text-fg-muted hover:text-fg',
+                  )}
+                >
+                  <span className="font-medium">{c.name}</span>
+                  <span className="ml-1.5 text-meta text-fg-dim">{c.blurb}</span>
+                </button>
+              ))}
+            </div>
           </div>
         )}
 

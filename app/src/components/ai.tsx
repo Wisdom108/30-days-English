@@ -4,7 +4,8 @@ import { Sparkles, LogIn, LogOut, Send, Bot, Loader2, KeyRound, X, Ticket } from
 import { useAuth } from '../auth'
 import { features } from '../config'
 import { accessLogin, getIdentity, logout, setPasscode } from '../lib/access'
-import { login as accountLogin, register as accountRegister, accountLogout, activateCode } from '../lib/account'
+import { login as accountLogin, register as accountRegister, accountLogout, activateCode, startCheckout } from '../lib/account'
+import { paymentAvailable } from '../lib/caps'
 import { useApp } from '../state'
 import { defaultState } from '../lib/storage'
 import { aiChat, aiTutor, AIError, type ChatMsg, type LessonCtx } from '../lib/ai'
@@ -119,6 +120,20 @@ function AccountSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o:
     }
   }
 
+  const payAvail = paymentAvailable()
+  const buy = async (plan: 'month' | 'quarter' | 'year') => {
+    if (busy) return
+    setBusy(true)
+    setCodeMsg(null)
+    try {
+      const url = await startCheckout(plan)
+      window.location.href = url // → Stripe Checkout (page shows the real price)
+    } catch (e) {
+      setCodeMsg(e instanceof Error ? e.message : '发起支付失败，请重试')
+      setBusy(false)
+    }
+  }
+
   const doLogout = async () => {
     await accountLogout()
     // Also drop any passcode fallback identity (a worker with BOTH D1 and
@@ -150,6 +165,36 @@ function AccountSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o:
                 </div>
               </div>
               {user.member && <Badge variant="red">MEMBER</Badge>}
+            </div>
+
+            {/* open / renew membership — Stripe self-serve when configured */}
+            <div className="rounded-xl border border-border bg-surface-2 p-4">
+              <div className="label-nd mb-2 flex items-center gap-1.5"><Sparkles size={12} /> {user.member ? '续费会员' : '开通会员'}</div>
+              <p className="mb-3 text-sm text-fg-muted">{UNLOCK_COPY}</p>
+              {payAvail ? (
+                <>
+                  <div className="grid grid-cols-3 gap-2">
+                    {([
+                      ['month', '月度', '尝鲜'],
+                      ['quarter', '季度', '进阶'],
+                      ['year', '年度', '最超值'],
+                    ] as const).map(([key, name, note]) => (
+                      <button
+                        key={key}
+                        onClick={() => buy(key)}
+                        disabled={busy}
+                        className="press hand-frame-soft bg-surface p-3 text-center transition-colors hover:border-fg disabled:opacity-50"
+                      >
+                        <div className="text-h3 font-semibold text-fg">{name}</div>
+                        <div className="mt-0.5 text-meta text-fg-muted">{note}</div>
+                      </button>
+                    ))}
+                  </div>
+                  <p className="mt-2 text-meta text-fg-dim">价格与支付以结算页为准 · 安全支付由 Stripe 提供</p>
+                </>
+              ) : (
+                <p className="text-sm text-fg-dim">在线支付即将开放 —— 现可用下方激活码开通。</p>
+              )}
             </div>
 
             {/* activation code */}

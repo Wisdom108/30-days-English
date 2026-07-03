@@ -165,7 +165,7 @@ export default function DayView() {
               >
                 <BlockIcon k={b.key} size={17} />
                 {isDone && (
-                  <span className="animate-slam absolute -right-1 -top-1 grid h-[15px] w-[15px] place-items-center rounded-full bg-fg text-black">
+                  <span className="animate-slam absolute -right-1 -top-1 grid h-[15px] w-[15px] place-items-center rounded-full bg-fg text-bg">
                     <Check size={9} strokeWidth={3.5} />
                   </span>
                 )}
@@ -196,7 +196,7 @@ export default function DayView() {
 
       {/* persistent advance dock — one primary CTA */}
       <div className="fixed inset-x-0 bottom-0 z-30 mx-auto max-w-[560px] px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-4"
-        style={{ background: 'linear-gradient(to top, #000 55%, transparent)' }}>
+        style={{ background: 'linear-gradient(to top, var(--color-bg) 55%, transparent)' }}>
         <Button size="lg" className="h-14 w-full rounded-xl text-base" onClick={dockAction}>
           {/* keyed by done-state so the 完成X → 下一步 label change is perceived */}
           <span key={String(activeDone)} className="animate-in-up flex items-center gap-2">

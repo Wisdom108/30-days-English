@@ -20,6 +20,7 @@ export interface GrokSession {
 }
 interface StartOpts {
   lesson: LessonCtx
+  persona?: string // character preset key (emma/aria/rex/leo/sam) — picks the voice + tone
   onStatus: (s: GrokStatus) => void
   onUserText: (t: string) => void
   onAiText: (t: string, done: boolean) => void
@@ -58,7 +59,7 @@ function base64ToF32(b64: string): Float32Array {
 }
 
 export async function startGrok(opts: StartOpts): Promise<GrokSession> {
-  const { lesson, onStatus, onUserText, onAiText, onError } = opts
+  const { lesson, persona, onStatus, onUserText, onAiText, onError } = opts
   onStatus('connecting')
 
   // 1. mint an ephemeral token via our Worker.
@@ -66,7 +67,7 @@ export async function startGrok(opts: StartOpts): Promise<GrokSession> {
     method: 'POST',
     credentials: 'include',
     headers: { 'content-type': 'application/json', ...authHeaders() },
-    body: JSON.stringify({ lesson }),
+    body: JSON.stringify({ lesson, persona }),
   })
   const data = (await res.json().catch(() => ({}))) as {
     token?: string
@@ -191,11 +192,18 @@ export async function startGrok(opts: StartOpts): Promise<GrokSession> {
   const stop = () => {
     if (stopped) return
     stopped = true
+    try { if (proc) proc.onaudioprocess = null } catch { /* ignore */ }
     try { proc?.disconnect() } catch { /* ignore */ }
-    ms?.getTracks().forEach((t) => t.stop())
+    // Release the mic FIRST: stopping the audio tracks drops the OS session out
+    // of record/play-and-record mode and hands the output route back to ordinary
+    // playback (speechSynthesis + <audio>). Leaving it open is what silences the
+    // rest of the app's TTS after a realtime call ends.
+    ms?.getAudioTracks().forEach((t) => { t.enabled = false; try { t.stop() } catch { /* ignore */ } })
+    ms?.getTracks().forEach((t) => { try { t.stop() } catch { /* ignore */ } })
     flushPlayback()
-    try { ctx.close() } catch { /* ignore */ }
     try { ws.close() } catch { /* ignore */ }
+    // Close the capture context last (it returns a promise; swallow rejections).
+    ctx.close().catch(() => { /* already closed */ })
     onStatus('closed')
   }
   const mute = (m: boolean) => {

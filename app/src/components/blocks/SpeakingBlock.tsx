@@ -171,12 +171,17 @@ export default function SpeakingBlock({ lesson }: { lesson: DayLesson }) {
         <p className="mt-1.5 text-meta text-fg-muted">录下自己的回答，对比模仿。坚持"每天开口说"是流利的关键。</p>
       </Callout>
 
-      {/* AI partner — pick provider: free CF realtime (default) or Grok native realtime */}
-      <Collapse label="AI 陪练 · 实时语音" hint="和 AI 老师实时语音对话 · 可随时打断 · 边说边纠错">
-        <div className="p-4">
-          <AiPartner lesson={ctxOf(lesson)} scenario={scenario} />
+      {/* AI partner — first-class, always visible (no longer buried in a fold) */}
+      <div className="rounded-xl border border-border-strong bg-surface p-4">
+        <div className="mb-3 flex items-center gap-2">
+          <Sparkles size={15} className="text-fg" />
+          <span className="label-nd">AI 陪练 · 实时语音</span>
+          <span className="ml-auto flex items-center gap-1 text-meta text-fg-muted">
+            <span className="live-dot h-1.5 w-1.5 rounded-full bg-live" />可随时打断
+          </span>
         </div>
-      </Collapse>
+        <AiPartner lesson={ctxOf(lesson)} scenario={scenario} />
+      </div>
 
       {/* dialogue — two distinct voices so A/B sound like two people */}
       <Collapse label="情景对话" hint={s.miniDialogue[0]?.line}>
@@ -200,7 +205,8 @@ export default function SpeakingBlock({ lesson }: { lesson: DayLesson }) {
 // AI conversation partner. When the Worker has a Grok key, let the learner pick
 // between the FREE Cloudflare tutor and Grok's native realtime (paid). Otherwise
 // fall back: CF Agents voice > OpenAI Realtime > CF turn-loop > text.
-function AiPartner({ lesson, scenario }: { lesson: LessonCtx; scenario?: string }) {
+// Exported so the dedicated AI hub page can feature it as a first-class citizen.
+export function AiPartner({ lesson, scenario }: { lesson: LessonCtx; scenario?: string }) {
   const cfAgent = voiceAgentAvailable()
   const grok = grokRealtimeAvailable()
   const openai = realtimeAvailable()
