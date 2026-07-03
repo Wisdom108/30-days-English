@@ -35,28 +35,53 @@ export function ttsSupported(): boolean {
 // white-screen the app at startup (warmUpVoices runs before React mounts).
 const browserTts = () => typeof window !== 'undefined' && 'speechSynthesis' in window
 
+// Two voices so A/B dialogue sounds like two people, not one actor.
+export type VoiceKey = 'a' | 'b'
 let cachedVoice: SpeechSynthesisVoice | null = null
+let cachedVoice2: SpeechSynthesisVoice | null = null
+
+const voiceScore = (v: SpeechSynthesisVoice) => {
+  const n = v.name.toLowerCase()
+  let s = 0
+  if (/en-us/i.test(v.lang)) s += 3
+  else if (/en-gb/i.test(v.lang)) s += 1
+  if (/siri|neural|natural|premium|enhanced/.test(n)) s += 6
+  if (/google|microsoft/.test(n)) s += 3
+  if (/samantha|aaron|nicky|evan|ava|allison|joelle/.test(n)) s += 4 // good default iOS voices
+  if (v.localService) s += 1 // on-device = instant, no network hiccup
+  return s
+}
+// Rough gender guess from the voice name (best-effort; only used to CONTRAST the
+// two dialogue voices, never surfaced to the user).
+const femaleish = /samantha|ava|allison|susan|karen|moira|tessa|fiona|serena|nicky|joelle|zoe|female|woman/i
+const maleish = /aaron|fred|daniel|tom|alex|arthur|oliver|rishi|male|man/i
+const genderOf = (v: SpeechSynthesisVoice): 'f' | 'm' | '?' =>
+  femaleish.test(v.name) ? 'f' : maleish.test(v.name) ? 'm' : '?'
+
+function sortedEnVoices(): SpeechSynthesisVoice[] {
+  if (!browserTts()) return []
+  const voices = window.speechSynthesis.getVoices()
+  if (!voices.length) return []
+  const en = voices.filter((v) => /^en(-|_|$)/i.test(v.lang))
+  return [...(en.length ? en : voices)].sort((a, b) => voiceScore(b) - voiceScore(a))
+}
 
 function pickEnglishVoice(): SpeechSynthesisVoice | null {
-  if (!browserTts()) return null
-  const voices = window.speechSynthesis.getVoices()
-  if (!voices.length) return null
-  const en = voices.filter((v) => /^en(-|_|$)/i.test(v.lang))
-  const pool = en.length ? en : voices
-  // Score for the most natural available voice: iOS/macOS enhanced/premium and
-  // Siri voices, Google/Microsoft Natural, then any en-US. Higher = better.
-  const score = (v: SpeechSynthesisVoice) => {
-    const n = v.name.toLowerCase()
-    let s = 0
-    if (/en-us/i.test(v.lang)) s += 3
-    else if (/en-gb/i.test(v.lang)) s += 1
-    if (/siri|neural|natural|premium|enhanced/.test(n)) s += 6
-    if (/google|microsoft/.test(n)) s += 3
-    if (/samantha|aaron|nicky|evan|ava|allison|joelle/.test(n)) s += 4 // good default iOS voices
-    if (v.localService) s += 1 // on-device = instant, no network hiccup
-    return s
-  }
-  return [...pool].sort((a, b) => score(b) - score(a))[0] || null
+  return sortedEnVoices()[0] || null
+}
+
+// A second, contrasting voice for speaker B — prefer the best voice of the
+// OPPOSITE gender guess; fall back to any other voice, then to the primary (in
+// which case browserSpeak lowers the pitch so it still sounds like a 2nd person).
+function pickSecondaryVoice(primary: SpeechSynthesisVoice | null): SpeechSynthesisVoice | null {
+  const sorted = sortedEnVoices()
+  if (!primary) return sorted[1] || sorted[0] || null
+  const want = genderOf(primary) === 'f' ? 'm' : 'f'
+  return (
+    sorted.find((v) => v.name !== primary.name && genderOf(v) === want) ||
+    sorted.find((v) => v.name !== primary.name) ||
+    primary
+  )
 }
 
 // Bumped on every speak()/stopSpeaking(); a call whose async work resolves after
@@ -64,8 +89,10 @@ function pickEnglishVoice(): SpeechSynthesisVoice | null {
 let speakGen = 0
 
 /** Speak `text`. `onStart` fires when sound actually begins (loading → playing
- *  UI). Resolves when playback finishes (or is interrupted/superseded). */
-export async function speak(text: string, rate = 1, onStart?: () => void): Promise<void> {
+ *  UI). `voiceKey` selects speaker A vs B so dialogue sounds like two people
+ *  (system voice only — HD stays single-voice). Resolves when playback finishes
+ *  (or is interrupted/superseded). */
+export async function speak(text: string, rate = 1, onStart?: () => void, voiceKey?: VoiceKey): Promise<void> {
   const myGen = ++speakGen
   const superseded = () => myGen !== speakGen
   const t = text.trim()
@@ -73,7 +100,7 @@ export async function speak(text: string, rate = 1, onStart?: () => void): Promi
   const hd = getVoiceMode() === 'hd' && hdVoiceAvailable()
 
   // SYSTEM mode (default): the phone voice, instantly. No network, no login.
-  if (!hd) return browserSpeak(text, rate, onStart)
+  if (!hd) return browserSpeak(text, rate, onStart, voiceKey)
 
   // HD mode: natural neural voices (slower). Single words prefer a real HUMAN
   // recording (neural TTS renders a lone word with trailing intonation — it
@@ -136,7 +163,7 @@ export function prefetchSpeak(text: string): void {
   if (!azureAvailable()) prefetchTts(t)
 }
 
-function browserSpeak(text: string, rate = 1, onStart?: () => void): Promise<void> {
+function browserSpeak(text: string, rate = 1, onStart?: () => void, voiceKey?: VoiceKey): Promise<void> {
   return new Promise((resolve) => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
       resolve()
@@ -145,9 +172,15 @@ function browserSpeak(text: string, rate = 1, onStart?: () => void): Promise<voi
     window.speechSynthesis.cancel()
     const u = new SpeechSynthesisUtterance(text)
     if (!cachedVoice) cachedVoice = pickEnglishVoice()
-    if (cachedVoice) u.voice = cachedVoice
-    u.lang = cachedVoice?.lang || 'en-US'
+    if (!cachedVoice2) cachedVoice2 = pickSecondaryVoice(cachedVoice)
+    const isB = voiceKey === 'b'
+    const v = isB ? cachedVoice2 || cachedVoice : cachedVoice
+    if (v) u.voice = v
+    u.lang = v?.lang || 'en-US'
     u.rate = rate
+    // Lower B's pitch — guarantees a distinct 2nd speaker even if only one system
+    // voice exists (so single-voice devices still get an A/B contrast).
+    u.pitch = isB ? 0.82 : 1.0
     u.onstart = () => onStart?.()
     u.onend = () => resolve()
     u.onerror = () => resolve()
@@ -166,6 +199,7 @@ export function warmUpVoices() {
   if (!browserTts()) return
   const load = () => {
     cachedVoice = pickEnglishVoice()
+    cachedVoice2 = pickSecondaryVoice(cachedVoice)
   }
   load()
   window.speechSynthesis.onvoiceschanged = load

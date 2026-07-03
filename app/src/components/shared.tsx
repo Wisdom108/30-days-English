@@ -1,6 +1,6 @@
-import { useEffect, useState, type ReactNode } from 'react'
-import { Volume2, Loader2, Rabbit, ChevronDown } from 'lucide-react'
-import { speak, stopSpeaking, ttsSupported } from '../lib/speech'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { Volume2, Loader2, Rabbit, ChevronDown, Play, Square } from 'lucide-react'
+import { speak, stopSpeaking, ttsSupported, type VoiceKey } from '../lib/speech'
 import { lookupWord, type LookupResult } from '../lib/dictionary'
 import type { GlossaryItem } from '../types'
 import { cn } from '../lib/utils'
@@ -47,11 +47,13 @@ export function SpeakButton({
   text,
   slow = false,
   rate = 1,
+  voiceKey,
   className,
 }: {
   text: string
   slow?: boolean
   rate?: number
+  voiceKey?: VoiceKey // 'a' | 'b' — distinct voice for dialogue speakers
   className?: string
 }) {
   const [phase, setPhase] = useState<'idle' | 'loading' | 'playing'>('idle')
@@ -74,7 +76,7 @@ export function SpeakButton({
           return
         }
         setPhase('loading')
-        await speak(text, slow ? 0.7 : rate, () => setPhase('playing'))
+        await speak(text, slow ? 0.7 : rate, () => setPhase('playing'), voiceKey)
         setPhase('idle')
       }}
     >
@@ -275,4 +277,62 @@ export function QAItem({ q, a }: { q: string; a: string }) {
 // ---- Wrapper that groups rows into a sharp hairline-bordered segment ----
 export function RowGroup({ children }: { children: React.ReactNode }) {
   return <div className="overflow-hidden rounded-sm border border-border bg-surface-2">{children}</div>
+}
+
+// ---- Two-voice dialogue player — plays A/B lines with DISTINCT voices so a
+// conversation sounds like two people, and highlights the line being spoken.
+export function DialoguePlayer({ lines }: { lines: { speaker: string; line: string }[] }) {
+  const [playing, setPlaying] = useState(false)
+  const [active, setActive] = useState(-1)
+  const runningRef = useRef(false)
+
+  // Map each distinct speaker to a voice: 1st speaker → A, 2nd → B, alternating.
+  const speakers = Array.from(new Set(lines.map((l) => l.speaker)))
+  const keyOf = (sp: string): VoiceKey => (speakers.indexOf(sp) % 2 === 0 ? 'a' : 'b')
+
+  // Stop narration if the block unmounts mid-play.
+  useEffect(() => () => { runningRef.current = false; stopSpeaking() }, [])
+
+  const stop = () => { runningRef.current = false; stopSpeaking(); setPlaying(false); setActive(-1) }
+  const playAll = async () => {
+    if (runningRef.current) { stop(); return }
+    runningRef.current = true
+    setPlaying(true)
+    for (let i = 0; i < lines.length && runningRef.current; i++) {
+      setActive(i)
+      await speak(lines[i].line, 1, undefined, keyOf(lines[i].speaker))
+    }
+    runningRef.current = false
+    setPlaying(false)
+    setActive(-1)
+  }
+
+  return (
+    <div className="space-y-2">
+      <RowGroup>
+        {lines.map((d, i) => (
+          <div
+            key={i}
+            className={cn(
+              'flex items-start gap-2.5 px-3.5 py-2.5 transition-colors',
+              i > 0 && 'border-t border-border-soft',
+              active === i ? 'bg-accent-soft' : 'hover:bg-hover',
+            )}
+          >
+            <span className={cn('mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full text-[10px] font-bold', keyOf(d.speaker) === 'a' ? 'bg-fg text-black' : 'bg-red text-white')}>
+              {d.speaker}
+            </span>
+            <span className="flex-1 text-body text-fg-secondary">{d.line}</span>
+            <SpeakButton text={d.line} voiceKey={keyOf(d.speaker)} />
+          </div>
+        ))}
+      </RowGroup>
+      <button
+        onClick={playAll}
+        className={cn('press inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-sm text-fg-secondary transition-colors hover:text-fg', RING)}
+      >
+        {playing ? <><Square size={13} /> 停止</> : <><Play size={14} /> 播放对话 · 双人配音</>}
+      </button>
+    </div>
+  )
 }

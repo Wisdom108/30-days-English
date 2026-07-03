@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Play, Pause, Check } from 'lucide-react'
 import type { DayLesson } from '../../types'
-import { prefetchSpeak, speak, stopSpeaking } from '../../lib/speech'
+import { prefetchSpeak, speak, stopSpeaking, type VoiceKey } from '../../lib/speech'
 import { QAItem, RowGroup, BlockHead, SpeakButton } from '../shared'
 import { Button, Collapse, Stepper } from '../ui'
 import { cn } from '../../lib/utils'
@@ -39,10 +39,25 @@ export default function ListeningBlock({ lesson }: { lesson: DayLesson }) {
   const [slow, setSlow] = useState(false)
   const rate = slow ? 0.7 : 1
   const playingRef = useRef(false)
-  const cur = sentences[si] ?? l.script
+
+  // Dialogue scripts are "A: …\nB: …". Carry the speaker across the sentence
+  // splits (only the turn's first sentence keeps the prefix) so each line plays
+  // in that speaker's voice, with the "A:"/"B:" stripped from display + TTS.
+  const speakersSeen: string[] = []
+  let carry: string | null = null
+  const meta = sentences.map((s) => {
+    const m = s.match(/^\s*([A-Za-z])\s*[:：]\s*([\s\S]*)$/)
+    if (m) { carry = m[1].toUpperCase(); if (!speakersSeen.includes(carry)) speakersSeen.push(carry) }
+    const key: VoiceKey | undefined = carry ? (speakersSeen.indexOf(carry) % 2 === 0 ? 'a' : 'b') : undefined
+    return { speaker: carry, clean: (m ? m[2] : s).trim(), key }
+  })
+  const isDialogue = speakersSeen.length >= 2
+  const curText = meta[si]?.clean ?? l.script
+  const curKey = meta[si]?.key
+  const curSpeaker = meta[si]?.speaker
 
   // Warm the current sentence's audio as it appears — replay taps are instant.
-  useEffect(() => { prefetchSpeak(cur) }, [cur])
+  useEffect(() => { prefetchSpeak(curText) }, [curText])
 
   const [di, setDi] = useState(0)
   const [ans, setAns] = useState('')
@@ -63,8 +78,8 @@ export default function ListeningBlock({ lesson }: { lesson: DayLesson }) {
     setPlaying(true)
     for (let i = si; i < sentences.length && playingRef.current; i++) {
       setSi(i)
-      if (i + 1 < sentences.length) prefetchSpeak(sentences[i + 1]) // warm the next line
-      await speak(sentences[i], rate)
+      if (i + 1 < sentences.length) prefetchSpeak(meta[i + 1].clean) // warm the next line
+      await speak(meta[i].clean, rate, undefined, meta[i].key) // A/B voice
     }
     playingRef.current = false
     setPlaying(false)
@@ -72,7 +87,7 @@ export default function ListeningBlock({ lesson }: { lesson: DayLesson }) {
   // Stepping / word-tapping is a manual choice → stop auto-play first so the
   // loop doesn't override the user's sentence or skip ahead.
   const step = (d: number) => { if (playingRef.current) stopPlay(); setSi((p) => Math.min(Math.max(p + d, 0), sentences.length - 1)) }
-  const sayWord = (w: string) => { if (playingRef.current) stopPlay(); speak(w, rate) }
+  const sayWord = (w: string) => { if (playingRef.current) stopPlay(); speak(w, rate, undefined, curKey) }
 
   const dict = l.dictation[di]
   const total = l.dictation.length
@@ -86,8 +101,8 @@ export default function ListeningBlock({ lesson }: { lesson: DayLesson }) {
   // which used to eject focus on every advance).
   useEffect(() => { if (!dictDone) inputRef.current?.focus() }, [di, dictDone])
 
-  // tappable words in the current sentence
-  const words = cur.split(/(\s+)/)
+  // tappable words in the current sentence (prefix stripped)
+  const words = curText.split(/(\s+)/)
 
   return (
     <div className="space-y-4">
@@ -113,7 +128,12 @@ export default function ListeningBlock({ lesson }: { lesson: DayLesson }) {
 
           {/* current sentence — LARGEST thing on screen, tap a word to hear it */}
           <p key={si} className="animate-in-up mt-5 px-1 text-left">
-            <span className="text-h1 font-semibold leading-[1.5] text-fg">
+            {isDialogue && curSpeaker && (
+              <span className={cn('mb-2 inline-grid h-6 w-6 place-items-center rounded-full text-[11px] font-bold', curKey === 'a' ? 'bg-fg text-black' : 'bg-red text-white')}>
+                {curSpeaker}
+              </span>
+            )}
+            <span className="block text-h1 font-semibold leading-[1.5] text-fg">
               {words.map((w, i) => {
                 if (/^\s+$/.test(w)) return w
                 const clean = w.replace(/[^A-Za-z'-]/g, '')

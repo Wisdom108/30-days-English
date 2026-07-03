@@ -6,9 +6,10 @@ import { azureAvailable, azureAssess, type PronScore } from '../../lib/azureSpee
 import { cfVoiceAvailable, cfRecordAndTranscribe, stopCfRecording } from '../../lib/cfSpeech'
 import { aiCoach, AIError, type LessonCtx } from '../../lib/ai'
 import { realtimeAvailable } from '../../lib/caps'
-import { SpeakButton, RowGroup, BlockHead } from '../shared'
+import { SpeakButton, BlockHead, DialoguePlayer } from '../shared'
 import { AiGate, ConversationPanel } from '../ai'
 import LiveTutor from '../LiveTutor'
+import VoiceLoop from '../VoiceLoop'
 import { Button, Callout, Collapse, Stepper } from '../ui'
 import { cn } from '../../lib/utils'
 
@@ -154,6 +155,7 @@ export default function SpeakingBlock({ lesson }: { lesson: DayLesson }) {
     ? `${lesson.theme} — e.g. ${s.miniDialogue.map((d) => d.line).slice(0, 3).join(' / ')}`
     : lesson.theme
   const realtime = realtimeAvailable()
+  const voiceChat = !realtime && cfVoiceAvailable() // free Whisper→Llama→Aura loop
 
   return (
     <div className="space-y-4">
@@ -169,10 +171,17 @@ export default function SpeakingBlock({ lesson }: { lesson: DayLesson }) {
         <p className="mt-1.5 text-meta text-fg-muted">录下自己的回答，对比模仿。坚持"每天开口说"是流利的关键。</p>
       </Callout>
 
-      {/* AI partner — live voice when the Worker has OpenAI Realtime, else text chat */}
-      <Collapse label="AI 陪练" hint={realtime ? '和 AI 老师实时语音对话 · 边说边纠错' : '和 AI 用今天的情景聊，实时纠错'}>
+      {/* AI partner — realtime voice (OpenAI) > free voice loop (CF) > text chat */}
+      <Collapse
+        label="AI 陪练"
+        hint={realtime ? '和 AI 老师实时语音对话 · 边说边纠错' : voiceChat ? '点麦克风，用英文和 AI 老师对话' : '和 AI 用今天的情景聊，实时纠错'}
+      >
         {realtime ? (
           <LiveTutor lesson={ctxOf(lesson)} />
+        ) : voiceChat ? (
+          <div className="p-4">
+            <VoiceLoop lesson={ctxOf(lesson)} scenario={scenario} />
+          </div>
         ) : (
           <div className="p-4">
             <AiGate><ConversationPanel lesson={ctxOf(lesson)} scenario={scenario} /></AiGate>
@@ -180,17 +189,11 @@ export default function SpeakingBlock({ lesson }: { lesson: DayLesson }) {
         )}
       </Collapse>
 
-      {/* dialogue */}
+      {/* dialogue — two distinct voices so A/B sound like two people */}
       <Collapse label="情景对话" hint={s.miniDialogue[0]?.line}>
-        <RowGroup>
-          {s.miniDialogue.map((d, i) => (
-            <div key={i} className={cn('flex items-start gap-2.5 px-3.5 py-2.5 transition-colors hover:bg-hover', i > 0 && 'border-t border-border-soft')}>
-              <span className="min-w-6 text-sm font-semibold text-fg">{d.speaker}:</span>
-              <span className="flex-1 text-body text-fg-secondary">{d.line}</span>
-              <SpeakButton text={d.line} />
-            </div>
-          ))}
-        </RowGroup>
+        <div className="p-3.5">
+          <DialoguePlayer lines={s.miniDialogue} />
+        </div>
       </Collapse>
 
       {/* target sounds */}
