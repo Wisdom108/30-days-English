@@ -9,12 +9,16 @@ import { VitePWA } from 'vite-plugin-pwa'
 // has working AI + neural voice (the Vite server has no backend of its own).
 // Same-origin from the browser's view → no CORS, passcode header flows through.
 const WORKER = 'https://thirty-days-en.thinkuniverse.workers.dev'
-const proxy = Object.fromEntries(
+type Fwd = { target: string; changeOrigin: boolean; secure: boolean; ws?: boolean }
+const proxy: Record<string, Fwd> = Object.fromEntries(
   ['/health', '/me', '/login', '/logout', '/auth', '/progress', '/ai', '/speech'].map((p) => [
     p,
-    { target: WORKER, changeOrigin: true, secure: true },
+    { target: WORKER, changeOrigin: true, secure: true } as Fwd,
   ]),
 )
+// The Cloudflare Agents voice tutor is a WebSocket under /agents/* — proxy it
+// (with ws) to the deployed Worker so `npm run dev` can reach the voice agent.
+proxy['/agents'] = { target: WORKER, changeOrigin: true, secure: true, ws: true }
 
 export default defineConfig({
   base: './',

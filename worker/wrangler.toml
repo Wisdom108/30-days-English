@@ -2,8 +2,18 @@
 # Deploy: `wrangler deploy`. Set secrets with `wrangler secret put <NAME>` (see .dev.vars.example).
 name = "thirty-days-en"
 main = "src/index.ts"
-compatibility_date = "2026-01-01"
+compatibility_date = "2026-07-03"
 compatibility_flags = ["nodejs_compat"]
+
+# Cloudflare Agents voice tutor — a Durable Object (SQLite-backed) that runs the
+# realtime voice pipeline (Workers AI STT + LLM + TTS). No external key.
+[[durable_objects.bindings]]
+name = "VoiceTutor"
+class_name = "VoiceTutor"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["VoiceTutor"]
 
 # Same-origin hosting: this Worker also serves the built frontend (app/dist), so
 # the app and its /api routes share one origin (login cookie is not cross-site).

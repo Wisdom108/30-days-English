@@ -1,3 +1,4 @@
+import { routeAgentRequest } from 'agents'
 import { identify, verifyUser } from './auth'
 import {
   handleRegister,
@@ -8,6 +9,8 @@ import {
   handlePutProgress,
 } from './membership'
 import { handleRealtimeToken } from './realtime'
+// Re-export the voice-agent Durable Object so Wrangler registers the class.
+export { VoiceTutor } from './voiceAgent'
 import {
   conversationSystem,
   writingSystem,
@@ -47,6 +50,8 @@ export interface Env {
   OPENAI_REALTIME_VOICE?: string // default alloy
   DAILY_REALTIME_QUOTA?: string // daily realtime sessions for members (default 20)
   FREE_REALTIME_QUOTA?: string // daily realtime sessions for non-members (default 2)
+  // Cloudflare Agents voice tutor (realtime voice, all on Workers AI, no key).
+  VoiceTutor: DurableObjectNamespace
 }
 
 interface Msg {
@@ -416,6 +421,11 @@ function withCors(resp: Response, env: Env, req: Request): Response {
 // ---------------------------------------------------------------- entry
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
+    // Cloudflare Agents voice tutor — WebSocket routing (/agents/voice-tutor/*).
+    // Handle before the JSON API router; WS upgrades bypass the CORS wrapper.
+    const agentResp = await routeAgentRequest(req, env)
+    if (agentResp) return agentResp
+
     if (req.method === 'OPTIONS') return withCors(new Response(null), env, req)
     const { pathname } = new URL(req.url)
 
@@ -429,6 +439,7 @@ export default {
               speech: !!(env.AZURE_SPEECH_KEY && env.AZURE_SPEECH_REGION), // Azure premium
               cfVoice: true, // Workers AI TTS (Aura) + STT (Whisper), always on
               realtime: !!env.OPENAI_API_KEY, // OpenAI Realtime voice conversation
+              voiceAgent: true, // Cloudflare Agents voice tutor (Workers AI, free)
               loginRequired: !!env.CF_ACCESS_TEAM_DOMAIN,
               membership: !!env.DB, // D1 accounts + activation codes + progress sync
             },
