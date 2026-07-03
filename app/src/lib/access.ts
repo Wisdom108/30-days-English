@@ -11,6 +11,7 @@ export interface Identity {
   email: string // display name (username in account mode)
   member?: boolean
   memberUntil?: number | null
+  account?: boolean // real D1 session (cloud sync) vs passcode/Access "owner"
 }
 
 const PC_KEY = 'app_pc'
@@ -36,12 +37,13 @@ export async function getIdentity(): Promise<{ user: Identity | null; mode: Auth
       mode?: AuthMode
       member?: boolean
       memberUntil?: number | null
+      account?: boolean
     }
     const mode = data.mode || 'open'
     return {
       user:
         res.ok && data.email
-          ? { email: data.email, member: data.member, memberUntil: data.memberUntil ?? null }
+          ? { email: data.email, member: data.member, memberUntil: data.memberUntil ?? null, account: data.account }
           : null,
       mode,
     }

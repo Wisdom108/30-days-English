@@ -20,7 +20,8 @@ const sameContent = (a: AppState, b: AppState) =>
 export function CloudSync() {
   const { user, mode } = useAuth()
   const { state, importAll } = useApp()
-  const owner = mode === 'account' && user ? user.email : null
+  // Only REAL D1 accounts sync (a passcode/Access "owner" has no /progress store).
+  const owner = mode === 'account' && user?.account ? user.email : null
 
   const stateRef = useRef(state)
   stateRef.current = state

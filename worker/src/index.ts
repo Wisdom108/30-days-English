@@ -367,13 +367,16 @@ async function handleMe(req: Request, env: Env): Promise<Response> {
         .bind(Number(ident.uid.slice(2)))
         .first<{ member_until: number | null }>()
       return json(
-        { email: ident.name, member: ident.member, memberUntil: row?.member_until ?? null, mode: 'account' },
+        // `account:true` marks a REAL D1 session (has cloud progress sync) — a
+        // passcode/Access "owner" is a member but not a syncable account.
+        { email: ident.name, member: ident.member, memberUntil: row?.member_until ?? null, account: true, mode: 'account' },
         env, 200, req,
       )
     }
-    // Passcode / Access / dev-bypass callers are still honored as full members.
+    // Passcode / Access / dev-bypass callers are still honored as full members,
+    // but they are NOT D1 accounts (no cloud sync) → account:false.
     if (ident?.member) {
-      return json({ email: ident.name, member: true, memberUntil: null, mode: 'account' }, env, 200, req)
+      return json({ email: ident.name, member: true, memberUntil: null, account: false, mode: 'account' }, env, 200, req)
     }
     return json({ email: null, mode: 'account' }, env, 401, req)
   }
