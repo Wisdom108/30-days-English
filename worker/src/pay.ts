@@ -79,11 +79,28 @@ export async function handleStripeWebhook(req: Request, env: Env): Promise<Respo
   if (!(await verifyStripeSig(raw, sig, env.STRIPE_WEBHOOK_SECRET))) {
     return new Response('bad signature', { status: 400 })
   }
-  let event: { type?: string; data?: { object?: Record<string, unknown> } }
+  let event: {
+    id?: string
+    type?: string
+    data?: { object?: { client_reference_id?: string; metadata?: Record<string, string>; payment_status?: string; id?: string } }
+  }
   try { event = JSON.parse(raw) } catch { return new Response('bad json', { status: 400 }) }
 
   if (event.type === 'checkout.session.completed' && env.DB) {
-    const s = (event.data?.object || {}) as { client_reference_id?: string; metadata?: Record<string, string> }
+    const s = event.data?.object || {}
+    // Only fulfill a PAID session — delayed-notification methods (SEPA/ACH/…)
+    // can fire 'completed' with payment_status:'unpaid' before funds settle.
+    if (s.payment_status && s.payment_status !== 'paid') return new Response('ok (unpaid)', { status: 200 })
+    // Idempotency: claim the Stripe event id ONCE. Stripe delivers at-least-once
+    // (retries up to ~3 days); a redelivery finds changes===0 and skips the
+    // additive grant, so a single payment can never stack N× the days.
+    const eventId = String(event.id || s.id || '')
+    if (eventId) {
+      const claim = await env.DB.prepare('INSERT OR IGNORE INTO stripe_events (id, at) VALUES (?, ?)')
+        .bind(eventId, Date.now())
+        .run()
+      if (!claim.meta.changes) return new Response('ok (duplicate)', { status: 200 })
+    }
     const uid = Number(s.client_reference_id || s.metadata?.uid || '')
     const days = Number(s.metadata?.days || '0')
     if (Number.isFinite(uid) && uid > 0 && days > 0) {
@@ -110,6 +127,10 @@ async function verifyStripeSig(payload: string, header: string, secret: string):
     else if (k === 'v1' && !v1) v1 = val
   }
   if (!t || !v1) return false
+  // Freshness: reject signatures outside a 5-minute window (replay protection,
+  // matching Stripe's default tolerance).
+  const age = Math.abs(Date.now() / 1000 - Number(t))
+  if (!Number.isFinite(age) || age > 300) return false
   const enc = new TextEncoder()
   const key = await crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
   const mac = await crypto.subtle.sign('HMAC', key, enc.encode(`${t}.${payload}`))

@@ -224,9 +224,11 @@ function browserSpeak(text: string, rate = 1, onStart?: () => void, voiceKey?: V
     u.onerror = done
     // Safety net: speechSynthesis onstart/onend are notoriously unreliable on
     // iOS Safari / Chrome — if neither fires, the caller (and a SpeakButton's
-    // loading spinner) would hang forever. Resolve after a generous duration
-    // estimate so playback advances and buttons reset even when events flake.
-    const estMs = Math.min(20000, Math.max(3000, text.length * 90 + 1200))
+    // loading spinner) would hang forever. Resolve after a GENEROUS estimate,
+    // scaled by the speaking rate (slower rate → longer speech) with a wide cap,
+    // so it only trips when the events truly flaked and never cuts off real
+    // playback still in progress (slow mode, or a long passage chunk).
+    const estMs = Math.min(60000, Math.max(3000, (text.length * 110 + 1500) / Math.max(0.5, rate)))
     setTimeout(done, estMs)
     synth.speak(u)
     // Chrome sometimes queues the utterance paused — nudge it once more.

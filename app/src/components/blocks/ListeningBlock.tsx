@@ -118,7 +118,7 @@ export default function ListeningBlock({ lesson }: { lesson: DayLesson }) {
             <button
               onClick={playAll}
               aria-label={playing ? '停止' : '从本句播放'}
-              className="press absolute inset-3.5 grid place-items-center rounded-full bg-brand text-brand-fg shadow-[0_8px_30px_-8px_rgba(255,255,255,.35)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
+              className="press absolute inset-3.5 grid place-items-center rounded-full bg-brand text-brand-fg shadow-[0_8px_30px_-8px_rgba(74,58,32,.35)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
             >
               {playing ? <Pause size={30} /> : <Play size={30} className="translate-x-0.5" fill="currentColor" />}
             </button>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { Home, RotateCcw, TrendingUp, BookOpen, Sparkles } from 'lucide-react'
 import Dashboard from './components/Dashboard'
@@ -61,16 +61,18 @@ export default function App() {
   useScrollTop()
 
   // Returning from Stripe Checkout (success_url=/?pay=success): membership is
-  // granted by the webhook, which may land a beat after the redirect — refresh
-  // now and once more shortly, then clean the query off the URL.
+  // granted asynchronously by the webhook, which may land a beat after the
+  // redirect. Refresh several times over the first few seconds to catch it. Uses
+  // a ref (not [refresh] deps) so the effect runs ONCE and its timers aren't
+  // cancelled when `refresh`'s identity changes as auth state settles.
+  const refreshRef = useRef(refresh)
+  refreshRef.current = refresh
   useEffect(() => {
-    const p = new URLSearchParams(window.location.search)
-    if (p.get('pay') !== 'success') return
-    refresh()
-    const t = setTimeout(refresh, 2800)
+    if (new URLSearchParams(window.location.search).get('pay') !== 'success') return
     window.history.replaceState({}, '', window.location.pathname + window.location.hash)
-    return () => clearTimeout(t)
-  }, [refresh])
+    const timers = [0, 1500, 3500, 6000].map((d) => window.setTimeout(() => refreshRef.current(), d))
+    return () => timers.forEach((t) => clearTimeout(t))
+  }, [])
 
   // Lesson context for the AI tutor — reflect the day being viewed, else today.
   const dayMatch = loc.pathname.match(/^\/day\/(\d+)/)
@@ -178,7 +180,7 @@ export default function App() {
               key={t.label}
               to={t.to === 'today' ? `/day/${current}` : t.to}
               end={t.end}
-              className="press relative flex min-h-11 min-w-16 flex-col items-center justify-center gap-0.5 rounded-lg px-2 py-1 font-mono text-[9px] uppercase tracking-[0.1em]"
+              className="press relative flex min-h-11 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1 font-mono text-[9px] uppercase tracking-[0.1em]"
             >
               {({ isActive }) => {
                 const active = isActiveFor(t, isActive)

@@ -1,7 +1,9 @@
 import { MessageCircleQuestion, PenLine } from 'lucide-react'
 import { AiPartner } from './blocks/SpeakingBlock'
+import { openAccount } from './ai'
 import { getLesson, TOTAL_DAYS } from '../data/curriculum'
 import { useApp } from '../state'
+import { useAuth } from '../auth'
 import type { LessonCtx } from '../lib/ai'
 
 // Dedicated AI hub — makes the AI speaking partner a first-class destination
@@ -9,6 +11,7 @@ import type { LessonCtx } from '../lib/ai'
 // is the star of the page.
 export default function AiHub() {
   const { state } = useApp()
+  const { user } = useAuth()
   const day = Math.min(state.currentDay, TOTAL_DAYS)
   const lesson = getLesson(day)
   const ctx: LessonCtx = lesson
@@ -36,7 +39,7 @@ export default function AiHub() {
       {/* other AI tools */}
       <section className="grid grid-cols-2 gap-3">
         <button
-          onClick={() => window.dispatchEvent(new Event('open-tutor'))}
+          onClick={() => (user ? window.dispatchEvent(new Event('open-tutor')) : openAccount())}
           className="press wiggle hand-frame-soft bg-surface p-4 text-left"
         >
           <MessageCircleQuestion className="mb-2 text-fg" size={22} />
