@@ -1,18 +1,19 @@
 import { useRef, useState } from 'react'
-import { Download, Upload, CalendarClock, AlertTriangle, Flame, Check } from 'lucide-react'
+import { Download, Upload, CalendarClock, AlertTriangle, Check } from 'lucide-react'
 import { BlockIcon } from './blockicons'
 import * as AlertDialogPrimitive from '@radix-ui/react-alert-dialog'
 import { useApp } from '../state'
 import { CURRICULUM, TOTAL_DAYS } from '../data/curriculum'
-import { isDayComplete, exportState, parseImport, displayStreak } from '../lib/storage'
+import { exportState, parseImport } from '../lib/storage'
 import type { AppState } from '../types'
-import { BLOCKS, PHASE_INFO } from '../blocks'
+import { BLOCKS } from '../blocks'
 import { todayISO } from '../lib/srs'
 import { buildIcs, downloadIcs } from '../lib/calendar'
-import { Button, Cells, SectionLabel, ConfirmDialog, Select } from './ui'
+import { Button, Cells, SectionLabel, ConfirmDialog, Select, Collapse } from './ui'
 
 const REMINDER_HOURS = [6, 7, 8, 9, 12, 18, 20, 21]
 
+// 数据与设置页：只留 Dashboard 不画的那张图（每日模块打卡），其余是工具折叠行。
 export default function Progress() {
   const { state, reset, importAll } = useApp()
   const [hour, setHour] = useState(7)
@@ -43,81 +44,20 @@ export default function Progress() {
     reader.readAsText(file)
   }
 
-  const completedDays = Array.from({ length: TOTAL_DAYS }, (_, i) => i + 1).filter((d) =>
-    isDayComplete(state, d),
-  )
-  const today = todayISO()
   const matured = Object.values(state.cards).filter((c) => c.repetitions >= 2).length
-  const dueToday = Object.values(state.cards).filter((c) => c.dueDate <= today).length
   const blockCounts = BLOCKS.map((b) => ({
     ...b,
     count: Object.values(state.days).filter((d) => d.completedBlocks[b.key]).length,
   }))
 
-  const streak = displayStreak(state)
-  const metrics: { k: string; v: React.ReactNode }[] = [
-    {
-      k: '连续天数',
-      v: (
-        <span className="inline-flex items-center justify-center gap-1.5">
-          <Flame size={16} className={streak > 0 ? 'text-red' : 'text-fg-dim'} />
-          {streak}
-        </span>
-      ),
-    },
-    { k: '完成天数', v: completedDays.length },
-    { k: '词卡总数', v: Object.keys(state.cards).length },
-    { k: '已掌握', v: matured },
-    { k: '待复习', v: dueToday },
-  ]
-
   return (
     <div className="space-y-2 animate-in-up">
-      <h1 className="text-title font-semibold">学习进度</h1>
+      <h1 className="text-title font-semibold">数据</h1>
+      <p className="text-meta text-fg-muted">每日打卡明细 · 提醒 · 备份</p>
       <div className="border-b border-border pb-1" />
 
-      {/* Metrics strip — 3-up on mobile (no orphan cell), 5-up on desktop */}
-      <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
-        {metrics.map((m, i) => (
-          <div
-            key={i}
-            className="rounded-sm border border-border bg-surface px-3 py-4 text-center shadow-rest"
-          >
-            <div className="t-tab text-h1 font-medium leading-none text-fg">{m.v}</div>
-            <div className="label-nd mt-2">{m.k}</div>
-          </div>
-        ))}
-      </div>
-      {state.startDate && (
-        <p className="pt-1 text-meta text-fg-muted">
-          开始日期：<span className="t-tab text-fg-secondary">{state.startDate}</span>
-        </p>
-      )}
-
-      {/* Phase progress */}
-      <SectionLabel>各阶段完成度</SectionLabel>
-      <div className="space-y-3.5">
-        {Object.entries(PHASE_INFO).map(([k, v]) => {
-          const days = CURRICULUM.filter((l) => l.phase === Number(k)).map((l) => l.day)
-          const doneCount = days.filter((d) => completedDays.includes(d)).length
-          return (
-            <div key={k}>
-              <div className="flex items-center justify-between text-sm">
-                <span className="flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full" style={{ background: v.color }} />
-                  <span className="font-medium text-fg">阶段 {k}</span>
-                  <span className="text-fg-muted">{v.name_zh} · {v.range}</span>
-                </span>
-                <span className="t-tab text-fg-muted">{doneCount}/{days.length}</span>
-              </div>
-              <Cells value={doneCount} max={days.length} accent={v.color} height={8} className="mt-2" />
-            </div>
-          )
-        })}
-      </div>
-
-      {/* Skill progress */}
-      <SectionLabel>四项技能打卡</SectionLabel>
+      {/* Skill blocks */}
+      <SectionLabel>每日模块打卡</SectionLabel>
       <div className="space-y-3">
         {blockCounts.map((b) => (
           <div key={b.key}>
@@ -132,67 +72,78 @@ export default function Progress() {
           </div>
         ))}
       </div>
-
-      {/* Calendar companion */}
-      <SectionLabel>每日定时陪跑 · 日历提醒</SectionLabel>
-      <p className="text-sm text-fg-muted">
-        导出 30 天每日提醒，导入 Google / Apple / Outlook 日历即可定时提醒（从
-        {state.startDate ? ` ${state.startDate}` : '今天'} 起 30 天）。
+      <p className="pt-1 text-meta text-fg-muted">
+        已掌握 <span className="t-tab text-fg-secondary">{matured}</span> 张词卡（复习两次以上）
       </p>
-      <div className="mt-2 flex flex-wrap items-center gap-2.5">
-        <span className="text-sm text-fg-muted">提醒时间</span>
-        <Select
-          ariaLabel="提醒时间"
-          value={String(hour)}
-          onValueChange={(v) => setHour(Number(v))}
-          options={REMINDER_HOURS.map((h) => ({
-            value: String(h),
-            label: `${String(h).padStart(2, '0')}:00`,
-          }))}
-          className="w-24"
-        />
-        <Button onClick={() => downloadIcs(buildIcs(CURRICULUM, state.startDate || todayISO(), hour))}>
-          <CalendarClock size={15} /> 导出日历 (.ics)
-        </Button>
-      </div>
 
-      {/* Backup */}
-      <SectionLabel>进度备份 / 恢复</SectionLabel>
-      <p className="text-sm text-fg-muted">
-        进度存于本浏览器。换设备或清缓存前请导出备份，在新设备导入即可继续。
-      </p>
-      <div className="mt-2 flex flex-wrap gap-2.5">
-        <Button variant="secondary" onClick={doExport}><Download size={15} /> 导出备份</Button>
-        <Button variant="secondary" onClick={() => importRef.current?.click()}><Upload size={15} /> 导入备份</Button>
-        <input
-          ref={importRef}
-          type="file"
-          accept="application/json,.json"
-          className="sr-only"
-          aria-label="导入备份文件"
-          onChange={(e) => {
-            const f = e.target.files?.[0]
-            if (f) doImport(f)
-            e.target.value = ''
-          }}
-        />
-      </div>
-      {importError && <p role="alert" className="text-sm text-danger">{importError}</p>}
+      {/* Utilities — three quiet folds */}
+      <div className="space-y-2 pt-4">
+        <Collapse label="日历提醒" hint="导出 .ics，每天固定时间提醒">
+          <div className="space-y-2.5 px-5 py-4">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <span className="text-sm text-fg-muted">提醒时间</span>
+              <Select
+                ariaLabel="提醒时间"
+                value={String(hour)}
+                onValueChange={(v) => setHour(Number(v))}
+                options={REMINDER_HOURS.map((h) => ({
+                  value: String(h),
+                  label: `${String(h).padStart(2, '0')}:00`,
+                }))}
+                className="w-24"
+              />
+              <Button onClick={() => downloadIcs(buildIcs(CURRICULUM, state.startDate || todayISO(), hour))}>
+                <CalendarClock size={15} /> 导出日历提醒
+              </Button>
+            </div>
+            <p className="text-meta text-fg-muted">
+              从{state.startDate ? ` ${state.startDate} ` : '今天'}起 30 天，可导入 Google / Apple / Outlook 日历。
+            </p>
+          </div>
+        </Collapse>
 
-      {/* Danger zone */}
-      <SectionLabel>危险操作</SectionLabel>
-      <ConfirmDialog
-        title="清空全部进度？"
-        description="这将删除所有打卡记录、词卡进度和写作内容，且无法撤销。建议先导出备份。"
-        confirmLabel="确认清空"
-        destructive
-        onConfirm={reset}
-        trigger={
-          <Button variant="ghost" size="sm" className="text-danger hover:bg-danger-soft hover:text-danger">
-            <AlertTriangle size={13} /> 清空全部进度
-          </Button>
-        }
-      />
+        <Collapse label="备份与恢复" hint="导出 / 导入 JSON 进度文件">
+          <div className="space-y-2.5 px-5 py-4">
+            <p className="text-sm text-fg-muted">
+              进度存于本浏览器。换设备或清缓存前请导出备份，在新设备导入即可继续。
+            </p>
+            <div className="flex flex-wrap gap-2.5">
+              <Button variant="secondary" onClick={doExport}><Download size={15} /> 导出备份</Button>
+              <Button variant="secondary" onClick={() => importRef.current?.click()}><Upload size={15} /> 导入备份</Button>
+              <input
+                ref={importRef}
+                type="file"
+                accept="application/json,.json"
+                className="sr-only"
+                aria-label="导入备份文件"
+                onChange={(e) => {
+                  const f = e.target.files?.[0]
+                  if (f) doImport(f)
+                  e.target.value = ''
+                }}
+              />
+            </div>
+            {importError && <p role="alert" className="text-sm text-danger">{importError}</p>}
+          </div>
+        </Collapse>
+
+        <Collapse label="危险操作" hint="清空全部进度（不可撤销）">
+          <div className="px-5 py-4">
+            <ConfirmDialog
+              title="清空全部进度？"
+              description="这将删除所有打卡记录、词卡进度和写作内容，且无法撤销。建议先导出备份。"
+              confirmLabel="确认清空"
+              destructive
+              onConfirm={reset}
+              trigger={
+                <Button variant="ghost" size="sm" className="text-danger hover:bg-danger-soft hover:text-danger">
+                  <AlertTriangle size={13} /> 清空全部进度
+                </Button>
+              }
+            />
+          </div>
+        </Collapse>
+      </div>
 
       {/* Import confirmation (controlled) */}
       <AlertDialogPrimitive.Root open={!!pendingImport} onOpenChange={(o) => !o && setPendingImport(null)}>

@@ -1,15 +1,22 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
-import { Sparkles, LogIn, LogOut, Send, Bot, Loader2, KeyRound } from 'lucide-react'
+import { Sparkles, LogIn, LogOut, Send, Bot, Loader2, KeyRound, X, Ticket } from 'lucide-react'
 import { useAuth } from '../auth'
 import { features } from '../config'
 import { accessLogin, logout, setPasscode } from '../lib/access'
+import { login as accountLogin, register as accountRegister, accountLogout, activateCode } from '../lib/account'
 import { aiChat, aiTutor, AIError, type ChatMsg, type LessonCtx } from '../lib/ai'
-import { Button, Callout, IconButton, Input, Skeleton, Badge, Sheet } from './ui'
+import { Button, Callout, IconButton, Input, Skeleton, Badge, Sheet, SCRIM } from './ui'
 import { cn } from '../lib/utils'
 
 const prefersReduced = () =>
   typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+
+// One copy for every unlock prompt (was drifting across three spots).
+const UNLOCK_COPY = '解锁 AI 陪练 · 写作批改 · 发音教练 · 进度云同步'
+
+/** Ask the top-bar auth widget to open (used by AiGate deep in the page). */
+export const openAccount = () => window.dispatchEvent(new Event('open-account'))
 
 // ============================================================================
 // Login — server picks the mode: Cloudflare Access (redirect) or passcode gate.
@@ -57,12 +64,185 @@ function PasscodeForm({ onDone }: { onDone?: () => void }) {
   )
 }
 
+// ============================================================================
+// Account sheet — login / register / membership / activation (D1 backend)
+// ============================================================================
+function AccountSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+  const { user, refresh } = useAuth()
+  const [tab, setTab] = useState<'login' | 'register'>('login')
+  const [name, setName] = useState('')
+  const [pw, setPw] = useState('')
+  const [code, setCode] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const [codeMsg, setCodeMsg] = useState<string | null>(null)
+
+  const submit = async () => {
+    if (!name.trim() || !pw || busy) return
+    setBusy(true)
+    setErr(null)
+    try {
+      await (tab === 'login' ? accountLogin(name.trim(), pw) : accountRegister(name.trim(), pw))
+      setPw('')
+      refresh()
+      onOpenChange(false)
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : '请求失败，请重试')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const activate = async () => {
+    if (!code.trim() || busy) return
+    setBusy(true)
+    setCodeMsg(null)
+    try {
+      const u = await activateCode(code.trim())
+      setCode('')
+      refresh()
+      setCodeMsg(`已开通 · 有效期至 ${u.memberUntil ? new Date(u.memberUntil).toLocaleDateString('zh-CN') : '—'}`)
+    } catch (e) {
+      setCodeMsg(e instanceof Error ? e.message : '激活失败，请重试')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const doLogout = async () => {
+    await accountLogout()
+    refresh()
+    onOpenChange(false)
+  }
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange} side="bottom" title="账号">
+      <div className="space-y-4 p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
+        {user ? (
+          <>
+            {/* signed in — identity + membership */}
+            <div className="flex items-center gap-3">
+              <span className="grid h-11 w-11 place-items-center rounded-full bg-accent-soft text-h3 font-semibold text-fg">
+                {(user.email || '?')[0].toUpperCase()}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-body-lg font-semibold text-fg">{user.email}</div>
+                <div className="mt-0.5 font-mono text-[10px] uppercase tracking-[0.1em] text-fg-muted">
+                  {user.member
+                    ? `会员 · 至 ${user.memberUntil ? new Date(user.memberUntil).toLocaleDateString('zh-CN') : '—'}`
+                    : '免费版 · 每日体验额度'}
+                </div>
+              </div>
+              {user.member && <Badge variant="red">MEMBER</Badge>}
+            </div>
+
+            {/* activation code */}
+            <div className="rounded-xl border border-border bg-surface-2 p-4">
+              <div className="label-nd mb-2 flex items-center gap-1.5"><Ticket size={12} /> 激活码</div>
+              <div className="flex items-center gap-2">
+                <Input
+                  placeholder="EN30-XXXX-XXXX"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.toUpperCase())}
+                  onKeyDown={(e) => e.key === 'Enter' && activate()}
+                  className="min-w-0 flex-1 font-mono uppercase"
+                />
+                <Button onClick={activate} disabled={busy || !code.trim()}>
+                  {busy ? <Loader2 size={14} className="animate-spin" /> : '激活'}
+                </Button>
+              </div>
+              <p className="mt-2 text-sm text-fg-muted">
+                {codeMsg ?? (user.member ? '再次激活可叠加有效期。' : `开通会员 · ${UNLOCK_COPY}`)}
+              </p>
+            </div>
+
+            <Button variant="ghost" className="w-full" onClick={doLogout}>
+              <LogOut size={15} /> 退出登录
+            </Button>
+          </>
+        ) : (
+          <>
+            {/* signed out — login / register */}
+            <div className="grid grid-cols-2 gap-1 rounded-lg border border-border bg-surface-2 p-1">
+              {(['login', 'register'] as const).map((t) => (
+                <button
+                  key={t}
+                  onClick={() => { setTab(t); setErr(null) }}
+                  className={cn(
+                    'press min-h-10 rounded-sm text-body font-medium transition-colors',
+                    tab === t ? 'bg-elevated text-fg shadow-rest' : 'text-fg-muted hover:text-fg',
+                  )}
+                >
+                  {t === 'login' ? '登录' : '注册'}
+                </button>
+              ))}
+            </div>
+            <div className="space-y-2.5">
+              <Input
+                placeholder="用户名（3-20 位）"
+                autoComplete="username"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+              <Input
+                type="password"
+                placeholder={tab === 'register' ? '密码（至少 6 位）' : '密码'}
+                autoComplete={tab === 'register' ? 'new-password' : 'current-password'}
+                value={pw}
+                onChange={(e) => setPw(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && submit()}
+              />
+              {err && <p role="alert" className="text-sm text-danger">{err}</p>}
+              <Button className="w-full" size="lg" onClick={submit} disabled={busy || !name.trim() || !pw}>
+                {busy ? <Loader2 size={15} className="animate-spin" /> : tab === 'login' ? '登录' : '注册并登录'}
+              </Button>
+            </div>
+            <p className="text-center text-sm text-fg-muted">注册即可云同步学习进度 · {UNLOCK_COPY}</p>
+          </>
+        )}
+      </div>
+    </Sheet>
+  )
+}
+
 /** Compact auth widget (top bar). */
 export function AuthControls() {
   const { user, authEnabled, loading, mode, refresh } = useAuth()
   const [open, setOpen] = useState(false)
+
+  // AiGate (deep in a lesson) can summon the sheet.
+  useEffect(() => {
+    const on = () => setOpen(true)
+    window.addEventListener('open-account', on)
+    return () => window.removeEventListener('open-account', on)
+  }, [])
+
   if (!authEnabled || mode === 'open') return null
   if (loading) return <Skeleton className="h-11 w-11 rounded-lg" />
+
+  // ---- account mode (D1 membership) ----
+  if (mode === 'account') {
+    return (
+      <>
+        {user ? (
+          <button
+            onClick={() => setOpen(true)}
+            aria-label="账号"
+            title={user.email}
+            className="press relative grid h-11 w-11 place-items-center rounded-lg transition-colors hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+          >
+            <span className="grid h-8 w-8 place-items-center rounded-full bg-accent-soft text-label font-semibold text-fg">
+              {(user.email || '?')[0].toUpperCase()}
+            </span>
+            {user.member && <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-red" />}
+          </button>
+        ) : (
+          <Button variant="secondary" onClick={() => setOpen(true)}><LogIn size={15} /> 登录</Button>
+        )}
+        <AccountSheet open={open} onOpenChange={setOpen} />
+      </>
+    )
+  }
 
   const doLogout = () => {
     if (mode === 'passcode') {
@@ -95,10 +275,10 @@ export function AuthControls() {
         <Button variant="secondary"><KeyRound size={15} /> 口令</Button>
       </Dialog.Trigger>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/55 backdrop-blur-[2px] data-[state=open]:animate-in-up" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-[92vw] max-w-[360px] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow-popover)] focus:outline-none data-[state=open]:animate-in-up">
+        <Dialog.Overlay className={SCRIM} />
+        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-[92vw] max-w-[360px] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow-popover)] focus:outline-none data-[state=open]:animate-in-up data-[state=closed]:animate-out">
           <Dialog.Title className="text-h2 font-semibold text-fg">输入访问口令</Dialog.Title>
-          <p className="mb-3 mt-1 text-sm text-fg-muted">解锁 AI 对话陪练 / 写作批改 / 发音教练 / 私教答疑。</p>
+          <p className="mb-3 mt-1 text-sm text-fg-muted">{UNLOCK_COPY}</p>
           <PasscodeForm onDone={() => setOpen(false)} />
         </Dialog.Content>
       </Dialog.Portal>
@@ -127,13 +307,13 @@ export function AiGate({ children, compact }: { children: ReactNode; compact?: b
       <Callout tone="accent" icon={<Sparkles size={15} className="text-fg-muted" />}>
         {mode === 'passcode' ? (
           <div className="space-y-2">
-            <span>输入访问口令解锁 · 对话陪练 / 写作批改 / 发音教练 / 私教答疑</span>
+            <span>输入访问口令 · {UNLOCK_COPY}</span>
             <PasscodeForm />
           </div>
         ) : (
           <div className={cn('flex items-center justify-between gap-3', compact && 'flex-col items-stretch')}>
-            <span>登录后解锁 · 对话陪练 / 写作批改 / 发音教练 / 私教答疑</span>
-            <Button size="sm" onClick={accessLogin}>登录</Button>
+            <span>登录后{UNLOCK_COPY}</span>
+            <Button size="sm" onClick={mode === 'account' ? openAccount : accessLogin}>登录</Button>
           </div>
         )}
       </Callout>
@@ -187,7 +367,7 @@ export function ChatThread({
           <div className="py-6 text-center text-sm text-fg-muted">{emptyHint}</div>
         )}
         {messages.map((m, i) => (
-          <div key={i} className={cn('flex', m.role === 'user' ? 'justify-end' : 'justify-start')}>
+          <div key={i} className={cn('animate-in-up flex', m.role === 'user' ? 'justify-end' : 'justify-start')}>
             <div
               className={cn(
                 'max-w-[85%] whitespace-pre-wrap rounded-lg px-3 py-2 text-body leading-relaxed',
@@ -257,7 +437,7 @@ export function ConversationPanel({ lesson, scenario }: { lesson: LessonCtx; sce
   }
 
   return (
-    <div className="h-[380px]">
+    <div className="h-[min(380px,55dvh)]">
       <ChatThread
         messages={messages}
         busy={busy}
@@ -328,7 +508,7 @@ export function TutorFab({ lesson, hidden }: { lesson: LessonCtx; hidden?: boole
             {lesson.day ? <Badge variant="accent"><span className="t-tab">Day {lesson.day}</span></Badge> : null}
           </div>
           <Dialog.Close asChild>
-            <IconButton label="关闭"><span className="text-lg leading-none">×</span></IconButton>
+            <IconButton label="关闭"><X size={16} /></IconButton>
           </Dialog.Close>
         </div>
         <div className="flex min-h-0 flex-1 flex-col p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">

@@ -1,13 +1,16 @@
 import { config, features } from '../config'
 
-// Auth client. Three server modes (from /me):
+// Auth client. Four server modes (from /me):
+//   - 'account'  → D1 membership: username/password + activation-code membership
 //   - 'access'   → Cloudflare Access edge login (redirect flow, cookie)
 //   - 'passcode' → a shared passcode gate (stored locally, sent as a header)
 //   - 'open'     → no login (anonymous, IP rate-limited)
 
-export type AuthMode = 'access' | 'passcode' | 'open'
+export type AuthMode = 'account' | 'access' | 'passcode' | 'open'
 export interface Identity {
-  email: string
+  email: string // display name (username in account mode)
+  member?: boolean
+  memberUntil?: number | null
 }
 
 const PC_KEY = 'app_pc'
@@ -28,9 +31,20 @@ export async function getIdentity(): Promise<{ user: Identity | null; mode: Auth
       credentials: 'include',
       headers: authHeaders(),
     })
-    const data = (await res.json().catch(() => ({}))) as { email: string | null; mode?: AuthMode }
+    const data = (await res.json().catch(() => ({}))) as {
+      email: string | null
+      mode?: AuthMode
+      member?: boolean
+      memberUntil?: number | null
+    }
     const mode = data.mode || 'open'
-    return { user: res.ok && data.email ? { email: data.email } : null, mode }
+    return {
+      user:
+        res.ok && data.email
+          ? { email: data.email, member: data.member, memberUntil: data.memberUntil ?? null }
+          : null,
+      mode,
+    }
   } catch {
     return { user: null, mode: 'open' }
   }

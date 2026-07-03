@@ -10,7 +10,7 @@ import { VitePWA } from 'vite-plugin-pwa'
 // Same-origin from the browser's view → no CORS, passcode header flows through.
 const WORKER = 'https://thirty-days-en.thinkuniverse.workers.dev'
 const proxy = Object.fromEntries(
-  ['/health', '/me', '/login', '/logout', '/ai', '/speech'].map((p) => [
+  ['/health', '/me', '/login', '/logout', '/auth', '/progress', '/ai', '/speech'].map((p) => [
     p,
     { target: WORKER, changeOrigin: true, secure: true },
   ]),

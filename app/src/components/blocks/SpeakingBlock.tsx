@@ -1,38 +1,23 @@
-import { useState, type ReactNode } from 'react'
-import {
-  AlertCircle, Mic, MicOff, Play, Sparkles, Loader2, ChevronDown, ChevronLeft, ChevronRight,
-} from 'lucide-react'
+import { useEffect, useState, type CSSProperties } from 'react'
+import { AlertCircle, Mic, Sparkles, Loader2 } from 'lucide-react'
 import type { DayLesson } from '../../types'
-import { recognizeOnce, scorePronunciation, speak, sttSupported } from '../../lib/speech'
+import { prefetchSpeak, recognizeOnce, scorePronunciation, sttSupported } from '../../lib/speech'
 import { azureAvailable, azureAssess, type PronScore } from '../../lib/azureSpeech'
-import { cfVoiceAvailable, cfRecordAndTranscribe } from '../../lib/cfSpeech'
+import { cfVoiceAvailable, cfRecordAndTranscribe, stopCfRecording } from '../../lib/cfSpeech'
 import { aiCoach, AIError, type LessonCtx } from '../../lib/ai'
-import { SpeakButton, RowGroup } from '../shared'
+import { SpeakButton, RowGroup, BlockHead } from '../shared'
 import { AiGate, ConversationPanel } from '../ai'
-import { Button, Callout } from '../ui'
+import { Button, Callout, Collapse, Stepper } from '../ui'
 import { cn } from '../../lib/utils'
 
 function ctxOf(l: DayLesson): LessonCtx {
   return { day: l.day, theme: l.theme, title_en: l.title_en, grammar: l.grammarNote?.point_en, level: 'A2-B1' }
 }
 
-function Collapse({ label, count, children, defaultOpen }: { label: string; count?: number; children: ReactNode; defaultOpen?: boolean }) {
-  const [open, setOpen] = useState(!!defaultOpen)
-  return (
-    <div className="overflow-hidden rounded-2xl border border-border">
-      <button onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex w-full items-center justify-between px-5 py-4 transition-colors hover:bg-hover">
-        <span className="label-nd">{label}{count != null && <> · <span className="t-tab text-fg-secondary">{count}</span></>}</span>
-        <ChevronDown size={17} className={cn('text-fg-muted transition-transform', open && 'rotate-180')} />
-      </button>
-      {open && <div className="border-t border-border">{children}</div>}
-    </div>
-  )
-}
-
-function ScoreChip({ label, score }: { label: string; score: number }) {
+function ScoreChip({ label, score, style }: { label: string; score: number; style?: CSSProperties }) {
   const cls = score >= 80 ? 'text-fg' : score >= 55 ? 'text-fg-secondary' : 'text-danger'
   return (
-    <span className="inline-flex items-baseline gap-1 rounded-full border border-border bg-surface-2 px-2 py-0.5">
+    <span className="animate-in-up inline-flex items-baseline gap-1 rounded-full border border-border bg-surface-2 px-2 py-0.5" style={style}>
       <span className="text-label text-fg-muted">{label}</span>
       <span className={cn('t-tab text-sm font-semibold', cls)}>{score}</span>
     </span>
@@ -40,8 +25,9 @@ function ScoreChip({ label, score }: { label: string; score: number }) {
 }
 
 // ===== Shadowing hero — one line at a time, big record orb, big score =====
-function ShadowHero({ text, tip, idx, total, sttOk, lesson }: { text: string; tip: string; idx: number; total: number; sttOk: boolean; lesson: DayLesson }) {
+function ShadowHero({ text, tip, sttOk, lesson }: { text: string; tip: string; sttOk: boolean; lesson: DayLesson }) {
   const premium = azureAvailable()
+  const cfPath = !premium && cfVoiceAvailable() // only the CF recorder can be stopped mid-take
   const canRecord = premium || cfVoiceAvailable() || sttOk
   const [rec, setRec] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -50,6 +36,9 @@ function ShadowHero({ text, tip, idx, total, sttOk, lesson }: { text: string; ti
   const [azure, setAzure] = useState<PronScore | null>(null)
   const [coach, setCoach] = useState<string | null>(null)
   const [coachBusy, setCoachBusy] = useState(false)
+
+  // Warm the line's audio on mount — the speaker taps play instantly.
+  useEffect(() => { prefetchSpeak(text) }, [text])
 
   const record = async () => {
     setRec(true); setError(null); setScore(null); setHeard(null); setAzure(null); setCoach(null)
@@ -62,6 +51,12 @@ function ShadowHero({ text, tip, idx, total, sttOk, lesson }: { text: string; ti
     } finally { setRec(false) }
   }
 
+  // Tap while recording = finish the take early (CF path); otherwise start.
+  const orbTap = () => {
+    if (rec) { if (cfPath) stopCfRecording(); return }
+    record()
+  }
+
   const getCoach = async () => {
     if (!azure) return
     setCoachBusy(true)
@@ -71,60 +66,64 @@ function ShadowHero({ text, tip, idx, total, sttOk, lesson }: { text: string; ti
   }
 
   return (
-    <div className="overflow-hidden rounded-[22px] border border-border-strong"
-      style={{ background: 'radial-gradient(120% 80% at 50% 0%, #17171a 0%, #0d0d0f 62%)' }}>
-      <div className="flex items-center justify-between border-b border-border px-5 py-3">
-        <span className="label-nd">跟读 · <span className="t-tab text-fg-secondary">{idx + 1}/{total}</span></span>
-        <div className="flex items-center gap-1">
-          <SpeakButton text={text} />
-          <SpeakButton text={text} slow />
-        </div>
-      </div>
+    <div className="hero-card overflow-hidden rounded-xl border border-border-strong">
+      <BlockHead tag="跟读" right={<SpeakButton text={text} />} />
 
       <div className="flex flex-col items-center px-6 pb-7 pt-6 text-center">
-        <div className="t-serif text-[23px] font-semibold leading-[1.45] text-fg">{text}</div>
+        <div className="animate-in-up text-h1 font-semibold leading-[1.45] text-fg">{text}</div>
         {tip && <div className="mt-2 text-sm text-fg-muted">{tip}</div>}
 
-        {/* big record orb */}
+        {/* big record orb — doubles as the stop control while recording */}
         <div className="relative my-6 h-24 w-24">
           {rec && <span className="pulse-red absolute -inset-2.5 rounded-full border border-red/40" />}
           <button
-            onClick={record}
-            disabled={rec || !canRecord}
-            aria-label={rec ? '录音中' : '跟读'}
+            onClick={orbTap}
+            disabled={!canRecord || (rec && !cfPath)}
+            aria-label={rec ? (cfPath ? '结束录音' : '录音中') : '跟读'}
             className={cn(
-              'absolute inset-0 grid place-items-center rounded-full border-2 transition-all duration-150 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:opacity-45',
+              'press absolute inset-0 grid place-items-center rounded-full border-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:opacity-45',
               rec ? 'border-red bg-red-soft text-red' : 'border-border-strong bg-surface text-fg hover:border-fg',
             )}
           >
             {rec ? <span className="pulse-red h-5 w-5 rounded-full bg-red" /> : <Mic size={30} />}
           </button>
         </div>
-        <div className="font-mono text-[10px] uppercase tracking-[0.12em] text-fg-dim">
-          {rec ? '听着…' : canRecord ? (premium ? '点击 · 音素级评测' : '点击跟读 · 看匹配度') : '跟读练习'}
+        <div className="label-nd">
+          {!canRecord ? '此浏览器不支持录音 · 建议 Chrome/Edge' : rec ? '听着… 点击结束' : '点击跟读'}
         </div>
 
         {/* score — big */}
         {score !== null && !azure && (
-          <div className="mt-5 w-full animate-in-up">
-            <div className="t-doto text-[44px] font-semibold leading-none text-fg">{score}</div>
+          <div className="animate-in-up mt-5 w-full">
+            <div className="t-doto animate-slam text-[44px] font-semibold leading-none text-fg">{score}</div>
             <div className="label-nd mt-1.5">匹配度</div>
             {heard && <div className="mt-2 text-sm text-fg-muted">听到：{heard}</div>}
           </div>
         )}
         {azure && (
-          <div className="mt-5 w-full animate-in-up">
-            <div className="t-doto text-[44px] font-semibold leading-none text-fg">{azure.pronunciation}</div>
+          <div className="animate-in-up mt-5 w-full">
+            <div className="t-doto animate-slam text-[44px] font-semibold leading-none text-fg">{azure.pronunciation}</div>
             <div className="label-nd mt-1.5">发音总分</div>
             <div className="mt-3 flex flex-wrap justify-center gap-1.5">
-              <ScoreChip label="准确" score={azure.accuracy} />
-              <ScoreChip label="流利" score={azure.fluency} />
-              {azure.prosody != null && <ScoreChip label="韵律" score={azure.prosody} />}
+              {([
+                ['准确', azure.accuracy],
+                ['流利', azure.fluency],
+                ...(azure.prosody != null ? [['韵律', azure.prosody] as [string, number]] : []),
+              ] as [string, number][]).map(([lb, sc], i) => (
+                <ScoreChip key={lb} label={lb} score={sc} style={{ animationDelay: `${i * 50}ms` }} />
+              ))}
             </div>
             {azure.words.some((w) => w.errorType !== 'None' || w.accuracy < 70) && (
               <div className="mt-3 flex flex-wrap justify-center gap-1 text-body-lg">
                 {azure.words.map((w, i) => (
-                  <span key={i} className={cn('rounded-sm px-1', w.errorType !== 'None' || w.accuracy < 60 ? 'bg-danger-soft text-danger' : w.accuracy < 80 ? 'text-fg-secondary' : 'text-fg')} title={`${w.accuracy} · ${w.errorType}`}>{w.word}</span>
+                  <span
+                    key={i}
+                    className={cn('animate-in-up rounded-sm px-1', w.errorType !== 'None' || w.accuracy < 60 ? 'bg-danger-soft text-danger' : w.accuracy < 80 ? 'text-fg-secondary' : 'text-fg')}
+                    style={{ animationDelay: `${i * 50}ms` }}
+                    title={`${w.accuracy} · ${w.errorType}`}
+                  >
+                    {w.word}
+                  </span>
                 ))}
               </div>
             )}
@@ -143,16 +142,8 @@ function ShadowHero({ text, tip, idx, total, sttOk, lesson }: { text: string; ti
   )
 }
 
-export default function SpeakingBlock({
-  lesson,
-}: {
-  lesson: DayLesson
-  done?: boolean
-  onComplete?: () => void
-  onUndo?: () => void
-}) {
+export default function SpeakingBlock({ lesson }: { lesson: DayLesson }) {
   const s = lesson.speaking
-  const premium = azureAvailable()
   const sttOk = sttSupported()
   const [si, setSi] = useState(0)
   const shadow = s.shadowing
@@ -163,36 +154,27 @@ export default function SpeakingBlock({
 
   return (
     <div className="space-y-4">
-      {!premium && !cfVoiceAvailable() && !sttOk && (
-        <Callout tone="warning" icon={<MicOff size={16} className="text-fg-muted" />}>
-          当前浏览器不支持语音识别，建议用 Chrome / Edge；仍可跟读练习。
-        </Callout>
-      )}
-
       {/* ===== HERO shadowing ===== */}
-      {cur && <ShadowHero key={si} text={cur.text} tip={cur.tip} idx={si} total={shadow.length} sttOk={sttOk} lesson={lesson} />}
+      {cur && <ShadowHero key={si} text={cur.text} tip={cur.tip} sttOk={sttOk} lesson={lesson} />}
 
-      <div className="flex items-center justify-between">
-        <Button variant="secondary" size="sm" disabled={si === 0} onClick={() => setSi((p) => p - 1)}><ChevronLeft size={15} /> 上一句</Button>
-        <div className="flex gap-1.5">
-          {shadow.map((_, idx) => (
-            <span key={idx} className={cn('h-1.5 w-1.5 rounded-[2px]', idx === si ? 'bg-red' : idx < si ? 'bg-fg' : 'border border-border-strong')} />
-          ))}
+      <Stepper idx={si} total={shadow.length} onStep={(d) => setSi((p) => p + d)} />
+
+      {/* speaking task — the day's action, first */}
+      <Callout tone="accent">
+        <div className="label-nd mb-1.5">口语任务</div>
+        <p className="text-body text-fg">{s.speakingTask}</p>
+        <p className="mt-1.5 text-meta text-fg-muted">录下自己的回答，对比模仿。坚持"每天开口说"是流利的关键。</p>
+      </Callout>
+
+      {/* AI partner */}
+      <Collapse label="AI 陪练" hint="和 AI 用今天的情景聊，实时纠错">
+        <div className="p-4">
+          <AiGate><ConversationPanel lesson={ctxOf(lesson)} scenario={scenario} /></AiGate>
         </div>
-        <Button variant="secondary" size="sm" disabled={si === shadow.length - 1} onClick={() => setSi((p) => p + 1)}>下一句 <ChevronRight size={15} /></Button>
-      </div>
-
-      {/* target sounds */}
-      <Collapse label="目标音" count={s.targetSounds.length}>
-        <ul className="space-y-1.5 p-5">
-          {s.targetSounds.map((t, i) => (
-            <li key={i} className="flex gap-2 text-sm text-fg-secondary"><span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-fg-muted" />{t}</li>
-          ))}
-        </ul>
       </Collapse>
 
       {/* dialogue */}
-      <Collapse label="情景对话">
+      <Collapse label="情景对话" hint={s.miniDialogue[0]?.line}>
         <RowGroup>
           {s.miniDialogue.map((d, i) => (
             <div key={i} className={cn('flex items-start gap-2.5 px-3.5 py-2.5 transition-colors hover:bg-hover', i > 0 && 'border-t border-border-soft')}>
@@ -202,24 +184,16 @@ export default function SpeakingBlock({
             </div>
           ))}
         </RowGroup>
-        <div className="p-3">
-          <Button variant="secondary" size="sm" onClick={() => speak(s.miniDialogue.map((d) => d.line).join('. '))}><Play size={14} /> 播放整段对话</Button>
-        </div>
       </Collapse>
 
-      {/* AI partner */}
-      <Collapse label="AI 陪练">
-        <div className="p-4">
-          <AiGate><ConversationPanel lesson={ctxOf(lesson)} scenario={scenario} /></AiGate>
-        </div>
+      {/* target sounds */}
+      <Collapse label="目标音" count={s.targetSounds.length} hint={s.targetSounds[0]}>
+        <ul className="space-y-1.5 p-5">
+          {s.targetSounds.map((t, i) => (
+            <li key={i} className="flex gap-2 text-sm text-fg-secondary"><span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-fg-muted" />{t}</li>
+          ))}
+        </ul>
       </Collapse>
-
-      {/* speaking task */}
-      <Callout tone="accent">
-        <div className="label-nd mb-1.5">口语任务</div>
-        <p className="text-body text-fg">{s.speakingTask}</p>
-        <p className="mt-1.5 text-meta text-fg-muted">录下自己的回答，对比模仿。坚持"每天开口说"是流利的关键。</p>
-      </Callout>
     </div>
   )
 }

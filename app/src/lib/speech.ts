@@ -4,7 +4,7 @@
 //   3. Browser Web Speech API (offline fallback)
 // speak() tries each in order, falling back on any error.
 import { azureAvailable, azureSpeak } from './azureSpeech'
-import { cfVoiceAvailable, cfSpeak, playUrl, stopCfSpeak } from './cfSpeech'
+import { cfVoiceAvailable, cfSpeak, playUrl, prefetchTts, stopCfSpeak } from './cfSpeech'
 import { wordAudio } from './dictionary'
 
 export function ttsSupported(): boolean {
@@ -36,7 +36,9 @@ function pickEnglishVoice(): SpeechSynthesisVoice | null {
 // a newer tap bails instead of playing out of order on the shared audio element.
 let speakGen = 0
 
-export async function speak(text: string, rate = 1): Promise<void> {
+/** Speak `text`. `onStart` fires when sound actually begins (loading → playing
+ *  UI). Resolves when playback finishes (or is interrupted/superseded). */
+export async function speak(text: string, rate = 1, onStart?: () => void): Promise<void> {
   const myGen = ++speakGen
   const superseded = () => myGen !== speakGen
   const t = text.trim()
@@ -45,12 +47,17 @@ export async function speak(text: string, rate = 1): Promise<void> {
   // Single words: prefer a real HUMAN recording. Sentence-trained neural TTS
   // renders a lone word with trailing intonation (it "sounds cut from a
   // sentence"); a dictionary recording is a clean, natural, consistent word.
+  // Budget the (foreign, sometimes slow) dictionary host to 900ms — past that
+  // the neural voice takes over; the fetch keeps warming the cache for replays.
   if (isWord) {
     try {
-      const url = await wordAudio(t)
+      const url = await Promise.race([
+        wordAudio(t),
+        new Promise<null>((r) => setTimeout(() => r(null), 900)),
+      ])
       if (superseded()) return
       if (url) {
-        await playUrl(url, rate)
+        await playUrl(url, rate, onStart)
         return
       }
     } catch {
@@ -61,6 +68,7 @@ export async function speak(text: string, rate = 1): Promise<void> {
   // Tier 1: Azure natural neural voice (fixes the robotic browser-TTS feel).
   if (!superseded() && azureAvailable()) {
     try {
+      onStart?.() // SDK plays via its own pipeline; treat dispatch as start
       await azureSpeak(text, rate)
       return
     } catch {
@@ -71,17 +79,35 @@ export async function speak(text: string, rate = 1): Promise<void> {
   // lone word so Aura gives it complete, standalone intonation.
   if (!superseded() && cfVoiceAvailable()) {
     try {
-      await cfSpeak(isWord ? `${t}.` : text, rate)
+      await cfSpeak(isWord ? `${t}.` : text, rate, onStart)
       return
     } catch {
       /* fall through */
     }
   }
   if (superseded()) return
-  return browserSpeak(text, rate)
+  return browserSpeak(text, rate, onStart)
 }
 
-function browserSpeak(text: string, rate = 1): Promise<void> {
+/** Fire-and-forget cache warm for speech the user is ABOUT to tap (the visible
+ *  flashcard word, the current listening sentence, the shadowing line). Words
+ *  warm the free dictionary recording first, then fall back to neural TTS. */
+export function prefetchSpeak(text: string): void {
+  const t = text.trim()
+  if (!t) return
+  const isWord = !/\s/.test(t) && /^[A-Za-z][A-Za-z'-]*$/.test(t)
+  if (isWord) {
+    wordAudio(t)
+      .then((url) => { if (!url) prefetchTts(`${t}.`) })
+      .catch(() => { /* best-effort */ })
+    return
+  }
+  // Sentences: Azure synthesizes per-call via its SDK (no URL cache) — only the
+  // CF tier benefits from warming.
+  if (!azureAvailable()) prefetchTts(t)
+}
+
+function browserSpeak(text: string, rate = 1, onStart?: () => void): Promise<void> {
   return new Promise((resolve) => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
       resolve()
@@ -93,6 +119,7 @@ function browserSpeak(text: string, rate = 1): Promise<void> {
     if (cachedVoice) u.voice = cachedVoice
     u.lang = cachedVoice?.lang || 'en-US'
     u.rate = rate
+    u.onstart = () => onStart?.()
     u.onend = () => resolve()
     u.onerror = () => resolve()
     window.speechSynthesis.speak(u)

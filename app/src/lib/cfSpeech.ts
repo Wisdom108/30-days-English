@@ -98,8 +98,9 @@ export function stopCfSpeak() {
 }
 
 /** Play a ready audio URL (blob or remote) through the unlocked element. Rejects
- *  on failure so the caller can fall back to the browser voice. */
-export function playUrl(url: string, rate = 1): Promise<void> {
+ *  on failure so the caller can fall back to the browser voice. `onStart` fires
+ *  when sound actually begins — callers use it to flip loading → playing UI. */
+export function playUrl(url: string, rate = 1, onStart?: () => void): Promise<void> {
   unlock()
   const a = audioEl()
   if (settlePrev) { settlePrev(); settlePrev = null }
@@ -120,13 +121,23 @@ export function playUrl(url: string, rate = 1): Promise<void> {
     settlePrev = () => finish(resolve) // interrupted → treat as done
     a.onended = () => finish(resolve)
     a.onerror = () => finish(() => reject(new Error('播放失败')))
-    a.play().catch((e) => finish(() => reject(e instanceof Error ? e : new Error('播放失败'))))
+    a.play().then(
+      () => { if (mySeq === playSeq) onStart?.() },
+      (e) => finish(() => reject(e instanceof Error ? e : new Error('播放失败'))),
+    )
   })
 }
 
 /** Synthesize `text` with the neural voice and play it (cached). */
-export async function cfSpeak(text: string, rate = 1): Promise<void> {
-  await playUrl(await ttsUrl(text), rate)
+export async function cfSpeak(text: string, rate = 1, onStart?: () => void): Promise<void> {
+  await playUrl(await ttsUrl(text), rate, onStart)
+}
+
+/** Warm the TTS cache for `text` without playing — call when the text becomes
+ *  visible so the first tap is instant instead of waiting on synthesis. */
+export function prefetchTts(text: string): void {
+  if (!cfVoiceAvailable() || ttsCache.has(text)) return
+  ttsUrl(text).catch(() => { /* best-effort */ })
 }
 
 // --- STT (Whisper) --------------------------------------------------------
@@ -143,6 +154,15 @@ export async function cfTranscribe(blob: Blob): Promise<string> {
   if (!res.ok) throw new Error('识别失败')
   const data = (await res.json()) as { text?: string }
   return (data.text || '').trim()
+}
+
+// Live recorder handle so the UI can finish a take early (tap-to-stop) instead
+// of waiting for the silence detector / hard cap.
+let activeStop: (() => void) | null = null
+
+/** Stop the in-flight recording early — transcription proceeds with what was heard. */
+export function stopCfRecording(): void {
+  activeStop?.()
 }
 
 /** Record from the mic (auto-stops on silence) then transcribe via Whisper. */
@@ -181,12 +201,14 @@ export async function cfRecordAndTranscribe(maxMs = 10000): Promise<string> {
     const stop = () => {
       if (stopped) return
       stopped = true
+      if (activeStop === stop) activeStop = null
       try {
         rec.stop()
       } catch {
         /* ignore */
       }
     }
+    activeStop = stop
 
     const poll = setInterval(() => {
       analyser.getByteTimeDomainData(buf)

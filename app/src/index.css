@@ -1,6 +1,5 @@
 @import 'tailwindcss';
 @import '@fontsource-variable/space-grotesk';
-@import '@fontsource-variable/fraunces';
 @import '@fontsource/space-mono/400.css';
 @import '@fontsource/space-mono/700.css';
 @import '@fontsource/doto/500.css';
@@ -63,9 +62,6 @@
     'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
   --font-display: 'Doto', ui-monospace, monospace;
   --font-mono: 'Space Mono', ui-monospace, 'SFMono-Regular', monospace;
-  /* refined editorial serif for the LEARNING CONTENT (words, sentences,
-     passages, lesson titles) — reads as premium against the mono chrome. */
-  --font-serif: 'Fraunces Variable', 'Fraunces', ui-serif, Georgia, 'Songti SC', serif;
 
   /* motion — slams and settles */
   --ease-out: cubic-bezier(0.4, 0, 0.2, 1);
@@ -128,14 +124,6 @@
   .font-display { font-family: var(--font-display); }
   .font-mono { font-family: var(--font-mono); }
 
-  /* Editorial serif for learning content — optical sizing makes big titles
-     elegant and body text readable. */
-  .t-serif {
-    font-family: var(--font-serif);
-    font-optical-sizing: auto;
-    letter-spacing: -0.006em;
-  }
-
   /* IPA phonetics — the subsetted @fontsource fonts (Space Mono/Grotesk) are
      MISSING common symbols (ˈ ɪ ʊ ː ʃ θ), so they render as a mismatched mix or
      tofu. A system stack (SF / Roboto / Segoe) carries full IPA, keeping a
@@ -171,18 +159,37 @@
   .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
   .top-safe { top: env(safe-area-inset-top); }
 
-  /* ---- Motion: slam & settle ---- */
-  .animate-in-up { animation: inUp 0.4s var(--ease-out) both; }
+  /* ---- Motion: 5 primitives, applied everywhere, nothing else ----
+     IN    animate-in-up   0.22s fade+rise — ONE per navigation (route/panel swap),
+                           overlays, and result reveals. No per-card confetti.
+     OUT   animate-out     0.16s fade+drop — every overlay close (data-state=closed).
+     PRESS .press          active scale .97 — EVERY tappable surface.
+     SLAM  animate-slam    0.28s tame overshoot — reserved for reward beats only
+                           (score numeral, step-rail check).
+     FILL  Cells stagger   sequential transition-delay inside the Cells primitive. */
+  .animate-in-up { animation: inUp 0.22s var(--ease-out) both; }
   @keyframes inUp {
-    from { opacity: 0; transform: translateY(10px); }
+    from { opacity: 0; transform: translateY(8px); }
     to { opacity: 1; transform: translateY(0); }
   }
-  .animate-slam { animation: slam 0.36s var(--ease-back) both; }
+  .animate-out { animation: outDown 0.16s var(--ease-out) both; }
+  @keyframes outDown {
+    from { opacity: 1; transform: translateY(0); }
+    to { opacity: 0; transform: translateY(6px); }
+  }
+  .press { transition: transform 0.1s var(--ease-out); }
+  .press:active { transform: scale(0.97); }
+  .animate-slam { animation: slam 0.28s var(--ease-back) both; }
   @keyframes slam {
-    0% { opacity: 0; transform: scale(0.3); }
-    60% { transform: scale(1.12); }
+    0% { opacity: 0; transform: scale(0.6); }
+    60% { transform: scale(1.06); }
     100% { opacity: 1; transform: scale(1); }
   }
+  /* bottom sheet: slide from the edge it belongs to */
+  .sheet-in-bottom[data-state='open'] { animation: sheetInBottom 0.28s var(--ease-out) both; }
+  .sheet-in-bottom[data-state='closed'] { animation: sheetOutBottom 0.2s var(--ease-out) both; }
+  @keyframes sheetInBottom { from { transform: translateY(100%); } to { transform: translateY(0); } }
+  @keyframes sheetOutBottom { from { transform: translateY(0); } to { transform: translateY(100%); } }
   .pulse-red { animation: pulseRed 1.6s var(--ease-out) infinite; }
   @keyframes pulseRed {
     0%, 100% { opacity: 1; }
@@ -190,11 +197,17 @@
   }
   .pulse-live { animation: pulseRed 2.4s var(--ease-out) infinite; }
 
+  /* shared hero-card surface (listening orb / shadowing / vocab front) */
+  .hero-card {
+    background: radial-gradient(120% 80% at 50% 0%, #17171a 0%, #0d0d0f 62%);
+  }
+
   /* audio waveform bars (animate only while playing) */
   @keyframes waveBar { 0%, 100% { transform: scaleY(0.35); } 50% { transform: scaleY(1); } }
   .wave-anim > i { animation: waveBar 0.9s var(--ease-out) infinite; }
 
-  .flip-3d { transform-style: preserve-3d; transition: transform 0.4s var(--ease-out); }
+  /* signature interaction gets the settle: slight overshoot on the card flip */
+  .flip-3d { transform-style: preserve-3d; transition: transform 0.45s var(--ease-back); }
   .flip-3d.flipped { transform: rotateY(180deg); }
   .flip-face { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
   .flip-back { transform: rotateY(180deg); }
@@ -211,11 +224,3 @@
   .pulse-red, .pulse-live { animation: none; }
 }
 
-/* User-toggled motion off (command palette · ⌘K → Toggle motion) */
-body.motion-off *, body.motion-off *::before, body.motion-off *::after {
-  animation-duration: 0.001ms !important;
-  animation-iteration-count: 1 !important;
-  transition-duration: 0.001ms !important;
-}
-body.motion-off .flip-3d { transition: none; }
-body.motion-off .pulse-red, body.motion-off .pulse-live { animation: none; }

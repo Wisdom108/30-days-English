@@ -6,16 +6,17 @@ import type {
   ReactNode,
   TextareaHTMLAttributes,
 } from 'react'
-import { forwardRef, useRef } from 'react'
+import { forwardRef, useState } from 'react'
 import * as TooltipPrimitive from '@radix-ui/react-tooltip'
 import * as AlertDialogPrimitive from '@radix-ui/react-alert-dialog'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 import * as SelectPrimitive from '@radix-ui/react-select'
-import { Check, ChevronDown, X } from 'lucide-react'
+import { Check, ChevronDown, ChevronLeft, ChevronRight, X } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
 // Shared scrim for all overlays (single source so they can't drift).
-const SCRIM = 'fixed inset-0 z-50 bg-black/55 backdrop-blur-[2px] data-[state=open]:animate-in-up'
+export const SCRIM =
+  'fixed inset-0 z-50 bg-black/55 backdrop-blur-[2px] data-[state=open]:animate-in-up data-[state=closed]:animate-out'
 const RING = 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 focus-visible:ring-offset-2 focus-visible:ring-offset-bg'
 
 // ============================================================================
@@ -70,7 +71,7 @@ export function IconButton({
       aria-label={label}
       title={label}
       className={cn(
-        'inline-grid place-items-center rounded-lg text-fg-muted transition-colors hover:bg-hover hover:text-fg disabled:opacity-45 disabled:pointer-events-none',
+        'press inline-grid place-items-center rounded-lg text-fg-muted transition-colors hover:bg-hover hover:text-fg disabled:opacity-45 disabled:pointer-events-none',
         RING,
         dim,
         className,
@@ -83,11 +84,19 @@ export function IconButton({
 // ============================================================================
 // Card + telemetry header + sharp inner segment
 // ============================================================================
-export function Card({ className, children, ...props }: HTMLAttributes<HTMLDivElement>) {
+/** Card. Static by default — `interactive` opts in the hover affordance so only
+ *  genuinely clickable surfaces light up. */
+export function Card({
+  className,
+  children,
+  interactive,
+  ...props
+}: HTMLAttributes<HTMLDivElement> & { interactive?: boolean }) {
   return (
     <div
       className={cn(
-        'rounded-xl border border-border bg-surface shadow-card transition-colors duration-200 hover:border-border-strong',
+        'rounded-xl border border-border bg-surface shadow-card',
+        interactive && 'cursor-pointer transition-colors duration-200 hover:border-border-strong',
         className,
       )}
       {...props}
@@ -95,10 +104,6 @@ export function Card({ className, children, ...props }: HTMLAttributes<HTMLDivEl
       {children}
     </div>
   )
-}
-
-export function CardBody({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('p-5', className)} {...props} />
 }
 
 /** Telemetry-style card header: mono uppercase title + optional right slot + hairline. */
@@ -135,8 +140,49 @@ export function SectionLabel({ className, children }: { className?: string; chil
   return <div className={cn('label-nd mt-6 mb-2 first:mt-0', className)}>{children}</div>
 }
 
-export function Separator({ className }: { className?: string }) {
-  return <div className={cn('my-4 border-t border-border', className)} />
+// ---- Collapse — THE one fold pattern (animated grid-rows, chevron header) ----
+export function Collapse({
+  label,
+  count,
+  hint,
+  defaultOpen,
+  children,
+  className,
+}: {
+  label: string
+  count?: number
+  hint?: string // one-line muted preview so the closed state isn't opaque
+  defaultOpen?: boolean
+  children: ReactNode
+  className?: string
+}) {
+  const [open, setOpen] = useState(!!defaultOpen)
+  return (
+    <div className={cn('overflow-hidden rounded-xl border border-border', className)}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className={cn('press flex w-full items-center justify-between gap-3 px-5 py-4 text-left transition-colors hover:bg-hover', RING)}
+      >
+        <span className="min-w-0">
+          <span className="label-nd">
+            {label}
+            {count != null && <> · <span className="t-tab text-fg-secondary">{count}</span></>}
+          </span>
+          {hint && !open && <span className="mt-0.5 block truncate text-sm text-fg-muted">{hint}</span>}
+        </span>
+        <ChevronDown size={17} className={cn('shrink-0 text-fg-muted transition-transform duration-200', open && 'rotate-180')} />
+      </button>
+      <div
+        className={cn('grid transition-[grid-template-rows] duration-200', open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]')}
+        style={{ transitionTimingFunction: 'var(--ease-out)' }}
+      >
+        <div className="overflow-hidden">
+          <div className="border-t border-border">{children}</div>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 // ============================================================================
@@ -204,11 +250,11 @@ export function Progress({
       aria-valuemax={100}
     >
       <div
-        className="h-full rounded-full transition-[width] duration-[380ms]"
+        className="h-full rounded-full transition-[width] duration-[240ms]"
         style={{
           width: `${pct}%`,
           background: color,
-          transitionTimingFunction: 'cubic-bezier(0.34,1.56,0.64,1)',
+          transitionTimingFunction: 'var(--ease-out)', // no bounce: bars are instruments
         }}
       />
     </div>
@@ -244,54 +290,16 @@ export function Cells({
       {Array.from({ length: max }, (_, i) => (
         <span
           key={i}
-          className="flex-1 rounded-[1.5px] transition-colors duration-300"
-          style={{ height, background: i < filled ? accent : 'var(--color-border-strong)', opacity: i < filled ? 1 : 0.5 }}
+          className="flex-1 rounded-[1.5px] transition-colors duration-200"
+          style={{
+            height,
+            background: i < filled ? accent : 'var(--color-border-strong)',
+            opacity: i < filled ? 1 : 0.5,
+            transitionDelay: `${i * 20}ms`, // FILL primitive: segments light left→right
+          }}
         />
       ))}
     </div>
-  )
-}
-
-// ---- Metric (telemetry readout cell) ----
-export function Metric({
-  label,
-  value,
-  unit,
-  icon,
-  red,
-  onClick,
-  children,
-  className,
-}: {
-  label: ReactNode
-  value: ReactNode
-  unit?: ReactNode
-  icon?: ReactNode
-  red?: boolean
-  onClick?: () => void
-  children?: ReactNode
-  className?: string
-}) {
-  const Tag = onClick ? 'button' : 'div'
-  return (
-    <Tag
-      onClick={onClick}
-      className={cn(
-        'block px-[18px] py-4 text-left transition-colors',
-        onClick && cn('hover:bg-hover', RING),
-        className,
-      )}
-    >
-      <div className="flex items-center justify-between">
-        <span className="label-nd">{label}</span>
-        {icon && <span className="text-fg-dim">{icon}</span>}
-      </div>
-      <div className={cn('mt-3 flex items-baseline gap-1 leading-none', red ? 'text-red' : 'text-fg')}>
-        <span className="t-tab text-[32px] font-semibold">{value}</span>
-        {unit && <span className="text-body text-fg-secondary">{unit}</span>}
-      </div>
-      {children && <div className="mt-3">{children}</div>}
-    </Tag>
   )
 }
 
@@ -362,74 +370,35 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<H
   },
 )
 
-// ---- Segmented control — roving-tabindex tablist with arrow-key nav ----
-export function Segmented<T extends string>({
-  value,
-  onChange,
-  options,
+// ---- Stepper — THE one prev/next pattern (chevron squares + bar dots) ----
+export function Stepper({
+  idx,
+  total,
+  onStep,
   className,
-  size = 'md',
-  ariaLabel,
-  full = false,
 }: {
-  value: T
-  onChange: (v: T) => void
-  options: { value: T; label: ReactNode }[]
+  idx: number
+  total: number
+  onStep: (delta: number) => void
   className?: string
-  size?: 'sm' | 'md'
-  ariaLabel?: string
-  full?: boolean
 }) {
-  const h = size === 'sm' ? 'py-1.5 text-sm' : 'py-2 text-body'
-  const refs = useRef<(HTMLButtonElement | null)[]>([])
-  const idx = options.findIndex((o) => o.value === value)
-
-  function onKey(e: React.KeyboardEvent) {
-    let next = -1
-    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') next = (idx + 1) % options.length
-    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') next = (idx - 1 + options.length) % options.length
-    else if (e.key === 'Home') next = 0
-    else if (e.key === 'End') next = options.length - 1
-    if (next >= 0) {
-      e.preventDefault()
-      onChange(options[next].value)
-      refs.current[next]?.focus()
-    }
-  }
-
+  const btn = cn(
+    'press grid h-10 w-10 place-items-center rounded-lg border border-border text-fg-secondary transition-colors hover:text-fg disabled:opacity-35',
+    RING,
+  )
   return (
-    <div
-      role="tablist"
-      aria-label={ariaLabel}
-      className={cn(
-        'gap-1 rounded-lg border border-border bg-surface-2 p-1',
-        full ? 'flex w-full' : 'inline-flex',
-        className,
-      )}
-    >
-      {options.map((o, i) => {
-        const active = o.value === value
-        return (
-          <button
-            key={o.value}
-            ref={(el) => { refs.current[i] = el }}
-            role="tab"
-            aria-selected={active}
-            tabIndex={active ? 0 : -1}
-            onKeyDown={onKey}
-            onClick={() => onChange(o.value)}
-            className={cn(
-              'flex items-center justify-center gap-1.5 rounded-sm px-3 font-medium transition-all duration-200',
-              RING,
-              h,
-              full && 'min-h-11 flex-1',
-              active ? 'bg-elevated text-fg shadow-rest' : 'text-fg-muted hover:text-fg',
-            )}
-          >
-            {o.label}
-          </button>
-        )
-      })}
+    <div className={cn('flex items-center justify-between', className)}>
+      <button onClick={() => onStep(-1)} disabled={idx === 0} aria-label="上一个" className={btn}>
+        <ChevronLeft size={17} />
+      </button>
+      <div className="flex flex-1 flex-wrap items-center justify-center gap-1.5 px-3">
+        {Array.from({ length: total }, (_, i) => (
+          <span key={i} className={cn('h-1.5 rounded-[2px] transition-all duration-200', i === idx ? 'w-4 bg-fg' : 'w-1.5 bg-border-strong')} />
+        ))}
+      </div>
+      <button onClick={() => onStep(1)} disabled={idx === total - 1} aria-label="下一个" className={btn}>
+        <ChevronRight size={17} />
+      </button>
     </div>
   )
 }
@@ -469,7 +438,7 @@ export function Select<T extends string>({
         <SelectPrimitive.Content
           position="popper"
           sideOffset={6}
-          className="z-50 overflow-hidden rounded-lg border border-border bg-elevated shadow-[var(--shadow-popover)] data-[state=open]:animate-in-up"
+          className="z-50 overflow-hidden rounded-lg border border-border bg-elevated shadow-[var(--shadow-popover)] data-[state=open]:animate-in-up data-[state=closed]:animate-out"
         >
           <SelectPrimitive.Viewport className="p-1">
             {options.map((o) => (
@@ -511,17 +480,18 @@ export function Sheet({
 }) {
   const pos =
     side === 'left'
-      ? 'inset-y-0 left-0 h-full w-[280px] border-r rounded-r-xl'
+      ? 'inset-y-0 left-0 h-full w-[280px] border-r rounded-r-xl data-[state=open]:animate-in-up data-[state=closed]:animate-out'
       : side === 'right'
-      ? 'inset-y-0 right-0 h-full w-[420px] max-w-[92vw] border-l rounded-l-xl'
-      : 'inset-x-0 bottom-0 max-h-[85vh] w-full rounded-t-xl border-t md:inset-y-0 md:right-0 md:left-auto md:h-full md:w-[420px] md:rounded-t-none md:rounded-l-xl md:border-l md:border-t-0'
+      ? 'inset-y-0 right-0 h-full w-[420px] max-w-[92vw] border-l rounded-l-xl data-[state=open]:animate-in-up data-[state=closed]:animate-out'
+      : // bottom sheet slides from its edge (mobile); desktop side-panel fades
+        'sheet-in-bottom inset-x-0 bottom-0 max-h-[85vh] w-full rounded-t-xl border-t md:inset-y-0 md:right-0 md:left-auto md:h-full md:w-[420px] md:rounded-t-none md:rounded-l-xl md:border-l md:border-t-0'
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className={SCRIM} />
         <DialogPrimitive.Content
           className={cn(
-            'fixed z-50 border-border bg-surface shadow-[var(--shadow-popover)] data-[state=open]:animate-in-up focus:outline-none',
+            'fixed z-50 border-border bg-surface shadow-[var(--shadow-popover)] focus:outline-none',
             pos,
             className,
           )}
@@ -623,7 +593,7 @@ export function ConfirmDialog({
       <AlertDialogPrimitive.Trigger asChild>{trigger}</AlertDialogPrimitive.Trigger>
       <AlertDialogPrimitive.Portal>
         <AlertDialogPrimitive.Overlay className={SCRIM} />
-        <AlertDialogPrimitive.Content className="fixed left-1/2 top-1/2 z-50 w-[92vw] max-w-[400px] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow-popover)] data-[state=open]:animate-in-up">
+        <AlertDialogPrimitive.Content className="fixed left-1/2 top-1/2 z-50 w-[92vw] max-w-[400px] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow-popover)] data-[state=open]:animate-in-up data-[state=closed]:animate-out">
           <AlertDialogPrimitive.Title className="text-h2 font-semibold text-fg">
             {title}
           </AlertDialogPrimitive.Title>

@@ -1,4 +1,12 @@
-import { verifyUser } from './auth'
+import { identify, verifyUser } from './auth'
+import {
+  handleRegister,
+  handleAuthLogin,
+  handleAuthLogout,
+  handleActivate,
+  handleGetProgress,
+  handlePutProgress,
+} from './membership'
 import {
   conversationSystem,
   writingSystem,
@@ -25,6 +33,12 @@ export interface Env {
   AZURE_VOICE: string
   DAILY_AI_QUOTA: string
   DAILY_SPEECH_QUOTA: string
+  // Membership (Cloudflare D1) — OPTIONAL. Absent DB → everything runs as before
+  // and the /auth/* + /progress endpoints answer 503.
+  DB?: D1Database
+  SESSION_SECRET?: string // HMAC key for session cookies (wrangler secret put)
+  FREE_AI_QUOTA?: string // daily AI calls for non-members (default 5)
+  FREE_SPEECH_QUOTA?: string // daily speech calls for non-members (default 20)
 }
 
 interface Msg {
@@ -43,7 +57,7 @@ function cors(env: Env, req?: Request): Record<string, string> {
   const allowOrigin = allowed === '*' ? origin || '*' : allowed
   const h: Record<string, string> = {
     'Access-Control-Allow-Origin': allowOrigin,
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, OPTIONS',
     'Access-Control-Allow-Headers': 'content-type',
     'Access-Control-Max-Age': '86400',
     Vary: 'Origin',
@@ -52,7 +66,7 @@ function cors(env: Env, req?: Request): Record<string, string> {
   return h
 }
 
-function json(data: unknown, env: Env, status = 200, req?: Request): Response {
+export function json(data: unknown, env: Env, status = 200, req?: Request): Response {
   return new Response(JSON.stringify(data), {
     status,
     headers: { 'content-type': 'application/json', ...cors(env, req) },
@@ -67,11 +81,11 @@ function today(): string {
 // so failed upstream calls don't burn the user's quota). Non-atomic by design —
 // a small app tolerates the rare concurrent-burst overshoot; front with a CF
 // rate-limit rule if strict enforcement is ever needed.
-async function underQuota(env: Env, prefix: string, uid: string, cap: number): Promise<boolean> {
+export async function underQuota(env: Env, prefix: string, uid: string, cap: number): Promise<boolean> {
   const cur = Number((await env.QUOTA.get(`${prefix}:${uid}:${today()}`)) || '0')
   return cur < cap
 }
-async function bump(env: Env, prefix: string, uid: string): Promise<void> {
+export async function bump(env: Env, prefix: string, uid: string): Promise<void> {
   const key = `${prefix}:${uid}:${today()}`
   const cur = Number((await env.QUOTA.get(key)) || '0')
   await env.QUOTA.put(key, String(cur + 1), { expirationTtl: 60 * 60 * 48 })
@@ -122,6 +136,9 @@ function parseJson(raw: string): unknown {
 const cap = (s: unknown, n: number): string | undefined =>
   typeof s === 'string' ? s.slice(0, n) : undefined
 
+// Non-members (only possible once D1 membership is on) get a small taste quota.
+const FREE_QUOTA_MSG = '免费体验额度已用完，激活会员解锁完整额度'
+
 function lessonFrom(v: unknown): LessonCtx {
   const o = (v || {}) as Record<string, unknown>
   // Cap every client string that reaches a prompt — bounds cost / DoS amplification.
@@ -153,11 +170,14 @@ function cleanMessages(v: unknown): Msg[] {
 
 // ---------------------------------------------------------------- handlers
 async function handleAI(path: string, req: Request, env: Env): Promise<Response> {
-  const uid = await verifyUser(req, env)
-  if (!uid) return json({ error: '需要登录' }, env, 401)
-  const capQuota = Number(env.DAILY_AI_QUOTA || '80')
+  const ident = await identify(req, env)
+  if (!ident) return json({ error: '需要登录' }, env, 401)
+  const uid = ident.uid
+  const capQuota = ident.member
+    ? Number(env.DAILY_AI_QUOTA || '80')
+    : Number(env.FREE_AI_QUOTA || '5')
   if (!(await underQuota(env, 'q', uid, capQuota))) {
-    return json({ error: '今日 AI 额度已用完，明天再来～' }, env, 429)
+    return json({ error: ident.member ? '今日 AI 额度已用完，明天再来～' : FREE_QUOTA_MSG }, env, 429)
   }
 
   const bodyIn = (await req.json().catch(() => ({}))) as Record<string, unknown>
@@ -231,15 +251,16 @@ async function handleAI(path: string, req: Request, env: Env): Promise<Response>
 
 /** Mint a short-lived Azure Speech token so the browser SDK never sees the key. */
 async function handleSpeechToken(req: Request, env: Env): Promise<Response> {
-  const uid = await verifyUser(req, env)
-  if (!uid) return json({ error: '需要登录' }, env, 401)
+  const ident = await identify(req, env)
+  if (!ident) return json({ error: '需要登录' }, env, 401)
+  const uid = ident.uid
   if (!env.AZURE_SPEECH_KEY || !env.AZURE_SPEECH_REGION) {
     return json({ error: '语音服务未配置' }, env, 503)
   }
   // One token already grants ~10 min of direct Azure access — cap mints per user/day.
-  const spCap = Number(env.DAILY_SPEECH_QUOTA || '60')
+  const spCap = ident.member ? Number(env.DAILY_SPEECH_QUOTA || '60') : Number(env.FREE_SPEECH_QUOTA || '20')
   if (!(await underQuota(env, 'sp', uid, spCap))) {
-    return json({ error: '今日语音额度已用完' }, env, 429)
+    return json({ error: ident.member ? '今日语音额度已用完' : FREE_QUOTA_MSG }, env, 429)
   }
   const res = await fetch(
     `https://${env.AZURE_SPEECH_REGION}.api.cognitive.microsoft.com/sts/v1.0/issueToken`,
@@ -265,10 +286,13 @@ function b64(buf: ArrayBuffer): string {
 
 /** Text-to-speech via Cloudflare Workers AI (Deepgram Aura). Returns audio/mpeg. */
 async function handleTts(req: Request, env: Env): Promise<Response> {
-  const uid = await verifyUser(req, env)
-  if (!uid) return json({ error: '需要登录' }, env, 401)
-  const spCap = Number(env.DAILY_SPEECH_QUOTA || '200')
-  if (!(await underQuota(env, 'sp', uid, spCap))) return json({ error: '今日语音额度已用完' }, env, 429)
+  const ident = await identify(req, env)
+  if (!ident) return json({ error: '需要登录' }, env, 401)
+  const uid = ident.uid
+  const spCap = ident.member ? Number(env.DAILY_SPEECH_QUOTA || '200') : Number(env.FREE_SPEECH_QUOTA || '20')
+  if (!(await underQuota(env, 'sp', uid, spCap))) {
+    return json({ error: ident.member ? '今日语音额度已用完' : FREE_QUOTA_MSG }, env, 429)
+  }
   const body = (await req.json().catch(() => ({}))) as { text?: string }
   const text = String(body.text || '').slice(0, 800)
   if (!text.trim()) return json({ error: '没有可朗读的内容' }, env, 400)
@@ -294,10 +318,13 @@ async function handleTts(req: Request, env: Env): Promise<Response> {
 
 /** Speech-to-text via Cloudflare Workers AI (Whisper). Body = raw audio bytes. */
 async function handleStt(req: Request, env: Env): Promise<Response> {
-  const uid = await verifyUser(req, env)
-  if (!uid) return json({ error: '需要登录' }, env, 401)
-  const spCap = Number(env.DAILY_SPEECH_QUOTA || '200')
-  if (!(await underQuota(env, 'sp', uid, spCap))) return json({ error: '今日语音额度已用完' }, env, 429)
+  const ident = await identify(req, env)
+  if (!ident) return json({ error: '需要登录' }, env, 401)
+  const uid = ident.uid
+  const spCap = ident.member ? Number(env.DAILY_SPEECH_QUOTA || '200') : Number(env.FREE_SPEECH_QUOTA || '20')
+  if (!(await underQuota(env, 'sp', uid, spCap))) {
+    return json({ error: ident.member ? '今日语音额度已用完' : FREE_QUOTA_MSG }, env, 429)
+  }
   const buf = await req.arrayBuffer()
   if (!buf.byteLength) return json({ error: '没有音频' }, env, 400)
   if (buf.byteLength > 6_000_000) return json({ error: '音频过大' }, env, 413)
@@ -318,6 +345,26 @@ async function handleStt(req: Request, env: Env): Promise<Response> {
 /** Whoami — the frontend polls this to learn if AI is usable / who is signed in.
  *  Open mode (no Access) → returns a "访客" identity so AI works without login. */
 async function handleMe(req: Request, env: Env): Promise<Response> {
+  // Account mode (D1 bound): username/password login + activation-code membership.
+  if (env.DB) {
+    const ident = await identify(req, env)
+    if (ident?.uid.startsWith('u:')) {
+      // Session user — fetch the expiry so the frontend can show it.
+      const row = await env.DB
+        .prepare('SELECT member_until FROM users WHERE id = ?')
+        .bind(Number(ident.uid.slice(2)))
+        .first<{ member_until: number | null }>()
+      return json(
+        { email: ident.name, member: ident.member, memberUntil: row?.member_until ?? null, mode: 'account' },
+        env, 200, req,
+      )
+    }
+    // Passcode / Access / dev-bypass callers are still honored as full members.
+    if (ident?.member) {
+      return json({ email: ident.name, member: true, memberUntil: null, mode: 'account' }, env, 200, req)
+    }
+    return json({ email: null, mode: 'account' }, env, 401, req)
+  }
   const uid = await verifyUser(req, env)
   // mode tells the frontend how to log in: Access redirect, passcode prompt, or open.
   const mode = env.CF_ACCESS_TEAM_DOMAIN ? 'access' : env.APP_PASSCODE ? 'passcode' : 'open'
@@ -367,6 +414,7 @@ export default {
               speech: !!(env.AZURE_SPEECH_KEY && env.AZURE_SPEECH_REGION), // Azure premium
               cfVoice: true, // Workers AI TTS (Aura) + STT (Whisper), always on
               loginRequired: !!env.CF_ACCESS_TEAM_DOMAIN,
+              membership: !!env.DB, // D1 accounts + activation codes + progress sync
             },
           },
           env,
@@ -375,6 +423,13 @@ export default {
       if (pathname === '/me' && req.method === 'GET') return handleMe(req, env)
       if (pathname === '/login') return handleLogin(req)
       if (pathname === '/logout') return handleLogout(req, env)
+      // Membership (D1) — all answer 503 会员系统未启用 until DB is bound.
+      if (pathname === '/auth/register' && req.method === 'POST') return handleRegister(req, env)
+      if (pathname === '/auth/login' && req.method === 'POST') return handleAuthLogin(req, env)
+      if (pathname === '/auth/logout' && req.method === 'POST') return handleAuthLogout(req, env)
+      if (pathname === '/auth/activate' && req.method === 'POST') return handleActivate(req, env)
+      if (pathname === '/progress' && req.method === 'GET') return handleGetProgress(req, env)
+      if (pathname === '/progress' && req.method === 'PUT') return handlePutProgress(req, env)
       if (pathname === '/speech/token' && req.method === 'GET') return handleSpeechToken(req, env)
       if (pathname === '/speech/tts' && req.method === 'POST') return handleTts(req, env)
       if (pathname === '/speech/stt' && req.method === 'POST') return handleStt(req, env)

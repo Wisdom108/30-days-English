@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { Volume2, Loader2, Rabbit } from 'lucide-react'
-import { speak, ttsSupported } from '../lib/speech'
+import { Volume2, Loader2, Rabbit, ChevronDown } from 'lucide-react'
+import { speak, stopSpeaking, ttsSupported } from '../lib/speech'
 import { lookupWord, type LookupResult } from '../lib/dictionary'
 import type { GlossaryItem } from '../types'
 import { cn } from '../lib/utils'
@@ -41,6 +41,8 @@ export function BlockHead({
 }
 
 // ---- Text-to-speech play button (44px tap target, small glyph) ----
+// Three honest states: idle → loading (spinner, only until sound starts) →
+// playing (wave bars, tap to STOP). No more "loading" through the whole clip.
 export function SpeakButton({
   text,
   slow = false,
@@ -52,27 +54,38 @@ export function SpeakButton({
   rate?: number
   className?: string
 }) {
-  const [busy, setBusy] = useState(false)
+  const [phase, setPhase] = useState<'idle' | 'loading' | 'playing'>('idle')
   if (!ttsSupported()) return null
   return (
     <button
       className={cn(
-        'inline-grid h-11 w-11 shrink-0 place-items-center rounded-lg text-fg-muted transition-colors hover:bg-hover hover:text-fg',
+        'press inline-grid h-11 w-11 shrink-0 place-items-center rounded-lg text-fg-muted transition-colors hover:bg-hover hover:text-fg',
+        phase === 'playing' && 'text-fg',
         RING,
         className,
       )}
-      title={slow ? '慢速朗读' : '朗读'}
-      aria-label={slow ? '慢速朗读' : '朗读'}
-      disabled={busy}
+      title={phase === 'playing' ? '停止' : slow ? '慢速朗读' : '朗读'}
+      aria-label={phase === 'playing' ? '停止' : slow ? '慢速朗读' : '朗读'}
+      disabled={phase === 'loading'}
       onClick={async (e) => {
         e.stopPropagation()
-        setBusy(true)
-        await speak(text, slow ? 0.7 : rate)
-        setBusy(false)
+        if (phase === 'playing') {
+          stopSpeaking() // settles the speak() promise below → phase resets
+          return
+        }
+        setPhase('loading')
+        await speak(text, slow ? 0.7 : rate, () => setPhase('playing'))
+        setPhase('idle')
       }}
     >
-      {busy ? (
+      {phase === 'loading' ? (
         <Loader2 size={15} className="animate-spin" />
+      ) : phase === 'playing' ? (
+        <span className="wave-anim flex h-4 items-center gap-[2.5px]">
+          {[7, 13, 9].map((h, i) => (
+            <i key={i} className="w-[2.5px] rounded-full bg-current" style={{ height: h, animationDelay: `${i * 90}ms` }} />
+          ))}
+        </span>
       ) : slow ? (
         <Rabbit size={16} />
       ) : (
@@ -85,7 +98,7 @@ export function SpeakButton({
 // ---- Reading text with click-to-define words ----
 // Curated per-lesson glossary is checked FIRST (instant + offline); the network
 // dictionary is a supplement for phonetics / fuller English definitions.
-export function ReadableText({ text, glossary = [], serif }: { text: string; glossary?: GlossaryItem[]; serif?: boolean }) {
+export function ReadableText({ text, glossary = [] }: { text: string; glossary?: GlossaryItem[] }) {
   const gloss = new Map(glossary.map((g) => [g.word.toLowerCase(), g.meaning_zh]))
 
   const [popover, setPopover] = useState<{
@@ -105,8 +118,13 @@ export function ReadableText({ text, glossary = [], serif }: { text: string; glo
 
   const onWord = async (el: HTMLElement, word: string) => {
     const rect = el.getBoundingClientRect()
-    const x = Math.min(rect.left, window.innerWidth - 340)
-    const y = rect.bottom + 6
+    // Clamp inside the viewport (320px box + 12px margins) and flip ABOVE the
+    // word when the bottom placement would land off-screen.
+    const x = Math.max(12, Math.min(rect.left, window.innerWidth - 320 - 12))
+    const estH = 180
+    const y = rect.bottom + 6 + estH > window.innerHeight - 16
+      ? Math.max(12, rect.top - estH - 6)
+      : rect.bottom + 6
     const meaning_zh = gloss.get(word.toLowerCase())
     setPopover({ x, y, word, meaning_zh, result: null, loading: true })
     speak(word)
@@ -118,10 +136,7 @@ export function ReadableText({ text, glossary = [], serif }: { text: string; glo
 
   return (
     <>
-      {/* NB: don't combine `text-read` with `text-[17px]` — both are font-size
-          utilities, so tailwind-merge drops text-read (and its 1.85 leading).
-          Serif path sets its own size + leading explicitly. */}
-      <div className={cn('text-fg', serif ? 't-serif text-[17px] leading-[1.75]' : 'text-read')} onClick={() => setPopover(null)}>
+      <div className="text-read text-fg" onClick={() => setPopover(null)}>
         {tokens.map((tok, i) => {
           if (/^\s+$/.test(tok)) return <span key={i}>{tok}</span>
           const m = tok.match(/^([^A-Za-z']*)([A-Za-z][A-Za-z'-]*)(.*)$/)
@@ -138,7 +153,8 @@ export function ReadableText({ text, glossary = [], serif }: { text: string; glo
                   type="button"
                   aria-label={`查词 ${word}`}
                   className={cn(
-                    'cursor-pointer rounded-sm px-0.5 underline decoration-dotted decoration-fg-muted underline-offset-4 transition-colors hover:bg-accent-soft',
+                    'cursor-pointer rounded-sm px-0.5 underline decoration-dotted decoration-fg-muted underline-offset-4 transition-colors hover:bg-accent-soft active:bg-accent-soft',
+                    popover?.word === word && 'bg-accent-soft', // hold while its popover is up
                     RING,
                   )}
                   onClick={(e) => { e.stopPropagation(); onWord(e.currentTarget, word) }}
@@ -147,7 +163,10 @@ export function ReadableText({ text, glossary = [], serif }: { text: string; glo
                 </button>
               ) : (
                 <span
-                  className="cursor-pointer rounded-sm px-0.5 transition-colors hover:bg-accent-soft"
+                  className={cn(
+                    'cursor-pointer rounded-sm px-0.5 transition-colors hover:bg-accent-soft active:bg-accent-soft',
+                    popover?.word === word && 'bg-accent-soft',
+                  )}
                   onClick={(e) => { e.stopPropagation(); onWord(e.currentTarget, word) }}
                 >
                   {word}
@@ -172,7 +191,7 @@ export function ReadableText({ text, glossary = [], serif }: { text: string; glo
             <div className="mt-1 text-body text-fg">{popover.meaning_zh}</div>
           )}
           {popover.result?.phonetic && (
-            <div className="mt-1 font-mono text-sm text-fg-muted">{popover.result.phonetic}</div>
+            <div className="t-ipa mt-1 text-sm text-fg-muted">{popover.result.phonetic}</div>
           )}
           {popover.loading && !popover.meaning_zh && (
             <div className="mt-1 text-sm text-fg-muted">查询中…</div>
@@ -224,7 +243,7 @@ export function ProgressRing({
           strokeDasharray={c}
           strokeDashoffset={off}
           strokeLinecap="round"
-          style={{ transition: 'stroke-dashoffset .38s cubic-bezier(0.34,1.56,0.64,1)' }}
+          style={{ transition: 'stroke-dashoffset .24s var(--ease-out)' }}
         />
       </svg>
       <div className="absolute inset-0 grid place-items-center">{children}</div>
@@ -232,22 +251,23 @@ export function ProgressRing({
   )
 }
 
-// ---- Comprehension Q&A row (hover/click-reveal answer) ----
+// ---- Comprehension Q&A row — the WHOLE row toggles the answer ----
 export function QAItem({ q, a }: { q: string; a: string }) {
   const [show, setShow] = useState(false)
   return (
-    <div className="border-b border-border-soft transition-colors last:border-0 hover:bg-hover">
-      <div className="flex items-center justify-between gap-3 px-3.5 py-2.5">
+    <div className="border-b border-border-soft last:border-0">
+      <button
+        className={cn(
+          'press flex w-full items-center justify-between gap-3 px-3.5 py-2.5 text-left transition-colors hover:bg-hover',
+          RING,
+        )}
+        onClick={() => setShow((s) => !s)}
+        aria-expanded={show}
+      >
         <span className="text-body text-fg">{q}</span>
-        <button
-          className="inline-grid h-9 shrink-0 place-items-center rounded-md px-2.5 font-mono text-[10px] uppercase tracking-[0.08em] text-fg-muted transition-colors hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
-          onClick={() => setShow((s) => !s)}
-          aria-expanded={show}
-        >
-          {show ? '隐藏' : '看答案'}
-        </button>
-      </div>
-      {show && <div className="px-3.5 pb-3 text-sm text-fg-secondary">{a}</div>}
+        <ChevronDown size={15} className={cn('shrink-0 text-fg-muted transition-transform duration-200', show && 'rotate-180')} />
+      </button>
+      {show && <div className="animate-in-up px-3.5 pb-3 text-sm text-fg-secondary">{a}</div>}
     </div>
   )
 }

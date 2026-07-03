@@ -64,4 +64,27 @@ cd worker && npx wrangler dev
 ## 仍可后补（非必需）
 - 真人录音音频（现 Workers AI / 浏览器合成；`lib/speech.ts` 已抽象可加音频源）
 - 品牌插画（现点阵「30」记号）
-- 跨设备进度同步（现 localStorage + 导入导出；可后接 Cloudflare D1）
+- 跨设备进度同步（现 localStorage + 导入导出；后端已备好，见下方「会员系统」）
+
+---
+
+## 会员系统（可选 · Cloudflare D1）
+用户名+密码账号 + 激活码会员 + 云端进度同步 + 分级额度（会员全额 80/200，免费体验 `FREE_AI_QUOTA=5` / `FREE_SPEECH_QUOTA=20`）。**默认关闭**：不启用则一切照旧，`/auth/*` 与 `/progress` 返回 503。
+
+启用 5 步（全程 wrangler，无后台）：
+```bash
+cd worker
+npx wrangler d1 create thirty-days-en-db            # 1. 建库，复制打印的 database_id
+# 2. wrangler.toml 取消 [[d1_databases]] 块注释，粘入 database_id
+npx wrangler d1 migrations apply thirty-days-en-db --remote   # 3. 建表
+openssl rand -hex 32 | npx wrangler secret put SESSION_SECRET # 4. 会话签名密钥
+npx wrangler deploy                                 # 5. 上线
+```
+
+生成激活码（EN30-XXXX-XXXX，参数 = 数量 天数）：
+```bash
+node scripts/gen-codes.mjs 10 365 > codes.sql
+npx wrangler d1 execute thirty-days-en-db --remote --file=codes.sql
+```
+
+接口：`POST /auth/register|login|logout|activate`、`GET/PUT /progress`；`/me` 变 `mode:"account"`（返回 `member`/`memberUntil`）。原口令 `APP_PASSCODE` 仍有效（视为会员）。会话是 HMAC 签名 cookie（180 天）；密码 PBKDF2 加盐存 D1，不可逆。

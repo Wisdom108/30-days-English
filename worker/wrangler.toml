@@ -9,7 +9,7 @@ compatibility_flags = ["nodejs_compat"]
 # the app and its /api routes share one origin (login cookie is not cross-site).
 # Build the app first: cd ../app && npm run build (with VITE_SAME_ORIGIN=true).
 # Static assets are served automatically; the Worker script handles the API paths
-# (/health /me /login /logout /ai/* /speech/*). Client routing is HashRouter, so
+# (/health /me /login /logout /ai/* /speech/* /auth/* /progress). Client routing is HashRouter, so
 # the SPA fallback rarely triggers, but it's set for direct deep links.
 [assets]
 directory = "../app/dist"
@@ -40,6 +40,10 @@ AZURE_VOICE = "en-US-AvaMultilingualNeural"
 DAILY_AI_QUOTA = "80"
 # Daily Azure-speech-token mints per user (each grants ~10 min of Azure access).
 DAILY_SPEECH_QUOTA = "60"
+# Free-tier daily caps for non-members — only take effect once the D1 membership
+# system (below) is enabled; without D1 everyone gets the full quotas as before.
+FREE_AI_QUOTA = "5"
+FREE_SPEECH_QUOTA = "20"
 
 # Per-user daily quota counter. Create with:
 #   wrangler kv namespace create QUOTA
@@ -48,7 +52,27 @@ DAILY_SPEECH_QUOTA = "60"
 binding = "QUOTA"
 id = "871eceea03fa450aa75e89833dc325ef"
 
+# ---- Membership (Cloudflare D1) — OPTIONAL, off by default ----
+# Username/password accounts + activation-code membership + cloud progress sync.
+# While this block stays commented out, the Worker behaves exactly as before
+# (passcode/Access/open modes) and /auth/* + /progress answer 503 会员系统未启用.
+# Enable in 4 steps:
+#   1. wrangler d1 create thirty-days-en-db      → copy the printed database_id
+#   2. Uncomment the block below and paste the id
+#   3. wrangler d1 migrations apply thirty-days-en-db --remote
+#   4. wrangler secret put SESSION_SECRET        → paste a long random string
+#      (generate one: openssl rand -hex 32)
+# Generate activation codes (prints SQL INSERTs, nothing touches the network):
+#   node scripts/gen-codes.mjs 10 365 > codes.sql
+#   wrangler d1 execute thirty-days-en-db --remote --file=codes.sql
+# [[d1_databases]]
+# binding = "DB"
+# database_name = "thirty-days-en-db"
+# database_id = "<run: wrangler d1 create thirty-days-en-db>"
+
 # ---- Secrets (DO NOT put real values here — use `wrangler secret put`) ----
 #   AZURE_SPEECH_KEY   OPTIONAL — only for premium neural voice + pronunciation
 #                      assessment. Without it, the app uses the browser voice.
+#   SESSION_SECRET     OPTIONAL — HMAC key for membership session cookies; only
+#                      needed once the D1 block above is enabled.
 # (AI text = Workers AI binding, no key. Login = optional Cloudflare Access, no secret.)

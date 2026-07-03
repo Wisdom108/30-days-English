@@ -17,6 +17,7 @@ interface ToastItem {
   title: string
   description?: string
   tone: ToastTone
+  leaving?: boolean // exit animation is playing; removed after it finishes
 }
 
 interface ToastCtx {
@@ -30,13 +31,15 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const timers = useRef<Record<number, ReturnType<typeof setTimeout>>>({})
   const seq = useRef(0)
 
+  // Two-phase dismiss: mark leaving (plays animate-out), then remove.
   const dismiss = useCallback((id: number) => {
-    setItems((xs) => xs.filter((x) => x.id !== id))
     const t = timers.current[id]
     if (t) {
       clearTimeout(t)
       delete timers.current[id]
     }
+    setItems((xs) => xs.map((x) => (x.id === id ? { ...x, leaving: true } : x)))
+    setTimeout(() => setItems((xs) => xs.filter((x) => x.id !== id)), 170)
   }, [])
 
   const toast = useCallback<ToastCtx['toast']>(
@@ -76,11 +79,15 @@ function ToastCard({ item, onClose }: { item: ToastItem; onClose: () => void }) 
     ) : (
       <Info size={16} className="text-fg-muted" />
     )
+  // Auto-dismisses in 2.8s; the whole card is the (optional) dismiss target —
+  // no dedicated X for a message that removes itself.
   return (
-    <div
+    <button
       role="status"
+      onClick={onClose}
       className={cn(
-        'pointer-events-auto flex w-full max-w-[380px] items-start gap-2.5 rounded-xl border bg-elevated px-3.5 py-3 shadow-[var(--shadow-popover)] animate-in-up',
+        'press pointer-events-auto flex w-full max-w-[380px] items-start gap-2.5 rounded-xl border bg-elevated px-3.5 py-3 text-left shadow-[var(--shadow-popover)]',
+        item.leaving ? 'animate-out' : 'animate-in-up',
         item.tone === 'error' || item.tone === 'streak' ? 'border-red/40' : 'border-border-strong',
       )}
     >
@@ -89,14 +96,7 @@ function ToastCard({ item, onClose }: { item: ToastItem; onClose: () => void }) 
         <div className="text-body font-medium text-fg">{item.title}</div>
         {item.description && <div className="mt-0.5 text-sm text-fg-muted">{item.description}</div>}
       </div>
-      <button
-        onClick={onClose}
-        aria-label="关闭"
-        className="-mr-1 -mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-md text-fg-dim transition-colors hover:bg-hover hover:text-fg"
-      >
-        <X size={13} />
-      </button>
-    </div>
+    </button>
   )
 }
 

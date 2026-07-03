@@ -1,5 +1,3 @@
-import { cn } from '../../lib/utils'
-
 // 5x7 dot-matrix bitmaps — the same glyphs as the app icon / favicon, so the
 // dot-matrix "30" mark is identical across favicon, PWA icon and in-app header.
 const GLYPHS: Record<string, string[]> = {
@@ -50,26 +48,3 @@ export function LogoMark({ size = 28, tile = true }: { size?: number; tile?: boo
   )
 }
 
-/** Full lockup: mark + wordmark + optional subtitle. */
-export function Logo({
-  subtitle = '听说强化 · 离线可用',
-  size = 28,
-  className,
-}: {
-  subtitle?: string | null
-  size?: number
-  className?: string
-}) {
-  return (
-    <div className={cn('flex items-center gap-2.5', className)}>
-      <LogoMark size={size} />
-      <div className="leading-tight">
-        <div className="flex items-baseline gap-1.5 text-fg">
-          <span className="font-display text-h3 font-semibold leading-none">30</span>
-          <span className="font-mono text-sm font-semibold uppercase tracking-[0.16em]">DAYS</span>
-        </div>
-        {subtitle && <div className="text-label text-fg-muted">{subtitle}</div>}
-      </div>
-    </div>
-  )
-}

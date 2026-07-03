@@ -1,38 +1,18 @@
-import { useState, type ReactNode } from 'react'
-import { Check, Sparkles, Loader2, ChevronDown } from 'lucide-react'
+import { useState } from 'react'
+import { Check, Sparkles, Loader2 } from 'lucide-react'
 import type { DayLesson } from '../../types'
 import { useApp } from '../../state'
 import { SpeakButton, RowGroup } from '../shared'
 import { AiGate } from '../ai'
 import { aiWriting, AIError, type WritingFeedback, type LessonCtx } from '../../lib/ai'
-import { Button, Callout, Segment, Textarea } from '../ui'
+import { Button, Callout, Collapse, Segment, Textarea } from '../ui'
 import { cn } from '../../lib/utils'
 
 function ctxOf(l: DayLesson): LessonCtx {
   return { day: l.day, theme: l.theme, title_en: l.title_en, grammar: l.grammarNote?.point_en, level: 'A2-B1' }
 }
 
-function Collapse({ label, count, children }: { label: string; count?: number; children: ReactNode }) {
-  const [open, setOpen] = useState(false)
-  return (
-    <div className="overflow-hidden rounded-2xl border border-border">
-      <button onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex w-full items-center justify-between px-5 py-4 transition-colors hover:bg-hover">
-        <span className="label-nd">{label}{count != null && <> · <span className="t-tab text-fg-secondary">{count}</span></>}</span>
-        <ChevronDown size={17} className={cn('text-fg-muted transition-transform', open && 'rotate-180')} />
-      </button>
-      {open && <div className="border-t border-border">{children}</div>}
-    </div>
-  )
-}
-
-export default function WritingBlock({
-  lesson,
-}: {
-  lesson: DayLesson
-  done?: boolean
-  onComplete?: () => void
-  onUndo?: () => void
-}) {
+export default function WritingBlock({ lesson }: { lesson: DayLesson }) {
   const w = lesson.writing
   const { state, storeWriting } = useApp()
   const [text, setText] = useState(state.writings[lesson.day] || '')
@@ -41,6 +21,7 @@ export default function WritingBlock({
   const [fb, setFb] = useState<WritingFeedback | null>(null)
   const [fbBusy, setFbBusy] = useState(false)
   const [fbErr, setFbErr] = useState<string | null>(null)
+  // Re-grades in place: previous feedback stays visible while the new run is busy.
   const runFeedback = async () => {
     if (!text.trim()) return setFbErr('先写点内容再批改哦')
     setFbBusy(true); setFbErr(null)
@@ -52,7 +33,7 @@ export default function WritingBlock({
   return (
     <div className="space-y-4">
       {/* ===== HERO — the prompt + your writing surface ===== */}
-      <div className="overflow-hidden rounded-[22px] border border-border-strong bg-surface">
+      <div className="overflow-hidden rounded-xl border border-border-strong bg-surface">
         <div className="border-b border-border px-6 py-5">
           <div className="label-nd mb-2">今日写作 · 睡前巩固</div>
           <p className="text-body-lg leading-relaxed text-fg">{w.prompt}</p>
@@ -81,16 +62,19 @@ export default function WritingBlock({
             <p className="mt-2 text-center text-meta text-fg-muted">指出语法 / 用词 / 地道度，给出润色版与打分</p>
           </div>
         ) : (
-          <div className="overflow-hidden rounded-[22px] border border-border-strong bg-surface animate-in-up">
+          <div className="overflow-hidden rounded-xl border border-border-strong bg-surface animate-in-up">
             <div className="flex items-center justify-between border-b border-border px-6 py-5">
               <div>
                 <div className="label-nd mb-1.5">AI 批改</div>
                 <div className="flex items-baseline gap-1">
-                  <span className="t-doto text-[44px] font-semibold leading-none text-fg">{fb.score}</span>
+                  {/* keyed by score so a re-grade replays the reward beat */}
+                  <span key={fb.score} className="t-doto animate-slam text-[44px] font-semibold leading-none text-fg">{fb.score}</span>
                   <span className="text-h2 text-fg-muted">/100</span>
                 </div>
               </div>
-              <Button variant="ghost" size="sm" onClick={() => setFb(null)}>重新批改</Button>
+              <Button variant="ghost" size="sm" disabled={fbBusy} onClick={runFeedback}>
+                {fbBusy && <Loader2 size={14} className="animate-spin" />} 重新批改
+              </Button>
             </div>
             <div className="space-y-3 p-5">
               <p className="text-sm leading-relaxed text-fg-secondary">{fb.overall_zh}</p>
@@ -125,8 +109,8 @@ export default function WritingBlock({
       <Collapse label="常用表达" count={w.usefulPhrases.length}>
         <div className="flex flex-wrap gap-2 p-4">
           {w.usefulPhrases.map((p, i) => (
-            <span key={i} className="inline-flex items-center gap-1 rounded-full border border-border bg-surface-2 py-1 pl-3 pr-1 text-sm text-fg-secondary">
-              {p} <SpeakButton text={p} />
+            <span key={i} className="rounded-full border border-border bg-surface-2 px-3 py-1 text-sm text-fg-secondary">
+              {p}
             </span>
           ))}
         </div>
@@ -159,7 +143,7 @@ function SelfCheckItem({ text }: { text: string }) {
         type="button"
         aria-pressed={c}
         onClick={() => setC((v) => !v)}
-        className="group flex min-h-11 w-full items-center gap-2.5 rounded-md py-1.5 text-left text-sm outline-none transition-colors hover:bg-hover focus-visible:ring-2 focus-visible:ring-brand/40"
+        className="press group flex min-h-11 w-full items-center gap-2.5 rounded-md py-1.5 text-left text-sm outline-none transition-colors hover:bg-hover focus-visible:ring-2 focus-visible:ring-brand/40"
       >
         <span aria-hidden className={cn('grid h-5 w-5 shrink-0 place-items-center rounded-sm border transition-colors', c ? 'border-brand bg-brand text-brand-fg' : 'border-border-strong text-transparent group-hover:border-fg-muted')}>
           <Check size={13} strokeWidth={3} />
