@@ -30,6 +30,7 @@ export interface WalletInfo {
   ledger: { delta: number; reason: string; at: number }[]
   rules: Record<string, { seconds: number; dailyCap: number }>
   callCost: number
+  freezes: number // streak-freeze vouchers (older workers omit it → 0)
 }
 
 export type EarnEvent = 'block_complete' | 'day_complete' | 'scenario_complete' | 'streak_milestone'
@@ -175,7 +176,8 @@ export async function getWallet(force = false): Promise<WalletInfo | null> {
       if (res.status === 401) walletCache = null // session gone — stale balance must not linger
       return null
     }
-    walletCache = (await res.json()) as WalletInfo
+    const d = (await res.json()) as WalletInfo & { freezes?: unknown }
+    walletCache = { ...d, freezes: typeof d.freezes === 'number' ? d.freezes : 0 }
     return walletCache
   } catch {
     return null
@@ -202,6 +204,52 @@ export async function postEarn(
     return d
   } catch {
     return null
+  }
+}
+
+/** POST /streak/freeze-consume — spend one freeze voucher to cover exactly ONE
+ *  missed local day. `day`=today, `missed`=the skipped date (LOCAL YYYY-MM-DD).
+ *  Null on any failure (guest / offline / worker without the endpoint) — the
+ *  caller falls back to a normal, streak-resetting completion. */
+export async function consumeFreeze(
+  day: string,
+  missed: string,
+): Promise<{ ok: boolean; consumed: boolean; freezes: number } | null> {
+  if (!features.worker) return null
+  try {
+    const res = await fetch(`${config.workerUrl}/streak/freeze-consume`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'content-type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ day, missed }),
+    })
+    if (!res.ok) return null
+    const d = (await res.json().catch(() => ({}))) as { ok?: boolean; consumed?: boolean; freezes?: number }
+    return { ok: !!d.ok, consumed: !!d.consumed, freezes: typeof d.freezes === 'number' ? d.freezes : 0 }
+  } catch {
+    return null
+  }
+}
+
+// ---- freeze-consumed dates (❄ cells in the week strip; LOCAL YYYY-MM-DD) ----
+const FROZEN_KEY = 'zaizai:frozen:v1'
+
+export function loadFrozenDates(): string[] {
+  try {
+    const list = JSON.parse(localStorage.getItem(FROZEN_KEY) || '[]') as string[]
+    return Array.isArray(list) ? list.filter((x) => typeof x === 'string') : []
+  } catch {
+    return []
+  }
+}
+
+export function addFrozenDate(date: string): void {
+  try {
+    const list = loadFrozenDates().filter((x) => x !== date)
+    list.push(date)
+    localStorage.setItem(FROZEN_KEY, JSON.stringify(list.sort().slice(-60)))
+  } catch {
+    /* ignore */
   }
 }
 
@@ -266,6 +314,12 @@ export function saveChat(entries: ChatEntry[]): void {
   } catch {
     /* storage full — drop */
   }
+}
+
+/** Write-through a system chip into the chat store — safe while ChatHome is
+ *  unmounted (e.g. DayView announcing a consumed freeze); it shows on next open. */
+export function appendChatNotice(text: string): void {
+  saveChat([...loadChat(), { id: newId(), role: 'assistant', kind: 'memory-chip', payload: text, at: Date.now() }])
 }
 
 // ---- guest local memory (account users get D1 memories server-side) ----

@@ -11,7 +11,7 @@ import { VitePWA } from 'vite-plugin-pwa'
 const WORKER = 'https://thirty-days-en.thinkuniverse.workers.dev'
 type Fwd = { target: string; changeOrigin: boolean; secure: boolean; ws?: boolean }
 const proxy: Record<string, Fwd> = Object.fromEntries(
-  ['/health', '/me', '/login', '/logout', '/auth', '/progress', '/ai', '/speech', '/realtime', '/grok', '/wallet', '/earn', '/push', '/memories', '/zaizai'].map((p) => [
+  ['/health', '/me', '/login', '/logout', '/auth', '/progress', '/ai', '/speech', '/realtime', '/grok', '/wallet', '/earn', '/streak', '/push', '/memories', '/zaizai'].map((p) => [
     p,
     { target: WORKER, changeOrigin: true, secure: true } as Fwd,
   ]),

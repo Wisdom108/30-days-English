@@ -88,6 +88,27 @@ export async function refundWallet(env: Env, userId: number, seconds: number): P
   }
 }
 
+/** Grant `n` streak freezes, guarded by a unique ledger ref (delta 0 — the
+ *  audit row carries no seconds). INSERT OR IGNORE means replays are free, and
+ *  re-running on a replayed earn self-heals a grant that failed halfway. */
+async function grantFreezes(db: D1Database, userId: number, ref: string, n: number): Promise<void> {
+  const now = Date.now()
+  const g = await db
+    .prepare(
+      "INSERT OR IGNORE INTO wallet_ledger (user_id, delta_seconds, reason, ref, created_at) VALUES (?1, 0, 'grant:freeze', ?2, ?3)",
+    )
+    .bind(userId, ref, now)
+    .run()
+  if (!g.meta.changes) return
+  await db
+    .prepare(
+      'INSERT INTO wallet (user_id, balance_seconds, freezes, updated_at) VALUES (?1, 0, ?2, ?3) ' +
+        'ON CONFLICT(user_id) DO UPDATE SET freezes = freezes + ?2, updated_at = ?3',
+    )
+    .bind(userId, n, now)
+    .run()
+}
+
 /** Grant a badge (INSERT OR IGNORE). True only when it's newly earned. */
 export async function grantBadge(env: Env, userId: number, badgeId: string): Promise<boolean> {
   const db = env.DB
@@ -150,17 +171,27 @@ async function backfillBadges(env: Env, db: D1Database, userId: number): Promise
   }
 }
 
-/** GET /wallet → { balanceSeconds, badges, ledger[≤20], rules, callCost }. */
+/** GET /wallet → { balanceSeconds, freezes, badges, ledger[≤20], rules, callCost }. */
 export async function handleWallet(req: Request, env: Env): Promise<Response> {
   const db = env.DB
   if (!db || !env.SESSION_SECRET) return json({ error: NO_WALLET }, env, 503, req)
   const userId = await readSession(req, env)
   if (userId === null) return json({ error: '需要登录' }, env, 401, req)
   await backfillBadges(env, db, userId) // pre-v3 milestones → badges (see above)
-  const bal = await db
-    .prepare('SELECT balance_seconds FROM wallet WHERE user_id = ?')
+  // Member monthly allowance: +2 freezes per calendar month, landed lazily on
+  // the first /wallet of the month. UTC month on purpose — it's an allowance
+  // cadence, never a user-facing date; the unique ref makes it exactly-once.
+  const u = await db
+    .prepare('SELECT member_until FROM users WHERE id = ?')
     .bind(userId)
-    .first<{ balance_seconds: number }>()
+    .first<{ member_until: number | null }>()
+  if ((u?.member_until ?? 0) > Date.now()) {
+    await grantFreezes(db, userId, `freezegrant:month:${new Date().toISOString().slice(0, 7)}`, 2)
+  }
+  const bal = await db
+    .prepare('SELECT balance_seconds, freezes FROM wallet WHERE user_id = ?')
+    .bind(userId)
+    .first<{ balance_seconds: number; freezes: number }>()
   const badges = (
     await db.prepare('SELECT badge_id FROM badges WHERE user_id = ? ORDER BY earned_at').bind(userId).all<{ badge_id: string }>()
   ).results.map((r) => r.badge_id)
@@ -173,7 +204,10 @@ export async function handleWallet(req: Request, env: Env): Promise<Response> {
   const rules = Object.fromEntries(
     Object.entries(EARN_RULES).map(([k, v]) => [k, { seconds: v.seconds, dailyCap: v.dailyCap }]),
   )
-  return json({ balanceSeconds: bal?.balance_seconds ?? 0, badges, ledger, rules, callCost: GROK_CALL_COST }, env, 200, req)
+  return json(
+    { balanceSeconds: bal?.balance_seconds ?? 0, freezes: bal?.freezes ?? 0, badges, ledger, rules, callCost: GROK_CALL_COST },
+    env, 200, req,
+  )
 }
 
 /** POST /earn {event, ref, day, meta?} → { balanceSeconds, earned, newBadges }.
@@ -258,6 +292,9 @@ export async function handleEarn(req: Request, env: Env): Promise<Response> {
     if (day === 30) await tryBadge('day_30')
   } else if (event === 'streak_milestone') {
     await tryBadge('streak_7') // every milestone n∈{7,14,21,30} implies a 7-day streak
+    // Every milestone also rides a +1 streak freeze — same idempotent family,
+    // so replays only repair a grant that half-failed on the original claim.
+    await grantFreezes(db, userId, `freezegrant:${ref}`, 1)
   }
 
   const bal = await db
@@ -265,4 +302,63 @@ export async function handleEarn(req: Request, env: Env): Promise<Response> {
     .bind(userId)
     .first<{ balance_seconds: number }>()
   return json({ balanceSeconds: bal?.balance_seconds ?? 0, earned, newBadges }, env, 200, req)
+}
+
+/** POST /streak/freeze-consume {day, missed} → { ok, consumed, freezes }.
+ *  Spends one freeze to patch `missed` (a local YYYY-MM-DD strictly before
+ *  `day`, at most 8 days back). The 'freezeuse:{missed}' ledger ref is the
+ *  idempotency key: a replay answers ok:true, consumed:false with no decrement;
+ *  no freezes left → ok:false (200 — a business outcome, not a request error). */
+export async function handleFreezeConsume(req: Request, env: Env): Promise<Response> {
+  const db = env.DB
+  if (!db || !env.SESSION_SECRET) return json({ error: NO_WALLET }, env, 503, req)
+  const userId = await readSession(req, env)
+  if (userId === null) return json({ error: '需要登录' }, env, 401, req)
+  const body = (await req.json().catch(() => ({}))) as Record<string, unknown>
+  const day = String(body.day || '')
+  const missed = String(body.missed || '')
+  const now = Date.now()
+  // `day` bounds like /earn: the client's local date, within ±36h of server time.
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !(Math.abs(Date.parse(`${day}T12:00:00Z`) - now) < 36 * 3_600_000)) {
+    return json({ error: '无效的日期' }, env, 400, req)
+  }
+  // `missed` must be a real date strictly before `day`, at most 8 days back.
+  // An invalid string parses to NaN → gap NaN → both comparisons fail.
+  const gap = /^\d{4}-\d{2}-\d{2}$/.test(missed)
+    ? (Date.parse(`${day}T12:00:00Z`) - Date.parse(`${missed}T12:00:00Z`)) / 86_400_000
+    : NaN
+  if (!(gap >= 1 && gap <= 8)) return json({ error: '无效的补签日期' }, env, 400, req)
+
+  const ref = `freezeuse:${missed}`
+  const freezesNow = async () =>
+    (await db.prepare('SELECT freezes FROM wallet WHERE user_id = ?').bind(userId).first<{ freezes: number }>())
+      ?.freezes ?? 0
+  const prior = await db
+    .prepare('SELECT 1 AS x FROM wallet_ledger WHERE user_id = ? AND ref = ?')
+    .bind(userId, ref)
+    .first<{ x: number }>()
+  if (prior) return json({ ok: true, consumed: false, freezes: await freezesNow() }, env, 200, req)
+  const upd = await db
+    .prepare('UPDATE wallet SET freezes = freezes - 1, updated_at = ?2 WHERE user_id = ?1 AND freezes >= 1')
+    .bind(userId, now)
+    .run()
+  if (!upd.meta.changes) {
+    return json({ ok: false, error: '没有可用的补签卡', freezes: await freezesNow() }, env, 200, req)
+  }
+  const ins = await db
+    .prepare(
+      "INSERT OR IGNORE INTO wallet_ledger (user_id, delta_seconds, reason, ref, created_at) VALUES (?1, 0, 'freeze:consume', ?2, ?3)",
+    )
+    .bind(userId, ref, now)
+    .run()
+  if (!ins.meta.changes) {
+    // A concurrent twin claimed the ref between our check and decrement — give
+    // the freeze back and report the replay shape (the missed day IS patched).
+    await db
+      .prepare('UPDATE wallet SET freezes = freezes + 1, updated_at = ?2 WHERE user_id = ?1')
+      .bind(userId, now)
+      .run()
+    return json({ ok: true, consumed: false, freezes: await freezesNow() }, env, 200, req)
+  }
+  return json({ ok: true, consumed: true, freezes: await freezesNow() }, env, 200, req)
 }

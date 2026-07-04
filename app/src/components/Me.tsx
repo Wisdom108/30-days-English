@@ -82,6 +82,15 @@ function WalletCard({ isAccount, wallet }: { isAccount: boolean; wallet: WalletI
             ))}
           </div>
 
+          {/* streak freezes */}
+          <div className="mt-3 border-t border-border-soft pt-3">
+            <div className="flex items-center gap-2 text-sm">
+              <span className="flex-1 text-fg-secondary">❄ 冻结券 · 漏学一天自动续上连胜</span>
+              <span className="t-tab font-semibold text-fg">{wallet.freezes} 张</span>
+            </div>
+            <p className="mt-0.5 text-meta text-fg-muted">获取方式:连胜里程碑送 1 张 · 会员每月 2 张</p>
+          </div>
+
           {/* today's ledger */}
           <div className="mt-3 border-t border-border-soft pt-3">
             <div className="label-nd mb-1.5">今日台账</div>

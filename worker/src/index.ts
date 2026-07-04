@@ -11,7 +11,7 @@ import {
 import { handleRealtimeToken } from './realtime'
 import { handleGrokToken } from './grok'
 import { handleCheckout, handleStripeWebhook, payEnabled } from './pay'
-import { handleWallet, handleEarn } from './wallet'
+import { handleWallet, handleEarn, handleFreezeConsume } from './wallet'
 import {
   zaizaiSystem,
   statsFrom,
@@ -32,6 +32,7 @@ import {
   handlePushUnsubscribe,
   handlePushPreview,
   sendMorningTickles,
+  sendEveningTickles,
 } from './push'
 // Re-export the voice-agent Durable Object so Wrangler registers the class.
 export { VoiceTutor } from './voiceAgent'
@@ -577,6 +578,7 @@ export default {
       if (pathname === '/pay/webhook' && req.method === 'POST') return handleStripeWebhook(req, env)
       if (pathname === '/wallet' && req.method === 'GET') return handleWallet(req, env)
       if (pathname === '/earn' && req.method === 'POST') return handleEarn(req, env)
+      if (pathname === '/streak/freeze-consume' && req.method === 'POST') return handleFreezeConsume(req, env)
       // 在在 memories — visible + deletable (D1 session, own rows only).
       if (pathname === '/memories' && req.method === 'GET') return handleMemories(req, env)
       const memDel = req.method === 'DELETE' ? pathname.match(/^\/memories\/(\d+)$/) : null
@@ -594,8 +596,9 @@ export default {
     return withCors(await route(), env, req)
   },
 
-  // Cron `0 23 * * *` UTC = 北京 07:00 — 在在 morning tickle to every subscriber.
-  async scheduled(_ctrl: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
-    ctx.waitUntil(sendMorningTickles(env))
+  // Crons: `0 23 * * *` UTC = 北京 07:00 morning tickle to every subscriber;
+  // `0 12 * * *` UTC = 北京 20:00 evening rescue (stale-progress subs only).
+  async scheduled(ctrl: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    ctx.waitUntil(ctrl.cron === '0 12 * * *' ? sendEveningTickles(env) : sendMorningTickles(env))
   },
 }

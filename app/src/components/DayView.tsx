@@ -6,9 +6,12 @@ import { useApp } from '../state'
 import { getLesson, TOTAL_DAYS } from '../data/curriculum'
 import { BLOCKS } from '../blocks'
 import type { BlockKey } from '../types'
-import { makeCard } from '../lib/srs'
+import { addDays, makeCard, todayISO } from '../lib/srs'
 import { isDayComplete, displayStreak } from '../lib/storage'
-import { postEarn, walletCap, type EarnEvent } from '../lib/zaizai'
+import {
+  addFrozenDate, appendChatNotice, consumeFreeze, getWallet, invalidateWallet,
+  postEarn, walletCap, type EarnEvent,
+} from '../lib/zaizai'
 import { useAuth } from '../auth'
 import ListeningBlock from './blocks/ListeningBlock'
 import VocabBlock from './blocks/VocabBlock'
@@ -100,9 +103,33 @@ export default function DayView() {
   const activeIdx = order.indexOf(active)
   const nextKey = order[activeIdx + 1]
 
-  const complete = (k: BlockKey) => {
+  // Streak freeze: exactly ONE missed local day (lastStudyDate == 前天) + a
+  // freeze in the wallet → consume it BEFORE marking, so completeBlock bridges
+  // the gap instead of resetting the run. Any failure → normal completion.
+  const freezePending = useRef(false)
+  const tryFreeze = async (): Promise<boolean> => {
+    const today = todayISO()
+    if (freezePending.current || !user?.account || !walletCap() || state.lastStudyDate !== addDays(today, -2)) return false
+    freezePending.current = true
+    try {
+      const w = await getWallet()
+      if (!w || w.freezes <= 0) return false
+      const missed = addDays(today, -1)
+      const r = await consumeFreeze(today, missed)
+      if (!r?.ok || !r.consumed) return false
+      addFrozenDate(missed) // week strip shows ❄ on the covered day
+      appendChatNotice(`❄️ 用掉一张冻结券,连胜续上了(还剩 ${r.freezes} 张)`)
+      invalidateWallet()
+      return true
+    } finally {
+      freezePending.current = false
+    }
+  }
+
+  const complete = async (k: BlockKey) => {
     const willComplete = BLOCKS.every((b) => b.key === k || prog?.[b.key])
-    markBlock(dayNum, k)
+    const bridged = await tryFreeze()
+    markBlock(dayNum, k, bridged ? { bridged: true } : undefined)
     earn('block_complete', `block:${dayNum}:${k}`)
     if (willComplete) return
     // Advance to the next still-incomplete block.

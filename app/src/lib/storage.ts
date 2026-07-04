@@ -58,8 +58,10 @@ export function isDayUnlocked(state: AppState, day: number): boolean {
   return state.unlockAll === true || day <= state.currentDay
 }
 
-/** Mark a study block done, updating streak + unlocking the next day when all blocks finish. */
-export function completeBlock(state: AppState, day: number, block: BlockKey): AppState {
+/** Mark a study block done, updating streak + unlocking the next day when all blocks finish.
+ *  `bridged` = the caller just consumed a streak freeze covering exactly ONE missed day, so
+ *  a 2-day gap counts as consecutive (streak +1 instead of reset). */
+export function completeBlock(state: AppState, day: number, block: BlockKey, opts?: { bridged?: boolean }): AppState {
   const prev = getDayProgress(state, day)
   const completedBlocks = { ...prev.completedBlocks, [block]: true }
   const allDone = Object.values(completedBlocks).every(Boolean)
@@ -81,9 +83,17 @@ export function completeBlock(state: AppState, day: number, block: BlockKey): Ap
   // toISOString() version computed "yesterday" in UTC, so for UTC+8 learners the
   // comparison never matched and the streak reset to 1 every single day.
   const today = todayISO()
+  // Study history — record today once (LOCAL date, capped last 60). A frozen
+  // (bridged) day is NOT a studied day and never lands here.
+  const dates = state.studyDates ?? []
+  if (!dates.includes(today)) next.studyDates = [...dates, today].sort().slice(-60)
   if (next.lastStudyDate !== today) {
     const yesterday = addDays(today, -1)
-    next.streak = next.lastStudyDate === yesterday ? state.streak + 1 : 1
+    const consecutive =
+      next.lastStudyDate === yesterday ||
+      // freeze bridge: exactly one missed day, covered by a consumed freeze
+      (opts?.bridged === true && next.lastStudyDate === addDays(today, -2))
+    next.streak = consecutive ? state.streak + 1 : 1
     next.lastStudyDate = today
   }
 
@@ -182,6 +192,12 @@ export function parseImport(raw: string): AppState | null {
     if (!okObj(obj.days) || !okObj(obj.cards)) return null
     if ('streak' in obj && typeof obj.streak !== 'number') return null
     if ('currentDay' in obj && typeof obj.currentDay !== 'number') return null
+    // studyDates is optional — sanitize rather than reject (old backups lack it).
+    if ('studyDates' in obj) {
+      if (Array.isArray(obj.studyDates))
+        obj.studyDates = obj.studyDates.filter((x: unknown) => typeof x === 'string').slice(-60)
+      else delete obj.studyDates
+    }
     return { ...defaultState(), ...obj }
   } catch {
     return null

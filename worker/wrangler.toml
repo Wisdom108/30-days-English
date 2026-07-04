@@ -29,10 +29,11 @@ not_found_handling = "single-page-application"
 [ai]
 binding = "AI"
 
-# 在在 morning call — daily payload-free Web Push tickle to every subscriber.
-# 23:00 UTC = 北京 07:00. Handled by the `scheduled` export (src/push.ts).
+# 在在 push calls — daily payload-free Web Push tickles (src/push.ts).
+# 23:00 UTC = 北京 07:00 morning call to every subscriber;
+# 12:00 UTC = 北京 20:00 evening rescue, only subs with stale (>14h) progress.
 [triggers]
-crons = ["0 23 * * *"]
+crons = ["0 23 * * *", "0 12 * * *"]
 
 [vars]
 # AI model: Cloudflare Workers AI (free daily allocation, open-source models, no

@@ -142,4 +142,5 @@ export interface AppState {
   guideDismissed?: boolean // whether the first-run method guide was closed
   unlockAll?: boolean // learners with a foundation can unlock all 30 days to jump ahead
   updatedAt?: number // last local mutation (ms) — drives last-writer-wins cloud merge
+  studyDates?: string[] // LOCAL YYYY-MM-DD dates with ≥1 block completed, capped last 60 — drives the week strip
 }

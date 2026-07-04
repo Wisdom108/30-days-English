@@ -5,7 +5,7 @@ import { useApp } from '../../state'
 import { useAuth } from '../../auth'
 import { features } from '../../config'
 import { getLesson, TOTAL_DAYS } from '../../data/curriculum'
-import { dueCards, todayISO } from '../../lib/srs'
+import { addDays, dueCards, todayISO } from '../../lib/srs'
 import { displayStreak, getDayProgress } from '../../lib/storage'
 import { BLOCKS } from '../../blocks'
 import { aiChat, AIError, type ChatMsg, type LessonCtx } from '../../lib/ai'
@@ -14,6 +14,7 @@ import {
   cardEntry,
   fetchNews,
   genScenario,
+  getWallet,
   loadChat,
   localMemoryText,
   markBriefShown,
@@ -22,6 +23,7 @@ import {
   postEarn,
   pushLocalMemory,
   saveChat,
+  walletCap,
   zaizaiBrief,
   zaizaiChat,
   type AwardCardPayload,
@@ -99,14 +101,14 @@ export default function ChatHome() {
   }, [])
   // Latest render values for the (possibly delayed) dispatch — CloudSync may
   // import fresher state while we wait for it to settle.
-  const liveRef = useRef({ stats, lessonCtx, prog, current })
-  liveRef.current = { stats, lessonCtx, prog, current }
+  const liveRef = useRef({ stats, lessonCtx, prog, current, lastStudy: state.lastStudyDate })
+  liveRef.current = { stats, lessonCtx, prog, current, lastStudy: state.lastStudyDate }
   useEffect(() => {
     if (loading || onboarding || bootRef.current === todayISO() || briefShownToday()) return
     const dispatch = () => {
       if (bootRef.current === todayISO() || briefShownToday()) return
       bootRef.current = todayISO()
-      const { stats, lessonCtx, prog, current } = liveRef.current
+      const { stats, lessonCtx, prog, current, lastStudy } = liveRef.current
       const tasks: ChatEntry[] = BLOCKS.filter((b) => !prog.completedBlocks[b.key]).map((b) => ({
         id: newId(),
         role: 'assistant',
@@ -153,6 +155,23 @@ export default function ChatHome() {
         })
       } else {
         finish(fallback, 'text')
+      }
+      // Freeze offer(牵挂 tone): yesterday missed + a freeze in the wallet →
+      // 在在 says it'll auto-apply on today's first block (auto-consume in
+      // DayView, no button). Write-through append, silent-fail skip.
+      if (user?.account && walletCap() && lastStudy === addDays(todayISO(), -2)) {
+        getWallet().then((w) => {
+          if (!w || w.freezes <= 0) return
+          const entry: ChatEntry = {
+            id: newId(),
+            role: 'assistant',
+            kind: 'text',
+            payload: `昨天没等到你,有点牵挂。好在你还有 ${w.freezes} 张冻结券❄️——今天完成任意一块,我自动帮你把连胜续上。`,
+            at: Date.now(),
+          }
+          saveChat([...loadChat(), entry])
+          setEntries((es) => [...es, entry])
+        })
       }
     }
     if (user?.account) {
@@ -385,14 +404,17 @@ export default function ChatHome() {
     if (e.kind === 'review-card') return <div key={e.id} className="flex"><ReviewCard data={e.payload as ReviewCardPayload} /></div>
     if (e.kind === 'award-card') return <div key={e.id} className="flex"><AwardCard data={e.payload as AwardCardPayload} /></div>
     if (e.kind === 'news-card') return <div key={e.id} className="flex"><NewsCard data={e.payload as NewsCardPayload} /></div>
-    if (e.kind === 'memory-chip')
+    if (e.kind === 'memory-chip') {
+      // freeze notices (❄ prefix) are already full sentences — no 记住了 prefix
+      const chip = String(e.payload)
       return (
         <div key={e.id} className="flex justify-center">
           <span className="animate-in-up max-w-[85%] truncate rounded-full bg-surface-2 px-3 py-1 text-meta text-fg-muted">
-            在在记住了:{String(e.payload)}
+            {chip.startsWith('❄') ? chip : `在在记住了:${chip}`}
           </span>
         </div>
       )
+    }
     const me = e.role === 'user'
     return (
       <div key={e.id} className={cn('flex', me && 'justify-end')}>
