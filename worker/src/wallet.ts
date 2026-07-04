@@ -11,7 +11,7 @@ import { readSession } from './session'
 export const EARN_RULES = {
   block_complete:    { seconds: 120, dailyCap: 5,  refFmt: 'block:{day}:{key}' },
   day_complete:      { seconds: 300, dailyCap: 1,  refFmt: 'day:{day}' },
-  scenario_complete: { seconds: 120, dailyCap: 3,  refFmt: 'scenario:{date}:{n}' },
+  scenario_complete: { seconds: 120, dailyCap: 3,  refFmt: 'scenario:{date}:{n}' }, // n 由服务端按当日已领次数重建
   streak_milestone:  { seconds: 600, dailyCap: 1,  refFmt: 'streak:{n}' }, // n∈{7,14,21,30}
 } as const
 export type EarnEvent = keyof typeof EARN_RULES
@@ -53,10 +53,16 @@ export async function spendWallet(env: Env, userId: number, seconds: number): Pr
       .bind(seconds, now, userId)
       .run()
     if (!r.meta.changes) return false
-    await db
-      .prepare('INSERT INTO wallet_ledger (user_id, delta_seconds, reason, created_at) VALUES (?, ?, ?, ?)')
-      .bind(userId, -seconds, 'spend:grok_call', now)
-      .run()
+    // The charge has committed — from here on ALWAYS report true, or the caller
+    // would hand out a free call for a merely-cosmetic ledger failure.
+    try {
+      await db
+        .prepare('INSERT INTO wallet_ledger (user_id, delta_seconds, reason, created_at) VALUES (?, ?, ?, ?)')
+        .bind(userId, -seconds, 'spend:grok_call', now)
+        .run()
+    } catch {
+      /* ledger is advisory — the balance UPDATE is the source of truth */
+    }
     return true
   } catch {
     return false
@@ -98,12 +104,59 @@ export async function grantBadge(env: Env, userId: number, badgeId: string): Pro
 }
 
 // ---------------------------------------------------------------- handlers
+const BLOCK_KEYS = ['listening', 'vocab', 'speaking', 'reading', 'writing'] as const
+
+/** Backfill milestone badges for pre-v3 users from the synced progress blob —
+ *  their day/streak milestones predate /earn, so no ledger rows exist. Badges
+ *  only: no seconds are minted retroactively. Best-effort (corrupt blob → skip). */
+async function backfillBadges(env: Env, db: D1Database, userId: number): Promise<void> {
+  try {
+    const prog = await db
+      .prepare('SELECT data FROM progress WHERE user_id = ?')
+      .bind(userId)
+      .first<{ data: string }>()
+    let streak7 = false
+    if (prog?.data) {
+      const blob = JSON.parse(prog.data) as Record<string, unknown> | null
+      const days = (blob && typeof blob.days === 'object' && blob.days !== null ? blob.days : {}) as Record<
+        string,
+        { completedBlocks?: Record<string, unknown> }
+      >
+      const dayComplete = (d: number): boolean => {
+        const blocks = days[d]?.completedBlocks
+        return (
+          !!blocks && typeof blocks === 'object' && BLOCK_KEYS.every((k) => blocks[k] === true)
+        )
+      }
+      const rangeDone = (a: number, b: number): boolean => {
+        for (let d = a; d <= b; d++) if (!dayComplete(d)) return false
+        return true
+      }
+      if (rangeDone(1, 10)) await grantBadge(env, userId, 'day_10')
+      if (rangeDone(11, 20)) await grantBadge(env, userId, 'day_20')
+      if (rangeDone(21, 30)) await grantBadge(env, userId, 'day_30')
+      streak7 = typeof blob?.streak === 'number' && blob.streak >= 7
+    }
+    if (!streak7) {
+      const row = await db
+        .prepare("SELECT 1 AS x FROM wallet_ledger WHERE user_id = ? AND reason = 'earn:streak_milestone' LIMIT 1")
+        .bind(userId)
+        .first<{ x: number }>()
+      streak7 = !!row
+    }
+    if (streak7) await grantBadge(env, userId, 'streak_7')
+  } catch {
+    /* corrupt blob / transient DB error → skip, next GET /wallet retries */
+  }
+}
+
 /** GET /wallet → { balanceSeconds, badges, ledger[≤20], rules, callCost }. */
 export async function handleWallet(req: Request, env: Env): Promise<Response> {
   const db = env.DB
   if (!db || !env.SESSION_SECRET) return json({ error: NO_WALLET }, env, 503, req)
   const userId = await readSession(req, env)
   if (userId === null) return json({ error: '需要登录' }, env, 401, req)
+  await backfillBadges(env, db, userId) // pre-v3 milestones → badges (see above)
   const bal = await db
     .prepare('SELECT balance_seconds FROM wallet WHERE user_id = ?')
     .bind(userId)
@@ -123,8 +176,11 @@ export async function handleWallet(req: Request, env: Env): Promise<Response> {
   return json({ balanceSeconds: bal?.balance_seconds ?? 0, badges, ledger, rules, callCost: GROK_CALL_COST }, env, 200, req)
 }
 
-/** POST /earn {event, ref, meta?} → { balanceSeconds, earned, newBadges }.
- *  Replayed ref or a hit daily cap → earned:0 (not an error — clients fire-and-forget). */
+/** POST /earn {event, ref, day, meta?} → { balanceSeconds, earned, newBadges }.
+ *  `day` is the client's LOCAL date (YYYY-MM-DD) — daily caps are a product
+ *  promise about the learner's day, not UTC. Bounded to ±36h of server time so
+ *  a fake clock can't stockpile extra days. Replayed ref or a hit daily cap →
+ *  earned:0 (not an error — clients fire-and-forget). */
 export async function handleEarn(req: Request, env: Env): Promise<Response> {
   const db = env.DB
   if (!db || !env.SESSION_SECRET) return json({ error: NO_WALLET }, env, 503, req)
@@ -133,36 +189,51 @@ export async function handleEarn(req: Request, env: Env): Promise<Response> {
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>
   const eventStr = String(body.event || '')
   const ref = String(body.ref || '')
+  const day = String(body.day || '')
   if (!(eventStr in EARN_RULES)) return json({ error: '无效的奖励事件' }, env, 400, req)
   const event = eventStr as EarnEvent
   const rule = EARN_RULES[event]
   if (!REF_RE[event].test(ref)) return json({ error: '无效的奖励事件' }, env, 400, req)
-
   const now = Date.now()
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !(Math.abs(Date.parse(`${day}T12:00:00Z`) - now) < 36 * 3_600_000)) {
+    return json({ error: '无效的日期' }, env, 400, req) // NaN compares false → rejected too
+  }
+
   const reason = `earn:${event}`
-  // Daily cap: count today's claims of this event in the ledger (UTC day, same
-  // boundary as the KV quotas).
-  const dayStart = new Date(now).setUTCHours(0, 0, 0, 0)
-  const claimed = await db
-    .prepare('SELECT COUNT(*) AS n FROM wallet_ledger WHERE user_id = ? AND reason = ? AND created_at >= ?')
-    .bind(userId, reason, dayStart)
-    .first<{ n: number }>()
+  // ONE self-guarding statement: the daily-cap check and the insert share a
+  // snapshot, so two concurrent claims can't overshoot the cap (no TOCTOU).
+  // A replayed ref hits the unique (user_id, ref) index → changes=0 → earned 0.
+  // scenario_complete ignores the client's n (it collides across devices): the
+  // ref is rebuilt in SQL as scenario:{day}:{claimedCount+1} from the same
+  // count the guard uses — a rare concurrent dupe lands on the unique index.
+  const guard = '(SELECT COUNT(*) FROM wallet_ledger WHERE user_id = ?1 AND reason = ?3 AND day = ?4)'
+  const ins =
+    event === 'scenario_complete'
+      ? await db
+          .prepare(
+            'INSERT OR IGNORE INTO wallet_ledger (user_id, delta_seconds, reason, ref, day, created_at) ' +
+              `SELECT ?1, ?2, ?3, 'scenario:' || ?4 || ':' || (${guard} + 1), ?4, ?5 ` +
+              `WHERE ${guard} < ?6`,
+          )
+          .bind(userId, rule.seconds, reason, day, now, rule.dailyCap)
+          .run()
+      : await db
+          .prepare(
+            'INSERT OR IGNORE INTO wallet_ledger (user_id, delta_seconds, reason, ref, day, created_at) ' +
+              `SELECT ?1, ?2, ?3, ?5, ?4, ?6 WHERE ${guard} < ?7`,
+          )
+          .bind(userId, rule.seconds, reason, day, ref, now, rule.dailyCap)
+          .run()
   let earned = 0
-  if ((claimed?.n ?? 0) < rule.dailyCap) {
-    const ins = await db
-      .prepare('INSERT OR IGNORE INTO wallet_ledger (user_id, delta_seconds, reason, ref, created_at) VALUES (?, ?, ?, ?, ?)')
-      .bind(userId, rule.seconds, reason, ref, now)
+  if (ins.meta.changes) {
+    earned = rule.seconds
+    await db
+      .prepare(
+        'INSERT INTO wallet (user_id, balance_seconds, updated_at) VALUES (?1, ?2, ?3) ' +
+          'ON CONFLICT(user_id) DO UPDATE SET balance_seconds = balance_seconds + ?2, updated_at = ?3',
+      )
+      .bind(userId, rule.seconds, now)
       .run()
-    if (ins.meta.changes) {
-      earned = rule.seconds
-      await db
-        .prepare(
-          'INSERT INTO wallet (user_id, balance_seconds, updated_at) VALUES (?1, ?2, ?3) ' +
-            'ON CONFLICT(user_id) DO UPDATE SET balance_seconds = balance_seconds + ?2, updated_at = ?3',
-        )
-        .bind(userId, rule.seconds, now)
-        .run()
-    }
   }
 
   // Badge judgement — INSERT OR IGNORE keeps this idempotent, so it also runs on

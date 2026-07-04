@@ -111,6 +111,27 @@ export const SCENARIO_SCHEMA = {
   },
 } as const
 
+/** Server-side shape check for a generated pack — structured-output mode can
+ *  still misfire, and the frontend renders these fields without guards. */
+export function isScenarioPack(v: unknown): boolean {
+  if (!v || typeof v !== 'object') return false
+  const o = v as Record<string, unknown>
+  if (typeof o.title_zh !== 'string' || typeof o.role_zh !== 'string' || typeof o.opener_en !== 'string') {
+    return false
+  }
+  if (!Array.isArray(o.phrases) || o.phrases.length < 1) return false
+  for (const p of o.phrases) {
+    const q = (p || {}) as Record<string, unknown>
+    if (typeof q.en !== 'string' || typeof q.zh !== 'string') return false
+  }
+  if (!Array.isArray(o.words)) return false
+  for (const w of o.words) {
+    const q = (w || {}) as Record<string, unknown>
+    if (typeof q.word !== 'string' || typeof q.ipa !== 'string' || typeof q.zh !== 'string') return false
+  }
+  return true
+}
+
 // ---------------------------------------------------------------- memories
 const MEMORY_TOP = 12 // lines injected into the system prompt
 const MEMORY_LIMIT = 60 // hard cap per user; overflow drops the lightest, oldest

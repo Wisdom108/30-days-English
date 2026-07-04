@@ -50,12 +50,19 @@ export async function identify(request: Request, env: Env): Promise<Identity | n
   // No Cloudflare Access configured → open / passcode mode (no dashboard needed).
   if (!env.CF_ACCESS_TEAM_DOMAIN) {
     // If a shared passcode is set, require it (header or cookie). This is a
-    // simple access gate that needs zero dashboard setup.
+    // simple access gate that needs zero dashboard setup. The frontend mirrors
+    // the passcode into an `app_pc` cookie (SameSite=Lax, URI-encoded) so
+    // WebSocket upgrades — which can't carry custom headers — pass this gate.
     if (env.APP_PASSCODE) {
-      const given =
-        request.headers.get('x-app-passcode') ||
-        (request.headers.get('cookie') || '').match(/app_pc=([^;]+)/)?.[1] ||
-        ''
+      let given = request.headers.get('x-app-passcode') || ''
+      if (!given) {
+        const raw = (request.headers.get('cookie') || '').match(/app_pc=([^;]+)/)?.[1] || ''
+        try {
+          given = decodeURIComponent(raw)
+        } catch {
+          given = raw // malformed encoding → compare as-is
+        }
+      }
       return given && given === env.APP_PASSCODE ? { uid: 'member', member: true, name: 'owner' } : null
     }
     // Fully open: identify by IP so the per-IP daily quota still bounds abuse.

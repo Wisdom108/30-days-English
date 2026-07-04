@@ -42,6 +42,8 @@
   /* iOS system red: current day, due, record, danger (used sparingly) */
   --color-red: #ff3b30;
   --color-red-soft: rgba(255, 59, 48, 0.10);
+  /* darker red for white-on-red text (AA); #ff3b30 stays for non-text uses */
+  --color-red-deep: #e0281c;
 
   /* LIVE indicator (status green — heartbeat) */
   --color-live: #30d158;
@@ -258,11 +260,13 @@
     background: linear-gradient(180deg, #0a7cff 0%, #0064e1 100%);
     color: #ffffff;
     border-radius: 18px 18px 4px 18px;
+    overflow-wrap: anywhere;
   }
   .bubble-ai {
     background: #e9e9eb;
     color: var(--color-fg);
     border-radius: 18px 18px 18px 4px;
+    overflow-wrap: anywhere;
   }
 
   /* audio waveform bars (animate only while playing) */

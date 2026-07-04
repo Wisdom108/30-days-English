@@ -16,7 +16,14 @@ export interface Identity {
 
 const PC_KEY = 'app_pc'
 export const getPasscode = (): string => localStorage.getItem(PC_KEY) || ''
-export const setPasscode = (v: string): void => localStorage.setItem(PC_KEY, v)
+export const setPasscode = (v: string): void => {
+  localStorage.setItem(PC_KEY, v)
+  // Mirror to a same-origin cookie — WebSocket upgrades can't carry custom
+  // headers, so the worker reads the passcode from `app_pc` on WS auth.
+  document.cookie = v
+    ? `app_pc=${encodeURIComponent(v)}; path=/; max-age=31536000; SameSite=Lax; Secure`
+    : 'app_pc=; path=/; max-age=0; SameSite=Lax; Secure'
+}
 
 /** Headers to attach to every Worker call (passcode gate; harmless if empty). */
 export function authHeaders(): Record<string, string> {
@@ -27,6 +34,10 @@ export function authHeaders(): Record<string, string> {
 /** Who is signed in + which login mode the server uses. */
 export async function getIdentity(): Promise<{ user: Identity | null; mode: AuthMode }> {
   if (!features.worker) return { user: null, mode: 'open' }
+  // One-time boot sync: users who saved the passcode before the cookie mirror
+  // existed have it only in localStorage — write the cookie so WS auth works.
+  const pc = getPasscode()
+  if (pc && !document.cookie.includes('app_pc=')) setPasscode(pc)
   try {
     const res = await fetch(`${config.workerUrl}/me`, {
       credentials: 'include',

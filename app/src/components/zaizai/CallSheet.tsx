@@ -17,8 +17,15 @@ export default function CallSheet({
   scenario?: string
 }) {
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} side="bottom" title={scenario ? '场景实战通话' : '语音陪练'}>
-      <div className="overflow-y-auto p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+    <Sheet
+      open={open}
+      onOpenChange={onOpenChange}
+      side="bottom"
+      title={scenario ? '场景实战通话' : '语音陪练'}
+      className="flex flex-col overflow-hidden"
+    >
+      {/* bounded flex column: header stays put, the transcript area scrolls */}
+      <div className="min-h-0 flex-1 overflow-y-auto p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
         <AiPartner lesson={lesson} scenario={scenario} />
       </div>
     </Sheet>

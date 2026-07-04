@@ -88,7 +88,8 @@ export const BADGES: { id: string; name_zh: string; desc_zh: string; unlock?: st
 
 - `GET /wallet`(D1 session 必须,`readSession`+uid `u:`,否则 401)
   → `{ balanceSeconds, badges: string[], ledger: {delta,reason,at}[≤20], rules: {…EARN_RULES 摘要}, callCost }`
-- `POST /earn` body `{ event: keyof EARN_RULES, ref: string, meta?: {day?, key?, n?, date?} }`
+- `POST /earn` body `{ event: keyof EARN_RULES, ref: string, day: 'YYYY-MM-DD' }`(day=客户端本地日期,
+  必填,服务端校验格式且 ±36h;日上限按 (user_id, reason, day) 计;scenario ref 的 n 由服务端重建)
   → 校验 event 合法、ref 与 refFmt 形状匹配、当日该 event 已领次数 < dailyCap(查 ledger 当日 count)
   → `INSERT OR IGNORE` ledger(唯一 ref)+ 更新 wallet 余额(单条 SQL 累加)
   → 徽章判定(first_call 由 grok 消费侧发;scenario_N 数 ledger 里 scenario earn 总数;day_N/streak_N 信 meta 但 cap 校验)

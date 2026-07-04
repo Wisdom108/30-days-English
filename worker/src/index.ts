@@ -18,6 +18,7 @@ import {
   loadMemories,
   extractMemories,
   scenarioPackSystem,
+  isScenarioPack,
   SCENARIO_SCHEMA,
 } from './zaizai'
 // Re-export the voice-agent Durable Object so Wrangler registers the class.
@@ -315,6 +316,8 @@ async function handleAI(path: string, req: Request, env: Env, ctx: ExecutionCont
       await bump(env, 'q', uid)
       try {
         const pack = typeof raw === 'string' ? parseJson(raw) : raw
+        // Never relay an out-of-shape pack — the frontend renders it unguarded.
+        if (!isScenarioPack(pack)) throw new Error('bad pack shape')
         return json({ pack }, env)
       } catch {
         return json({ error: '场景生成失败，请重试' }, env, 502)
@@ -489,7 +492,10 @@ export default {
     // Gate with the same identify() as the JSON API: the session cookie /
     // x-app-passcode ride along on a same-origin WS upgrade, and open mode
     // still resolves an IP identity, so it passes as before.
-    if (pathname.startsWith('/agents/') && req.method !== 'OPTIONS') {
+    // Segment match, NOT startsWith: partyserver normalizes paths, so e.g.
+    // '//agents/…' would still route while dodging a raw prefix check.
+    const segs = pathname.split('/').filter(Boolean)
+    if (segs[0] === 'agents' && req.method !== 'OPTIONS') {
       const ident = await identify(req, env)
       if (!ident || !ident.uid) return json({ error: '需要登录' }, env, 401, req)
     }

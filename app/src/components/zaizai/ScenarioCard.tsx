@@ -22,6 +22,8 @@ function packToBrief(pack: ScenarioPack): string {
 
 export default function ScenarioCard({ pack, onPractice, onCall, onDone }: ScenarioCardProps) {
   const brief = packToBrief(pack)
+  // ChatHome stamps `done` onto the persisted pack after 完成 — no re-claim farming.
+  const done = !!(pack as ScenarioPack & { done?: boolean }).done
   return (
     <div className="glass w-full max-w-[88%] rounded-xl p-4">
       <div className="text-h3 font-semibold text-fg">{pack.title_zh}</div>
@@ -61,7 +63,7 @@ export default function ScenarioCard({ pack, onPractice, onCall, onDone }: Scena
       <div className="mt-4 flex flex-wrap gap-2">
         <Button size="sm" variant="secondary" onClick={() => onPractice(brief)}><MessageSquare size={13} /> 文字演练</Button>
         <Button size="sm" onClick={() => onCall(brief)}><PhoneCall size={13} /> 实战电话</Button>
-        <Button size="sm" variant="ghost" onClick={onDone}><Check size={13} /> 完成</Button>
+        <Button size="sm" variant="ghost" disabled={done} onClick={onDone}><Check size={13} /> {done ? '已完成' : '完成'}</Button>
       </div>
     </div>
   )

@@ -43,9 +43,10 @@ export default function GrokLiveTutor({ lesson, scenario }: { lesson: LessonCtx;
   const [persona, setPersona] = useState<string>('emma')
   const [badges, setBadges] = useState<string[] | null>(null) // null = unknown → no locks
   const sessionRef = useRef<GrokSession | null>(null)
+  const dead = useRef(false) // set on unmount — a connect that resolves late must not orphan its session
   const endRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => () => sessionRef.current?.stop(), [])
+  useEffect(() => () => { dead.current = true; sessionRef.current?.stop() }, [])
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [turns, status])
 
   useEffect(() => {
@@ -69,7 +70,7 @@ export default function GrokLiveTutor({ lesson, scenario }: { lesson: LessonCtx;
     setError(null)
     setConnecting(true)
     try {
-      sessionRef.current = await startGrok({
+      const s = await startGrok({
         lesson,
         persona,
         scenario,
@@ -78,6 +79,9 @@ export default function GrokLiveTutor({ lesson, scenario }: { lesson: LessonCtx;
         onAiText: (t, _done) => t && setTurns((prev) => upsert(prev, 'ai', t)),
         onError: (m) => setError(m),
       })
+      if (dead.current) { s.stop(); return } // sheet dismissed mid-connect
+      sessionRef.current = s
+      if (s.walletSpent) toast({ title: '本次通话已花费 5 分钟通话时长' })
     } catch (e) {
       setError(e instanceof Error ? e.message : '连接失败，请重试')
       setStatus('idle')

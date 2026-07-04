@@ -81,12 +81,21 @@ export function walletCap(): boolean {
   return !!(serverCaps() as ServerCaps & { wallet?: boolean }).wallet
 }
 
+/** Drop the cached wallet + tell chips to re-fetch — call on login/logout/account switch. */
+export function invalidateWallet(): void {
+  walletCache = null
+  window.dispatchEvent(new Event(WALLET_EVENT))
+}
+
 export async function getWallet(force = false): Promise<WalletInfo | null> {
   if (!features.worker) return null
   if (walletCache && !force) return walletCache
   try {
     const res = await fetch(`${config.workerUrl}/wallet`, { credentials: 'include', headers: authHeaders() })
-    if (!res.ok) return null
+    if (!res.ok) {
+      if (res.status === 401) walletCache = null // session gone — stale balance must not linger
+      return null
+    }
     walletCache = (await res.json()) as WalletInfo
     return walletCache
   } catch {
@@ -106,12 +115,11 @@ export async function postEarn(
       method: 'POST',
       credentials: 'include',
       headers: { 'content-type': 'application/json', ...authHeaders() },
-      body: JSON.stringify({ event, ref }),
+      body: JSON.stringify({ event, ref, day: todayISO() }), // LOCAL date — worker validates format + ±36h
     })
     if (!res.ok) return null
     const d = (await res.json()) as { balanceSeconds: number; earned: number; newBadges: string[] }
-    walletCache = null
-    window.dispatchEvent(new Event(WALLET_EVENT))
+    invalidateWallet()
     return d
   } catch {
     return null

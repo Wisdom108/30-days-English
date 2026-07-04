@@ -31,6 +31,7 @@ const REASON_LABELS: Record<string, string> = {
   'earn:scenario_complete': '场景演练',
   'earn:streak_milestone': '连胜里程碑',
   'spend:grok_call': '实时通话',
+  'refund:grok_call': '通话退款',
 }
 
 const mins = (seconds: number) => Math.floor(seconds / 60)
@@ -60,14 +61,14 @@ function WalletCard({ isAccount, wallet }: { isAccount: boolean; wallet: WalletI
             <span className="t-doto text-[40px] font-semibold leading-none text-fg">{mins(wallet.balanceSeconds)}</span>
             <span className="text-body text-fg-muted">分钟通话时长</span>
           </div>
-          <p className="mt-1.5 text-meta text-fg-dim">每通实战电话约花 {mins(wallet.callCost)} 分钟 · 学习赚取,当日有上限</p>
+          <p className="mt-1.5 text-meta text-fg-muted">每通实战电话约花 {mins(wallet.callCost)} 分钟 · 学习赚取,当日有上限</p>
 
           {/* earn rules */}
           <div className="mt-3 space-y-1 border-t border-border-soft pt-3">
             {Object.entries(wallet.rules).map(([event, r]) => (
               <div key={event} className="flex items-center gap-2 text-sm">
                 <span className="flex-1 text-fg-secondary">{EARN_LABELS[event] ?? event}</span>
-                <span className="text-meta text-fg-dim">每日 ×{r.dailyCap}</span>
+                <span className="text-meta text-fg-muted">每日 ×{r.dailyCap}</span>
                 <span className="t-tab w-14 text-right font-semibold text-success">+{mins(r.seconds)} 分钟</span>
               </div>
             ))}
@@ -77,7 +78,7 @@ function WalletCard({ isAccount, wallet }: { isAccount: boolean; wallet: WalletI
           <div className="mt-3 border-t border-border-soft pt-3">
             <div className="label-nd mb-1.5">今日台账</div>
             {today.length === 0 ? (
-              <p className="text-sm text-fg-dim">今天还没有记录 —— 完成一块练习就有进账。</p>
+              <p className="text-sm text-fg-muted">今天还没有记录 —— 完成一块练习就有进账。</p>
             ) : (
               <div className="space-y-1">
                 {today.map((l, i) => (

@@ -5,7 +5,7 @@ import { useApp } from '../../state'
 import { useAuth } from '../../auth'
 import { features } from '../../config'
 import { getLesson, TOTAL_DAYS } from '../../data/curriculum'
-import { dueCards } from '../../lib/srs'
+import { dueCards, todayISO } from '../../lib/srs'
 import { displayStreak, getDayProgress } from '../../lib/storage'
 import { BLOCKS } from '../../blocks'
 import { aiChat, AIError, type ChatMsg, type LessonCtx } from '../../lib/ai'
@@ -73,34 +73,80 @@ export default function ChatHome() {
   const guestMemory = () => (user?.account ? undefined : localMemoryText() || undefined)
 
   // ---- morning dispatch: once per LOCAL day — brief (or static greeting) + task cards
-  const bootRef = useRef(false)
+  const bootRef = useRef<string | null>(null) // last-dispatched local date
+  const [wakeTick, setWakeTick] = useState(0) // bumped on tab wake → re-checks the date after midnight
   useEffect(() => {
-    if (loading || bootRef.current || briefShownToday()) return
-    bootRef.current = true
-    markBriefShown()
-    const tasks: ChatEntry[] = BLOCKS.filter((b) => !prog.completedBlocks[b.key]).map((b) => ({
-      id: newId(),
-      role: 'assistant',
-      kind: 'task-card',
-      payload: { day: current, key: b.key, title_zh: b.title_zh, minutes: b.minutes },
-      at: Date.now(),
-    }))
-    const fallback =
-      `早!今天是 Day ${current}/30${stats.streak > 0 ? `,已经连着学了 ${stats.streak} 天` : ''}。` +
-      (tasks.length ? '今天的练习清单在下面,先挑一块开始?' : '今天的 5 块练习都完成了,来聊两句或练个场景?')
-    const finish = (text: string, kind: 'brief' | 'text') =>
-      setEntries((es) => [...es, { id: newId(), role: 'assistant', kind, payload: text, at: Date.now() }, ...tasks])
-    if (features.ai && user) {
-      setBusy(true)
-      zaizaiBrief(stats, lessonCtx, guestMemory())
-        .then(({ reply }) => finish(reply, 'brief'))
-        .catch(() => finish(fallback, 'text'))
-        .finally(() => setBusy(false))
-    } else {
-      finish(fallback, 'text')
+    const onVis = () => document.visibilityState === 'visible' && setWakeTick((t) => t + 1)
+    document.addEventListener('visibilitychange', onVis)
+    return () => document.removeEventListener('visibilitychange', onVis)
+  }, [])
+  // Latest render values for the (possibly delayed) dispatch — CloudSync may
+  // import fresher state while we wait for it to settle.
+  const liveRef = useRef({ stats, lessonCtx, prog, current })
+  liveRef.current = { stats, lessonCtx, prog, current }
+  useEffect(() => {
+    if (loading || bootRef.current === todayISO() || briefShownToday()) return
+    const dispatch = () => {
+      if (bootRef.current === todayISO() || briefShownToday()) return
+      bootRef.current = todayISO()
+      const { stats, lessonCtx, prog, current } = liveRef.current
+      const tasks: ChatEntry[] = BLOCKS.filter((b) => !prog.completedBlocks[b.key]).map((b) => ({
+        id: newId(),
+        role: 'assistant',
+        kind: 'task-card',
+        payload: { day: current, key: b.key, title_zh: b.title_zh, minutes: b.minutes },
+        at: Date.now(),
+      }))
+      // Task cards land + persist SYNCHRONOUSLY (write-through) — an unmount
+      // during the brief fetch can no longer lose them. Mark the day here, where
+      // entries are actually persisted.
+      saveChat([...loadChat(), ...tasks])
+      setEntries((es) => [...es, ...tasks])
+      markBriefShown()
+      const fallback =
+        `早!今天是 Day ${current}/30${stats.streak > 0 ? `,已经连着学了 ${stats.streak} 天` : ''}。` +
+        (tasks.length ? '今天的练习清单在下面,先挑一块开始?' : '今天的 5 块练习都完成了,来聊两句或练个场景?')
+      // Write-through too: insert the brief BEFORE its task cards straight into
+      // storage, so it persists even if this component unmounted mid-fetch.
+      const finish = (text: string, kind: 'brief' | 'text') => {
+        const entry: ChatEntry = { id: newId(), role: 'assistant', kind, payload: text, at: Date.now() }
+        const insert = (es: ChatEntry[]) => {
+          const i = tasks.length ? es.findIndex((e) => e.id === tasks[0].id) : -1
+          return i < 0 ? [...es, entry] : [...es.slice(0, i), entry, ...es.slice(i)]
+        }
+        saveChat(insert(loadChat()))
+        setEntries(insert)
+      }
+      if (features.ai && user) {
+        setBusy(true)
+        zaizaiBrief(stats, lessonCtx, guestMemory())
+          .then(({ reply }) => finish(reply, 'brief'))
+          .catch(() => finish(fallback, 'text'))
+          .finally(() => setBusy(false))
+      } else {
+        finish(fallback, 'text')
+      }
     }
+    if (user?.account) {
+      // Fresh device: wait for CloudSync's initial adopt/merge (or 4s) so the
+      // brief reads post-sync progress. setTimeout(0) lets React flush the
+      // imported state first; per-day guards make re-runs no-ops.
+      let fired = false
+      const go = () => {
+        if (fired) return
+        fired = true
+        setTimeout(dispatch, 0)
+      }
+      const t = setTimeout(go, 4000)
+      window.addEventListener('zaizai-sync-settled', go)
+      return () => {
+        clearTimeout(t)
+        window.removeEventListener('zaizai-sync-settled', go)
+      }
+    }
+    dispatch()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading])
+  }, [loading, wakeTick, user?.account])
 
   // Old dispatchers (command palette etc.) keep working: open the call sheet.
   useEffect(() => {
@@ -179,14 +225,29 @@ export default function ChatHome() {
     setCallOpen(true)
   }
 
-  const finishScenario = () => {
+  const earnPending = useRef(false)
+  const finishScenario = (entryId: string) => {
+    if (earnPending.current) return // postEarn in flight — no double-claim
+    const cur = entries.find((en) => en.id === entryId)
+    if (cur && (cur.payload as ScenarioPack & { done?: boolean }).done) return // already claimed
     setRoleplay(null)
+    // Flag the pack done (persists via the saveChat effect) so 完成 can't be farmed.
+    setEntries((es) =>
+      es.map((en) =>
+        en.id === entryId ? { ...en, payload: { ...(en.payload as ScenarioPack), done: true } as ScenarioPack } : en,
+      ),
+    )
     if (user?.account) {
-      postEarn('scenario_complete', nextScenarioRef()).then((r) =>
-        r && r.earned > 0
-          ? toast({ title: `场景完成 · 赚到 ${Math.floor(r.earned / 60)} 分钟通话`, tone: 'success' })
-          : toast({ title: '场景完成', tone: 'success' }),
-      )
+      earnPending.current = true
+      postEarn('scenario_complete', nextScenarioRef())
+        .then((r) =>
+          r && r.earned > 0
+            ? toast({ title: `场景完成 · 赚到 ${Math.floor(r.earned / 60)} 分钟通话`, tone: 'success' })
+            : toast({ title: '场景完成', tone: 'success' }),
+        )
+        .finally(() => {
+          earnPending.current = false
+        })
     } else {
       toast({ title: '场景完成', description: '注册账号可赚取通话时长', tone: 'success' })
     }
@@ -219,7 +280,7 @@ export default function ChatHome() {
       const pack = e.payload as ScenarioPack
       return (
         <div key={e.id} className="flex">
-          <ScenarioCard pack={pack} onPractice={(s) => startPractice(pack, s)} onCall={startCall} onDone={finishScenario} />
+          <ScenarioCard pack={pack} onPractice={(s) => startPractice(pack, s)} onCall={startCall} onDone={() => finishScenario(e.id)} />
         </div>
       )
     }
@@ -241,8 +302,9 @@ export default function ChatHome() {
         <ProgressCard />
       </div>
 
-      {/* message feed */}
-      <div className="flex-1 space-y-2.5 py-4">
+      {/* message feed — bottom padding clears the sticky input dock + mobile tab
+          bar (~160px / ~116px on md) so autoscrolled messages never park behind them */}
+      <div className="flex-1 space-y-2.5 pt-4 pb-40 md:pb-28">
         {entries.map(renderEntry)}
         {busy && (
           <div className="flex">
@@ -253,7 +315,7 @@ export default function ChatHome() {
             </div>
           </div>
         )}
-        <div ref={endRef} />
+        <div ref={endRef} className="scroll-mb-40 md:scroll-mb-28" />
       </div>
 
       {/* input dock — quick scenarios + iMessage bar */}

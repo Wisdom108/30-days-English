@@ -71,7 +71,9 @@ export default function DayView() {
       const s = displayStreak(state)
       // Post-markBlock state: all 5 blocks just landed → day + streak earns.
       earn('day_complete', `day:${dayNum}`)
-      if (s === 7 || s === 14 || s === 21 || s === 30) earn('streak_milestone', `streak:${s}`)
+      // Catch-up loop: a streak that jumped past a milestone (e.g. 6→8 after a
+      // backfill) still claims it — server-side idempotency makes repeats no-ops.
+      for (const m of [7, 14, 21, 30]) if (s >= m) earn('streak_milestone', `streak:${m}`)
       toast({
         tone: 'streak',
         title: `🎉 Day ${dayNum} 完成！`,

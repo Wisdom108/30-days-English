@@ -6,6 +6,7 @@ import { features } from '../config'
 import { accessLogin, getIdentity, logout, setPasscode } from '../lib/access'
 import { login as accountLogin, register as accountRegister, accountLogout, activateCode, startCheckout } from '../lib/account'
 import { paymentAvailable, walletAvailable } from '../lib/caps'
+import { invalidateWallet } from '../lib/zaizai'
 import { useApp } from '../state'
 import { defaultState } from '../lib/storage'
 import { aiChat, aiTutor, AIError, type ChatMsg, type LessonCtx } from '../lib/ai'
@@ -95,6 +96,7 @@ function AccountSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o:
     try {
       await (tab === 'login' ? accountLogin(name.trim(), pw) : accountRegister(name.trim(), pw))
       setPw('')
+      invalidateWallet() // new identity → drop the previous account's cached balance
       refresh()
       onOpenChange(false)
     } catch (e) {
@@ -141,6 +143,7 @@ function AccountSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o:
     // local progress so the next person starts clean (their cloud copy re-adopts
     // on login). SYNC_OWNER stays so a returning user still merges, not wipes.
     setPasscode('')
+    invalidateWallet()
     importAll(defaultState())
     refresh()
     onOpenChange(false)
@@ -164,7 +167,7 @@ function AccountSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o:
                     : '免费版 · 每日体验额度'}
                 </div>
                 {!user.member && walletAvailable() && (
-                  <div className="mt-0.5 text-meta text-fg-dim">完成练习可赚实时通话时长 → 我的</div>
+                  <div className="mt-0.5 text-meta text-fg-muted">完成练习可赚实时通话时长 → 我的</div>
                 )}
               </div>
               {user.member && <Badge variant="red">MEMBER</Badge>}
