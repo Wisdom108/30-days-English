@@ -67,6 +67,9 @@ export function CloudSync() {
     runSync(true)
       .then(() => {
         if (alive) adoptedFor.current = owner
+        // fresh-device gate: ChatHome delays the morning brief until the initial
+        // adopt/merge has landed, so the brief reads post-sync progress
+        window.dispatchEvent(new Event('zaizai-sync-settled'))
       })
       .catch(() => {
         if (alive) setTimeout(() => setRetry((r) => r + 1), 15000)

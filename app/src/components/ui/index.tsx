@@ -16,7 +16,7 @@ import { cn } from '../../lib/utils'
 
 // Shared scrim for all overlays (single source so they can't drift).
 export const SCRIM =
-  'fixed inset-0 z-50 bg-black/55 backdrop-blur-[2px] data-[state=open]:animate-in-up data-[state=closed]:animate-out'
+  'fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px] data-[state=open]:animate-in-up data-[state=closed]:animate-out'
 const RING = 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 focus-visible:ring-offset-2 focus-visible:ring-offset-bg'
 
 // ============================================================================

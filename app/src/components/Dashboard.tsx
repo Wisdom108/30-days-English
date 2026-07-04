@@ -150,7 +150,7 @@ export default function Dashboard() {
         {/* phase legend */}
         <div className="flex flex-wrap gap-1.5 border-b border-border px-[18px] py-3">
           {Object.entries(PHASE_INFO).map(([k, v]) => (
-            <span key={k} className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.1em]" style={{ background: v.softBg, color: v.color }}>
+            <span key={k} className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.1em]" style={{ background: v.softBg, color: v.text }}>
               <span className="h-1.5 w-1.5 rounded-full" style={{ background: v.color }} />{PHASE_EN[Number(k)]}
             </span>
           ))}
@@ -178,7 +178,7 @@ export default function Dashboard() {
                 >
                   {done && <span className="absolute right-1 top-1" style={{ color: v.color }}><Check size={11} strokeWidth={3} /></span>}
                   {isCurrent && <span className="pulse-red absolute right-1 top-1 h-[5px] w-[5px] rounded-full bg-red" />}
-                  <span className={cn('t-tab text-h2 font-medium', locked && 'text-fg-dim')} style={done ? { color: v.color } : undefined}>{d}</span>
+                  <span className={cn('t-tab text-h2 font-medium', locked && 'text-fg-dim')} style={done ? { color: v.text } : undefined}>{d}</span>
                   {locked && <Lock size={9} className="text-fg-dim" />}
                 </button>
               )

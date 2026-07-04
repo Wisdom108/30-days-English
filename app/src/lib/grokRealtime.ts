@@ -1,6 +1,7 @@
 import { config } from '../config'
 import { authHeaders } from './access'
 import type { LessonCtx } from './ai'
+import { invalidateWallet } from './zaizai'
 
 // xAI Grok NATIVE realtime voice (speech-to-speech) over a raw WebSocket.
 // The browser connects to wss://api.x.ai/v1/realtime with an ephemeral token as
@@ -17,10 +18,13 @@ export type GrokStatus = 'connecting' | 'listening' | 'speaking' | 'closed'
 export interface GrokSession {
   stop: () => void
   mute: (m: boolean) => void
+  /** true when this mint deducted call minutes from the wallet */
+  walletSpent?: boolean
 }
 interface StartOpts {
   lesson: LessonCtx
   persona?: string // character preset key (emma/aria/rex/leo/sam) — picks the voice + tone
+  scenario?: string // roleplay brief — folded into instructions SERVER-side (single source)
   onStatus: (s: GrokStatus) => void
   onUserText: (t: string) => void
   onAiText: (t: string, done: boolean) => void
@@ -59,7 +63,7 @@ function base64ToF32(b64: string): Float32Array {
 }
 
 export async function startGrok(opts: StartOpts): Promise<GrokSession> {
-  const { lesson, persona, onStatus, onUserText, onAiText, onError } = opts
+  const { lesson, persona, scenario, onStatus, onUserText, onAiText, onError } = opts
   onStatus('connecting')
 
   // 1. mint an ephemeral token via our Worker.
@@ -67,16 +71,18 @@ export async function startGrok(opts: StartOpts): Promise<GrokSession> {
     method: 'POST',
     credentials: 'include',
     headers: { 'content-type': 'application/json', ...authHeaders() },
-    body: JSON.stringify({ lesson, persona }),
+    body: JSON.stringify({ lesson, persona, scenario }),
   })
   const data = (await res.json().catch(() => ({}))) as {
     token?: string
     model?: string
     voice?: string
     instructions?: string
+    walletSpent?: boolean
     error?: string
   }
   if (!res.ok || !data.token) throw new Error(data.error || '连接失败')
+  if (data.walletSpent) invalidateWallet() // minutes were deducted → bust the cached balance
   const model = data.model || 'grok-voice-latest'
   const voice = data.voice || 'eve'
   const instructions = data.instructions || ''
@@ -126,8 +132,10 @@ export async function startGrok(opts: StartOpts): Promise<GrokSession> {
   let proc: ScriptProcessorNode | null = null
   let muted = false
   let aiRunning = ''
+  let stopped = false // teardown guard — set by stop(), checked by async callbacks
 
   ws.onopen = async () => {
+    if (stopped) return
     // The ephemeral-token mint does NOT accept session config, so we apply it
     // here: instructions/voice/VAD + enable input transcription for subtitles.
     // Audio stays the default (24kHz PCM), which matches our capture/playback —
@@ -145,9 +153,15 @@ export async function startGrok(opts: StartOpts): Promise<GrokSession> {
       // Echo cancellation + noise suppression: cleaner mic, and (on speakers)
       // stops the tutor's own voice looping back into the mic → fewer artifacts
       // and spurious barge-ins.
-      ms = await navigator.mediaDevices.getUserMedia({
+      const stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       })
+      if (stopped) {
+        // session torn down while the permission prompt was up — don't leave the mic on
+        stream.getTracks().forEach((t) => { try { t.stop() } catch { /* ignore */ } })
+        return
+      }
+      ms = stream
       if (micCtx.state === 'suspended') await micCtx.resume()
       if (playCtx.state === 'suspended') await playCtx.resume()
       const source = micCtx.createMediaStreamSource(ms)
@@ -208,7 +222,6 @@ export async function startGrok(opts: StartOpts): Promise<GrokSession> {
   ws.onerror = () => onError('实时连接出错')
   ws.onclose = () => onStatus('closed')
 
-  let stopped = false
   const stop = () => {
     if (stopped) return
     stopped = true
@@ -231,5 +244,5 @@ export async function startGrok(opts: StartOpts): Promise<GrokSession> {
     muted = m
     ms?.getAudioTracks().forEach((t) => (t.enabled = !m))
   }
-  return { stop, mute }
+  return { stop, mute, walletSpent: !!data.walletSpent }
 }

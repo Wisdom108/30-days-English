@@ -11,7 +11,7 @@ import { VitePWA } from 'vite-plugin-pwa'
 const WORKER = 'https://thirty-days-en.thinkuniverse.workers.dev'
 type Fwd = { target: string; changeOrigin: boolean; secure: boolean; ws?: boolean }
 const proxy: Record<string, Fwd> = Object.fromEntries(
-  ['/health', '/me', '/login', '/logout', '/auth', '/progress', '/ai', '/speech', '/realtime', '/grok'].map((p) => [
+  ['/health', '/me', '/login', '/logout', '/auth', '/progress', '/ai', '/speech', '/realtime', '/grok', '/wallet', '/earn'].map((p) => [
     p,
     { target: WORKER, changeOrigin: true, secure: true } as Fwd,
   ]),
@@ -30,11 +30,11 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['apple-touch-icon.png', 'favicon.svg', 'favicon-32.png'],
       manifest: {
-        name: '30 Days English · 30 天英语听说强化',
-        short_name: '30天英语',
+        name: '语自在 · 30 Days English 英语听说',
+        short_name: '语自在',
         description: '30 天英语听说强化：科学间隔重复 + 影子跟读 + 精听听写 + 点词查义，离线可用。为有基础、想系统提升听说的学习者设计。',
-        theme_color: '#000000',
-        background_color: '#000000',
+        theme_color: '#f2f2f7',
+        background_color: '#f2f2f7',
         display: 'standalone',
         orientation: 'portrait',
         lang: 'zh-CN',

@@ -13,6 +13,7 @@ export interface ServerCaps {
   grokRealtime: boolean // xAI Grok native realtime voice (needs server-side xAI key)
   voiceAgent: boolean // Cloudflare Agents realtime voice tutor (Workers AI, free, no key)
   payment: boolean // Stripe self-serve checkout (needs server-side Stripe key)
+  wallet: boolean // earned-seconds economy: D1 wallet + badges (needs DB + session secret)
 }
 
 let caps: ServerCaps = {
@@ -23,10 +24,16 @@ let caps: ServerCaps = {
   grokRealtime: false,
   voiceAgent: features.worker,
   payment: false,
+  wallet: false,
 }
 
 export function serverCaps(): ServerCaps {
   return caps
+}
+
+/** True when the Worker has the earned-seconds wallet (D1 + sessions) configured. */
+export function walletAvailable(): boolean {
+  return caps.wallet
 }
 
 /** True when the Worker has Stripe self-serve checkout configured. */
@@ -64,6 +71,7 @@ export async function loadCaps(): Promise<ServerCaps> {
         grokRealtime: !!d.features?.grokRealtime,
         voiceAgent: d.features?.voiceAgent ?? features.worker,
         payment: !!d.features?.payment,
+        wallet: !!d.features?.wallet,
       }
     }
   } catch {

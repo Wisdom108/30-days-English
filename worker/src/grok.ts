@@ -1,5 +1,6 @@
 import { identify } from './auth'
-import { json, underQuota, bump, lessonFrom, type Env } from './index'
+import { json, underQuota, bump, lessonFrom, cap as capText, type Env } from './index'
+import { GROK_CALL_COST, spendWallet, refundWallet, grantBadge } from './wallet'
 
 // xAI Grok realtime VOICE (native speech-to-speech). The browser opens a
 // WebSocket straight to wss://api.x.ai/v1/realtime with a short-lived EPHEMERAL
@@ -30,7 +31,11 @@ function personaFrom(key?: unknown): { voice: string; name: string; character: s
 // Human-feeling conversation prompt. The "AI customer-service" flatness comes
 // from any tutor/assistant framing, so this prompt kills it: you're just a person
 // with a personality hanging out — not an assistant, not a teacher.
-function tutorInstructions(lesson: ReturnType<typeof lessonFrom>, persona: { name: string; character: string }): string {
+function tutorInstructions(
+  lesson: ReturnType<typeof lessonFrom>,
+  persona: { name: string; character: string },
+  scenario?: string,
+): string {
   const topic = lesson.title_en || lesson.theme || 'whatever comes up'
   return (
     `You are ${persona.name}, a real person on a casual voice call with a friend from China who is practicing spoken English (around CEFR A2-B1). ` +
@@ -42,28 +47,44 @@ function tutorInstructions(lesson: ReturnType<typeof lessonFrom>, persona: { nam
     'NEVER sound like a bot: no "How can I help you?", no "Great question!", no "As an AI", no "I\'m here to help", no numbered tips, no lecturing, no over-explaining. ' +
     'If they slip up in English, just naturally use the correct word in your own reply and move on — like a friend would, never a correction or a lesson. ' +
     'Speak clearly, a touch slower, with simple words. Always English, always warm; never switch to Chinese. ' +
-    `You two are loosely chatting about ${topic}, but honestly just follow the vibe wherever it goes.`
+    `You two are loosely chatting about ${topic}, but honestly just follow the vibe wherever it goes.` +
+    (scenario ? ` When roleplay context is given, stay in character: ${scenario}` : '')
   )
 }
 
-/** POST /grok/token → { token, model, voice, instructions } (ephemeral secret + session config for the browser WS). */
+/** POST /grok/token → { token, model, voice, instructions, walletSpent } (ephemeral secret + session config for the browser WS). */
 export async function handleGrokToken(req: Request, env: Env): Promise<Response> {
   if (!env.XAI_API_KEY) return json({ error: '实时语音(Grok)未启用' }, env, 503, req)
   const ident = await identify(req, env)
   if (!ident) return json({ error: '需要登录' }, env, 401, req)
 
-  // Realtime is expensive — cap per user/day (reuse the KV quota pattern).
-  const cap = ident.member ? Number(env.DAILY_REALTIME_QUOTA || '20') : Number(env.FREE_REALTIME_QUOTA || '2')
-  if (!(await underQuota(env, 'rt', ident.uid, cap))) {
-    return json({ error: ident.member ? '今日实时对话额度已用完' : '免费体验额度已用完，开通会员解锁' }, env, 429, req)
+  // Realtime is expensive — members burn the daily rt quota (KV pattern); free
+  // users burn the small taste quota first, then pay per call from the
+  // earned-seconds wallet (atomic decrement is the gate — wallet.ts).
+  const quotaCap = ident.member ? Number(env.DAILY_REALTIME_QUOTA || '20') : Number(env.FREE_REALTIME_QUOTA || '2')
+  const accountId = ident.uid.startsWith('u:') ? Number(ident.uid.slice(2)) : null
+  let walletSpent = false
+  if (!(await underQuota(env, 'rt', ident.uid, quotaCap))) {
+    if (ident.member) return json({ error: '今日实时对话额度已用完' }, env, 429, req)
+    if (accountId === null || !(await spendWallet(env, accountId, GROK_CALL_COST))) {
+      return json({ error: '额度不足,完成今日练习可赚通话时长' }, env, 429, req)
+    }
+    walletSpent = true
   }
 
-  const body = (await req.json().catch(() => ({}))) as { lesson?: unknown; persona?: unknown }
+  const body = (await req.json().catch(() => ({}))) as { lesson?: unknown; persona?: unknown; scenario?: unknown }
   const lesson = lessonFrom(body.lesson)
+  const scenario = capText(body.scenario, 400)
   const model = env.XAI_REALTIME_MODEL || GROK_MODEL
   const persona = personaFrom(body.persona)
   const voice = persona.voice
-  const instructions = tutorInstructions(lesson, persona)
+  const instructions = tutorInstructions(lesson, persona, scenario)
+
+  // The wallet charge (if any) happened before the mint — give it back on failure.
+  const fail = async (): Promise<Response> => {
+    if (walletSpent && accountId !== null) await refundWallet(env, accountId, GROK_CALL_COST)
+    return json({ error: '实时语音初始化失败' }, env, 502, req)
+  }
 
   try {
     // Mint an ephemeral client secret. Per xAI docs the mint body accepts ONLY
@@ -76,7 +97,7 @@ export async function handleGrokToken(req: Request, env: Env): Promise<Response>
       headers: { Authorization: `Bearer ${env.XAI_API_KEY}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ expires_after: { seconds: 600 } }),
     })
-    if (!res.ok) return json({ error: '实时语音初始化失败' }, env, 502, req)
+    if (!res.ok) return fail()
     const data = (await res.json().catch(() => ({}))) as {
       value?: string
       client_secret?: { value?: string }
@@ -84,10 +105,11 @@ export async function handleGrokToken(req: Request, env: Env): Promise<Response>
     }
     // Be tolerant of the exact response shape.
     const token = data.value || data.client_secret?.value || data.secret
-    if (!token) return json({ error: '实时语音初始化失败' }, env, 502, req)
-    await bump(env, 'rt', ident.uid)
-    return json({ token, model, voice, instructions }, env, 200, req)
+    if (!token) return fail()
+    if (!walletSpent) await bump(env, 'rt', ident.uid) // wallet calls don't burn quota
+    if (accountId !== null) await grantBadge(env, accountId, 'first_call')
+    return json({ token, model, voice, instructions, walletSpent }, env, 200, req)
   } catch {
-    return json({ error: '实时语音初始化失败' }, env, 502, req)
+    return fail()
   }
 }

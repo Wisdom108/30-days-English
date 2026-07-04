@@ -47,16 +47,18 @@ export const BLOCKS: BlockMeta[] = [
 
 export const TOTAL_MINUTES = BLOCKS.reduce((s, b) => s + b.minutes, 0)
 
-// Phase colors — an INK → AMBER → VERMILION intensity arc on paper (increasing
-// difficulty), matching the "Ink & Paper" theme (--color-fg / --color-warning /
-// --color-red). Kept as JS hex (not CSS vars) because they are consumed in inline
-// styles, alpha concatenation, and the <Progress> Bar color prop, none of which
-// accept var(). Must stay legible on the cream surfaces (#f8f3e8) they render on.
+// Phase colors — a GRAY → ORANGE → BLUE intensity arc (increasing difficulty),
+// matching the iOS Liquid Glass theme (systemGray / --color-warning /
+// --color-brand). Kept as JS hex (not CSS vars) because they are consumed in
+// inline styles, alpha concatenation, and the <Progress> Bar color prop, none of
+// which accept var(). Must stay legible on the white surfaces they render on.
+// `color` is for dots/borders/graphics; `text` is a darkened variant that stays
+// AA-legible as text on the softBg chips and white surfaces.
 export const PHASE_INFO: Record<
   number,
-  { name_zh: string; range: string; color: string; softBg: string; dot: string }
+  { name_zh: string; range: string; color: string; softBg: string; dot: string; text: string }
 > = {
-  1: { name_zh: '生存基础', range: 'Day 1–10', color: '#262019', softBg: 'rgba(38,32,25,0.08)', dot: '' },
-  2: { name_zh: '日常生活', range: 'Day 11–20', color: '#9a7526', softBg: 'rgba(154,117,38,0.14)', dot: '' },
-  3: { name_zh: '流利冲刺', range: 'Day 21–30', color: '#cb3a24', softBg: 'rgba(203,58,36,0.14)', dot: '' },
+  1: { name_zh: '生存基础', range: 'Day 1–10', color: '#8e8e93', softBg: 'rgba(142,142,147,0.14)', dot: '', text: '#636366' },
+  2: { name_zh: '日常生活', range: 'Day 11–20', color: '#ff9f0a', softBg: 'rgba(255,159,10,0.14)', dot: '', text: '#c25400' },
+  3: { name_zh: '流利冲刺', range: 'Day 21–30', color: '#0a7cff', softBg: 'rgba(10,124,255,0.12)', dot: '', text: '#0a7cff' },
 }
