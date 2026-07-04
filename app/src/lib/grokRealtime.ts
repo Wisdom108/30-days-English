@@ -21,6 +21,7 @@ export interface GrokSession {
 interface StartOpts {
   lesson: LessonCtx
   persona?: string // character preset key (emma/aria/rex/leo/sam) — picks the voice + tone
+  scenario?: string // roleplay brief — folded into instructions SERVER-side (single source)
   onStatus: (s: GrokStatus) => void
   onUserText: (t: string) => void
   onAiText: (t: string, done: boolean) => void
@@ -59,7 +60,7 @@ function base64ToF32(b64: string): Float32Array {
 }
 
 export async function startGrok(opts: StartOpts): Promise<GrokSession> {
-  const { lesson, persona, onStatus, onUserText, onAiText, onError } = opts
+  const { lesson, persona, scenario, onStatus, onUserText, onAiText, onError } = opts
   onStatus('connecting')
 
   // 1. mint an ephemeral token via our Worker.
@@ -67,7 +68,7 @@ export async function startGrok(opts: StartOpts): Promise<GrokSession> {
     method: 'POST',
     credentials: 'include',
     headers: { 'content-type': 'application/json', ...authHeaders() },
-    body: JSON.stringify({ lesson, persona }),
+    body: JSON.stringify({ lesson, persona, scenario }),
   })
   const data = (await res.json().catch(() => ({}))) as {
     token?: string

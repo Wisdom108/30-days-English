@@ -10,7 +10,7 @@ import './index.css'
 
 // Build stamp — check the console to confirm you're on the latest deploy (rules
 // out a stale PWA cache when a fix "didn't land").
-export const BUILD = 'v2.5.3'
+export const BUILD = 'v3.0'
 console.log(`%c30 Days English %c${BUILD}`, 'font-weight:bold', 'color:#cb3a24')
 
 warmUpVoices()

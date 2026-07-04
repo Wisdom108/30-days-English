@@ -231,9 +231,9 @@ export function AiPartner({ lesson, scenario }: { lesson: LessonCtx; scenario?: 
   )
 
   const panel =
-    grok && provider === 'grok' ? <GrokLiveTutor lesson={lesson} />
+    grok && provider === 'grok' ? <GrokLiveTutor lesson={lesson} scenario={scenario} />
     : cfAgent ? <CFLiveTutor lesson={lesson} />
-    : grok ? <GrokLiveTutor lesson={lesson} />
+    : grok ? <GrokLiveTutor lesson={lesson} scenario={scenario} />
     : openai ? <LiveTutor lesson={lesson} />
     : cfVoice ? <VoiceLoop lesson={lesson} scenario={scenario} />
     : <AiGate><ConversationPanel lesson={lesson} scenario={scenario} /></AiGate>

@@ -2,8 +2,11 @@ import { useEffect, useRef, useState } from 'react'
 import { Loader2, Volume2, MicOff, PhoneCall, Square, Zap } from 'lucide-react'
 import { startGrok, type GrokSession, type GrokStatus } from '../lib/grokRealtime'
 import type { LessonCtx } from '../lib/ai'
+import { getWallet, walletCap } from '../lib/zaizai'
+import { useAuth } from '../auth'
 import { AiGate } from './ai'
 import { Callout } from './ui'
+import { useToast } from './ui/toast'
 import { cn } from '../lib/utils'
 
 // xAI Grok NATIVE realtime voice — true speech-to-speech (continuous, interrupt
@@ -21,18 +24,46 @@ const CHARACTERS = [
   { key: 'leo', name: 'Leo', blurb: '热血 · 应援担当' },
 ] as const
 
-export default function GrokLiveTutor({ lesson }: { lesson: LessonCtx }) {
+// Badge-gated voices. Locks only bite when we POSITIVELY know the badges
+// (wallet cap on + real account + wallet fetched) — guests / fetch failures
+// stay unlocked rather than punishing users we can't verify.
+const VOICE_LOCKS: Record<string, { badge: string; hint: string }> = {
+  rex: { badge: 'streak_7', hint: '连续学习 7 天,拿到「七日不断」徽章解锁' },
+  leo: { badge: 'scenario_3', hint: '完成 3 次场景演练,拿到「场景新手」徽章解锁' },
+}
+
+export default function GrokLiveTutor({ lesson, scenario }: { lesson: LessonCtx; scenario?: string }) {
+  const { user } = useAuth()
+  const { toast } = useToast()
   const [status, setStatus] = useState<'idle' | GrokStatus>('idle')
   const [turns, setTurns] = useState<Turn[]>([])
   const [muted, setMuted] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [connecting, setConnecting] = useState(false)
   const [persona, setPersona] = useState<string>('emma')
+  const [badges, setBadges] = useState<string[] | null>(null) // null = unknown → no locks
   const sessionRef = useRef<GrokSession | null>(null)
   const endRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => () => sessionRef.current?.stop(), [])
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [turns, status])
+
+  useEffect(() => {
+    if (!walletCap() || !user?.account) return
+    let alive = true
+    getWallet().then((w) => {
+      if (!alive || !w) return
+      setBadges(w.badges)
+      // deselect a voice that turns out locked (picked before badges arrived)
+      setPersona((p) => { const l = VOICE_LOCKS[p]; return l && !w.badges.includes(l.badge) ? 'emma' : p })
+    })
+    return () => { alive = false }
+  }, [user?.account])
+
+  const lockOf = (key: string) => {
+    const lock = VOICE_LOCKS[key]
+    return lock && badges !== null && !badges.includes(lock.badge) ? lock : null
+  }
 
   const start = async () => {
     setError(null)
@@ -41,6 +72,7 @@ export default function GrokLiveTutor({ lesson }: { lesson: LessonCtx }) {
       sessionRef.current = await startGrok({
         lesson,
         persona,
+        scenario,
         onStatus: (s) => setStatus(s),
         onUserText: (t) => t && setTurns((prev) => upsert(prev, 'user', t)),
         onAiText: (t, _done) => t && setTurns((prev) => upsert(prev, 'ai', t)),
@@ -91,19 +123,27 @@ export default function GrokLiveTutor({ lesson }: { lesson: LessonCtx }) {
           <div className="mb-4 w-full">
             <div className="label-nd mb-2 text-center">选个搭档</div>
             <div className="flex flex-wrap justify-center gap-2">
-              {CHARACTERS.map((c) => (
-                <button
-                  key={c.key}
-                  onClick={() => setPersona(c.key)}
-                  className={cn(
-                    'press rounded-full border px-3 py-1.5 text-sm transition-colors',
-                    persona === c.key ? 'border-fg bg-elevated text-fg' : 'border-border text-fg-muted hover:text-fg',
-                  )}
-                >
-                  <span className="font-medium">{c.name}</span>
-                  <span className="ml-1.5 text-meta text-fg-dim">{c.blurb}</span>
-                </button>
-              ))}
+              {CHARACTERS.map((c) => {
+                const lock = lockOf(c.key)
+                return (
+                  <button
+                    key={c.key}
+                    onClick={() => {
+                      if (lock) return toast({ title: `${c.name} 还没解锁`, description: lock.hint })
+                      setPersona(c.key)
+                    }}
+                    className={cn(
+                      'press rounded-full border px-3 py-1.5 text-sm transition-colors',
+                      persona === c.key ? 'border-fg bg-elevated text-fg' : 'border-border text-fg-muted hover:text-fg',
+                      lock && 'opacity-40',
+                    )}
+                  >
+                    {lock && <span className="mr-1">🔒</span>}
+                    <span className="font-medium">{c.name}</span>
+                    <span className="ml-1.5 text-meta text-fg-dim">{c.blurb}</span>
+                  </button>
+                )
+              })}
             </div>
           </div>
         )}

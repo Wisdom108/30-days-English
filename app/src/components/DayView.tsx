@@ -8,6 +8,8 @@ import { BLOCKS } from '../blocks'
 import type { BlockKey } from '../types'
 import { makeCard } from '../lib/srs'
 import { isDayComplete, displayStreak } from '../lib/storage'
+import { postEarn, walletCap, type EarnEvent } from '../lib/zaizai'
+import { useAuth } from '../auth'
 import ListeningBlock from './blocks/ListeningBlock'
 import VocabBlock from './blocks/VocabBlock'
 import SpeakingBlock from './blocks/SpeakingBlock'
@@ -30,9 +32,16 @@ export default function DayView() {
   const dayNum = Number(day)
   const lesson = getLesson(dayNum)
   const { state, markBlock, addCards } = useApp()
+  const { user } = useAuth()
   const [searchParams] = useSearchParams()
   const nav = useNavigate()
   const { toast } = useToast()
+
+  // Fire-and-forget wallet earn — wallet cap + real account only, failures silent.
+  const earn = (event: EarnEvent, ref: string) => {
+    if (!walletCap() || !user?.account) return
+    postEarn(event, ref).then((r) => { if (!r) console.debug('earn skipped', ref) })
+  }
 
   const prog = state.days[dayNum]?.completedBlocks
   const done = (k: BlockKey) => !!prog?.[k]
@@ -60,6 +69,9 @@ export default function DayView() {
   useEffect(() => {
     if (dayComplete && !wasComplete.current) {
       const s = displayStreak(state)
+      // Post-markBlock state: all 5 blocks just landed → day + streak earns.
+      earn('day_complete', `day:${dayNum}`)
+      if (s === 7 || s === 14 || s === 21 || s === 30) earn('streak_milestone', `streak:${s}`)
       toast({
         tone: 'streak',
         title: `🎉 Day ${dayNum} 完成！`,
@@ -89,6 +101,7 @@ export default function DayView() {
   const complete = (k: BlockKey) => {
     const willComplete = BLOCKS.every((b) => b.key === k || prog?.[b.key])
     markBlock(dayNum, k)
+    earn('block_complete', `block:${dayNum}:${k}`)
     if (willComplete) return
     // Advance to the next still-incomplete block.
     const nextK = BLOCKS.find((b) => b.key !== k && !prog?.[b.key])?.key

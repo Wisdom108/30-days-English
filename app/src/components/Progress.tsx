@@ -191,7 +191,7 @@ export default function Progress() {
       {/* Import confirmation (controlled) */}
       <AlertDialogPrimitive.Root open={!!pendingImport} onOpenChange={(o) => !o && setPendingImport(null)}>
         <AlertDialogPrimitive.Portal>
-          <AlertDialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/55 backdrop-blur-[2px] data-[state=open]:animate-in-up" />
+          <AlertDialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px] data-[state=open]:animate-in-up" />
           <AlertDialogPrimitive.Content className="fixed left-1/2 top-1/2 z-50 w-[92vw] max-w-[400px] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow-popover)] data-[state=open]:animate-in-up">
             <AlertDialogPrimitive.Title className="text-h2 font-semibold text-fg">导入备份？</AlertDialogPrimitive.Title>
             <AlertDialogPrimitive.Description className="mt-1.5 text-sm leading-relaxed text-fg-secondary">

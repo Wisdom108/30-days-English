@@ -1,19 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
-import { NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
-import { Home, RotateCcw, TrendingUp, BookOpen, Sparkles } from 'lucide-react'
+import { Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
+import { MessageCircle, RotateCcw, BookOpen, User } from 'lucide-react'
 import Dashboard from './components/Dashboard'
 import DayView from './components/DayView'
 import Review from './components/Review'
 import Progress from './components/Progress'
-import AiHub from './components/AiHub'
+import Me from './components/Me'
+import ChatHome from './components/zaizai/ChatHome'
 import { useApp } from './state'
 import { useAuth } from './auth'
-import { TOTAL_DAYS, getLesson } from './data/curriculum'
+import { TOTAL_DAYS } from './data/curriculum'
 import { dueCards } from './lib/srs'
 import { LogoMark } from './components/ui/brand'
-import { AuthControls, TutorFab } from './components/ai'
+import { AuthControls } from './components/ai'
 import { CloudSync } from './components/CloudSync'
-import type { LessonCtx } from './lib/ai'
 import { cn } from './lib/utils'
 
 function useNav() {
@@ -44,11 +44,10 @@ function useScrolled() {
 }
 
 const NAV = [
-  { to: '/', end: true, icon: Home, label: 'HOME' },
-  { to: 'today', icon: BookOpen, label: 'TODAY' },
-  { to: '/ai', icon: Sparkles, label: 'AI' },
-  { to: '/review', icon: RotateCcw, label: 'REVIEW', badge: true },
-  { to: '/progress', icon: TrendingUp, label: 'PROGRESS' },
+  { to: '/', end: true, icon: MessageCircle, label: '在在' },
+  { to: '/course', icon: BookOpen, label: '课程' },
+  { to: '/review', icon: RotateCcw, label: '复习', badge: true },
+  { to: '/me', icon: User, label: '我的' },
 ]
 
 export default function App() {
@@ -74,22 +73,10 @@ export default function App() {
     return () => timers.forEach((t) => clearTimeout(t))
   }, [])
 
-  // Lesson context for the AI tutor — reflect the day being viewed, else today.
-  const dayMatch = loc.pathname.match(/^\/day\/(\d+)/)
-  const ctxLesson = getLesson(dayMatch ? Number(dayMatch[1]) : current)
-  const lessonCtx: LessonCtx = ctxLesson
-    ? {
-        day: ctxLesson.day,
-        theme: ctxLesson.theme,
-        title_en: ctxLesson.title_en,
-        grammar: ctxLesson.grammarNote?.point_en,
-        level: 'A2-B1',
-      }
-    : {}
-
-  // TODAY is active on ANY /day/* route, so study screens keep a nav anchor.
+  // 课程 tab owns the 30-day map and stays active on ANY /day/* study route,
+  // so study screens keep a nav anchor.
   const isActiveFor = (it: (typeof NAV)[number], linkActive: boolean) =>
-    it.to === 'today' ? onDayRoute : linkActive
+    it.to === '/course' ? onDayRoute || linkActive : linkActive
 
   return (
     <div className="min-h-screen">
@@ -118,7 +105,7 @@ export default function App() {
             {NAV.map((it) => (
               <NavLink
                 key={it.label}
-                to={it.to === 'today' ? `/day/${current}` : it.to}
+                to={it.to}
                 end={it.end}
                 className="relative flex items-center gap-2 rounded-lg px-3 py-2 font-mono text-[11px] uppercase tracking-[0.12em] transition-colors"
               >
@@ -150,7 +137,7 @@ export default function App() {
 
           {/* system-online readout — telemetry vibe, one quiet chip */}
           <span className="mr-1 hidden items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-fg-dim sm:flex">
-            <span className="live-dot h-1.5 w-1.5 rounded-full bg-[#3ad07a]" />
+            <span className="live-dot h-1.5 w-1.5 rounded-full bg-[#30d158]" />
             <span>Day {String(current).padStart(2, '0')}/{TOTAL_DAYS}</span>
           </span>
 
@@ -163,10 +150,12 @@ export default function App() {
       <main>
         <div key={loc.pathname} className="animate-in-up mx-auto max-w-[1120px] px-4 pb-24 pt-4 md:px-6 md:pb-16 md:pt-6">
           <Routes>
-            <Route path="/" element={<Dashboard />} />
+            <Route path="/" element={<ChatHome />} />
+            <Route path="/course" element={<Dashboard />} />
             <Route path="/day/:day" element={<DayView />} />
-            <Route path="/ai" element={<AiHub />} />
+            <Route path="/ai" element={<Navigate to="/" replace />} />
             <Route path="/review" element={<Review />} />
+            <Route path="/me" element={<Me />} />
             <Route path="/progress" element={<Progress />} />
           </Routes>
         </div>
@@ -178,7 +167,7 @@ export default function App() {
           {NAV.map((t) => (
             <NavLink
               key={t.label}
-              to={t.to === 'today' ? `/day/${current}` : t.to}
+              to={t.to}
               end={t.end}
               className="press relative flex min-h-11 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1 font-mono text-[9px] uppercase tracking-[0.1em]"
             >
@@ -203,8 +192,6 @@ export default function App() {
         </nav>
       )}
 
-      {/* Floating AI tutor (only renders when AI is configured + signed in) */}
-      <TutorFab lesson={lessonCtx} />
       {/* account-mode progress cloud sync (renders nothing) */}
       <CloudSync />
     </div>

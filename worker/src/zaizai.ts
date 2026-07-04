@@ -1,0 +1,213 @@
+import { callAI, parseJson, type Env, type Msg } from './index'
+import { GUARD, type LessonCtx } from './prompts'
+
+// 在在 (Zaizai) — the AI coach living in the message feed. This file is the
+// single source of truth for the persona, the scenario-pack generator, and the
+// long-term memory loop (D1 `memories`, account users only). The /ai/zaizai and
+// /ai/scenario branches in index.ts:handleAI consume these.
+
+export interface ZaizaiStats {
+  day?: number
+  blocksDoneToday?: number
+  streak?: number
+  dueCards?: number
+}
+
+/** Sanitize client-reported stats (numbers only, clamped). */
+export function statsFrom(v: unknown): ZaizaiStats {
+  const o = (v || {}) as Record<string, unknown>
+  const num = (x: unknown, max: number) =>
+    typeof x === 'number' && Number.isFinite(x) ? Math.min(Math.max(0, Math.round(x)), max) : undefined
+  return {
+    day: num(o.day, 30),
+    blocksDoneToday: num(o.blocksDoneToday, 5),
+    streak: num(o.streak, 3650),
+    dueCards: num(o.dueCards, 9999),
+  }
+}
+
+// ---------------------------------------------------------------- persona
+export function zaizaiSystem(memories: string, l: LessonCtx, stats: ZaizaiStats, mode: 'chat' | 'brief'): string {
+  const facts: string[] = []
+  if (stats.day != null) facts.push(`课程进行到 Day ${stats.day}/30`)
+  if (stats.blocksDoneToday != null) facts.push(`今天完成了 ${stats.blocksDoneToday}/5 个练习块`)
+  if (stats.streak != null) facts.push(`已连续学习 ${stats.streak} 天`)
+  if (stats.dueCards != null) facts.push(`有 ${stats.dueCards} 张卡片待复习`)
+  const statsLine = facts.length ? `学员数据:${facts.join(',')}。` : ''
+  const lessonLine = l.day
+    ? `今日课程:Day ${l.day}「${l.title_en ?? ''}」,主题 ${l.theme ?? ''}。` + (l.grammar ? `语法点:${l.grammar}。` : '')
+    : ''
+  const memoryBlock = memories.trim() ? `你记得学员的这些事(开场要引用其中的具体事实):\n${memories.trim()}\n` : ''
+  const day30Done = stats.day === 30 && (stats.blocksDoneToday ?? 0) >= 5
+  const egg = day30Done
+    ? '学员已完成全部 30 天——现在可以揭晓彩蛋:你的名字「在在」来自 Vāgīśvara(语自在),祝贺学员出师。'
+    : '绝不提及 Vāgīśvara 或「语自在」名字由来的彩蛋。'
+  const briefRule =
+    mode === 'brief'
+      ? '本次任务:写一条不超过 120 字的中文晨报——用学员数据和记忆里的具体事实打招呼,再给出今天的一个最小行动。'
+      : ''
+  return (
+    'You are 在在 (Zaizai), a bilingual study buddy living inside a 30-day English course app. ' +
+    '人设:中文为主的双语学伴,损友偏暖——像熟朋友一样自然,会轻轻调侃但永远站在学员这边;不是助手,不是客服,不是老师。' +
+    '每次回复最多 3 句话,短促、口语化。禁止一切 AI 客套:绝不说「作为AI」「很高兴为您服务」「有什么可以帮您」。' +
+    '练习内容(示例句、让学员开口说的句子)用英文;点评、鼓励、闲聊用中文。' +
+    '开场和晨报必须引用学员数据与记忆里的具体事实,不许空泛寒暄。' +
+    '永远以一个具体的、小的、学员可以马上答应的建议收尾(例如:现在用英文跟我说一句你早餐吃了什么?)。' +
+    statsLine +
+    lessonLine +
+    memoryBlock +
+    egg +
+    briefRule +
+    ' ' +
+    GUARD
+  )
+}
+
+// ---------------------------------------------------------------- scenario pack
+export function scenarioPackSystem(l: LessonCtx): string {
+  return (
+    'You create compact English practice scenario packs for a Chinese learner (CEFR ~A2-B1). ' +
+    (l.day ? `Today is Day ${l.day}: "${l.title_en ?? ''}" — theme: ${l.theme ?? ''}. ` : '') +
+    'The learner names a place or situation. Produce: title_zh (short Chinese title), ' +
+    'role_zh (in Chinese: who the learner plays and who they talk to), ' +
+    "opener_en (the other side's natural first English line), " +
+    'phrases (exactly 5 useful English sentences the learner can say, each with a natural Chinese translation), ' +
+    'words (exactly 3 key words with IPA and Chinese meaning). ' +
+    'Keep the language simple, spoken, and immediately usable. ' +
+    GUARD
+  )
+}
+
+export const SCENARIO_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['title_zh', 'role_zh', 'opener_en', 'phrases', 'words'],
+  properties: {
+    title_zh: { type: 'string' },
+    role_zh: { type: 'string', description: 'who the learner plays / who they talk to, in Chinese' },
+    opener_en: { type: 'string', description: "the other side's first line, English" },
+    phrases: {
+      type: 'array',
+      minItems: 5,
+      maxItems: 5,
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['en', 'zh'],
+        properties: { en: { type: 'string' }, zh: { type: 'string' } },
+      },
+    },
+    words: {
+      type: 'array',
+      minItems: 3,
+      maxItems: 3,
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['word', 'ipa', 'zh'],
+        properties: { word: { type: 'string' }, ipa: { type: 'string' }, zh: { type: 'string' } },
+      },
+    },
+  },
+} as const
+
+// ---------------------------------------------------------------- memories
+const MEMORY_TOP = 12 // lines injected into the system prompt
+const MEMORY_LIMIT = 60 // hard cap per user; overflow drops the lightest, oldest
+const MEMORY_KINDS = new Set(['plan', 'weakness', 'highlight', 'quirk', 'pref'])
+
+const MEMORY_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['memories'],
+  properties: {
+    memories: {
+      type: 'array',
+      maxItems: 3,
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['kind', 'text'],
+        properties: {
+          kind: { type: 'string', enum: ['plan', 'weakness', 'highlight', 'quirk', 'pref'] },
+          text: { type: 'string', description: 'one short third-person Chinese sentence, ≤60 chars' },
+        },
+      },
+    },
+  },
+} as const
+
+const memorySystem =
+  'You maintain long-term memory notes about a Chinese English learner, based on their chat with a study buddy. ' +
+  'Extract 0-3 NEW durable facts worth remembering next week: plans (plan), English weak points (weakness), ' +
+  'wins (highlight), personal quirks (quirk), preferences (pref). Each note is ONE short third-person Chinese ' +
+  'sentence (称学员为「学员」), at most 60 characters. Small talk or nothing new → empty list. ' +
+  GUARD
+
+/** Top memories for the zaizai system prompt (account users). One line each. */
+export async function loadMemories(env: Env, userId: number): Promise<string> {
+  const db = env.DB
+  if (!db) return ''
+  try {
+    const { results } = await db
+      .prepare('SELECT kind, text FROM memories WHERE user_id = ? ORDER BY weight DESC, updated_at DESC LIMIT ?')
+      .bind(userId, MEMORY_TOP)
+      .all<{ kind: string; text: string }>()
+    return results.map((r) => `- [${r.kind}] ${r.text}`).join('\n')
+  } catch {
+    return ''
+  }
+}
+
+/** Background pass (ctx.waitUntil): distill 0-3 durable facts from the chat into
+ *  the memories table. Account users only; every failure is swallowed. */
+export async function extractMemories(env: Env, userId: number, messages: Msg[]): Promise<void> {
+  const db = env.DB
+  if (!db) return
+  try {
+    const convo = messages
+      .slice(-8)
+      .map((m) => `${m.role === 'user' ? '学员' : '在在'}: ${m.content.slice(0, 500)}`)
+      .join('\n')
+    if (!convo) return
+    const raw = await callAI(env, {
+      system: memorySystem,
+      messages: [{ role: 'user', content: convo }],
+      max_tokens: 400,
+      jsonSchema: MEMORY_SCHEMA,
+    })
+    const parsed = (typeof raw === 'string' ? parseJson(raw) : raw) as { memories?: unknown }
+    const items = Array.isArray(parsed?.memories) ? parsed.memories.slice(0, 3) : []
+    const now = Date.now()
+    for (const it of items) {
+      const o = (it || {}) as Record<string, unknown>
+      const kind = String(o.kind || '')
+      const text = String(o.text || '').trim().slice(0, 200)
+      if (!MEMORY_KINDS.has(kind) || !text) continue
+      // Upsert by exact text: a repeated note gains weight instead of duplicating.
+      const upd = await db
+        .prepare('UPDATE memories SET weight = weight + 1, kind = ?, updated_at = ? WHERE user_id = ? AND text = ?')
+        .bind(kind, now, userId, text)
+        .run()
+      if (!upd.meta.changes) {
+        await db
+          .prepare('INSERT INTO memories (user_id, kind, text, weight, created_at, updated_at) VALUES (?, ?, ?, 1, ?, ?)')
+          .bind(userId, kind, text, now, now)
+          .run()
+      }
+    }
+    const n = await db.prepare('SELECT COUNT(*) AS n FROM memories WHERE user_id = ?').bind(userId).first<{ n: number }>()
+    const over = (n?.n ?? 0) - MEMORY_LIMIT
+    if (over > 0) {
+      await db
+        .prepare(
+          'DELETE FROM memories WHERE id IN ' +
+            '(SELECT id FROM memories WHERE user_id = ? ORDER BY weight ASC, updated_at ASC LIMIT ?)',
+        )
+        .bind(userId, over)
+        .run()
+    }
+  } catch {
+    /* background task — never surfaces to the user */
+  }
+}

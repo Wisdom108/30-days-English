@@ -11,6 +11,15 @@ import {
 import { handleRealtimeToken } from './realtime'
 import { handleGrokToken } from './grok'
 import { handleCheckout, handleStripeWebhook, payEnabled } from './pay'
+import { handleWallet, handleEarn } from './wallet'
+import {
+  zaizaiSystem,
+  statsFrom,
+  loadMemories,
+  extractMemories,
+  scenarioPackSystem,
+  SCENARIO_SCHEMA,
+} from './zaizai'
 // Re-export the voice-agent Durable Object so Wrangler registers the class.
 export { VoiceTutor } from './voiceAgent'
 import {
@@ -67,7 +76,7 @@ export interface Env {
   STRIPE_PRICE_YEAR?: string // Stripe Price ID for the yearly plan
 }
 
-interface Msg {
+export interface Msg {
   role: 'user' | 'assistant'
   content: string
 }
@@ -123,7 +132,7 @@ export async function bump(env: Env, prefix: string, uid: string): Promise<void>
 
 /** Call Cloudflare Workers AI (open-source model). With jsonSchema, uses the
  *  model's structured-output mode. Returns the raw `response` (string or object). */
-async function callAI(
+export async function callAI(
   env: Env,
   opts: { system: string; messages: Msg[]; max_tokens: number; jsonSchema?: unknown },
 ): Promise<unknown> {
@@ -155,7 +164,7 @@ async function callAIText(
 }
 
 /** Extract a JSON object from a model response (tolerates stray fences/prose). */
-function parseJson(raw: string): unknown {
+export function parseJson(raw: string): unknown {
   let s = raw.trim().replace(/^```(?:json)?/i, '').replace(/```$/, '').trim()
   const a = s.indexOf('{')
   const b = s.lastIndexOf('}')
@@ -199,7 +208,7 @@ function cleanMessages(v: unknown): Msg[] {
 }
 
 // ---------------------------------------------------------------- handlers
-async function handleAI(path: string, req: Request, env: Env): Promise<Response> {
+async function handleAI(path: string, req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
   const ident = await identify(req, env)
   if (!ident) return json({ error: '需要登录' }, env, 401)
   const uid = ident.uid
@@ -271,6 +280,45 @@ async function handleAI(path: string, req: Request, env: Env): Promise<Response>
       })
       await bump(env, 'q', uid)
       return json({ reply }, env)
+    }
+    if (path === '/ai/zaizai') {
+      const mode = bodyIn.mode === 'brief' ? 'brief' : 'chat'
+      const stats = statsFrom(bodyIn.stats)
+      const messages = cleanMessages(bodyIn.messages)
+      if (!messages.length) {
+        messages.push({ role: 'user', content: mode === 'brief' ? '早上好,今天的晨报?' : '嗨,在在!' })
+      }
+      // Account users get D1 memories; guests bring their own local notes (capped).
+      const accountId = env.DB && uid.startsWith('u:') ? Number(uid.slice(2)) : null
+      const memories = accountId !== null ? await loadMemories(env, accountId) : cap(bodyIn.localMemory, 1200) || ''
+      const reply = await callAIText(env, {
+        system: zaizaiSystem(memories, lesson, stats, mode),
+        messages,
+        max_tokens: mode === 'brief' ? 400 : 700,
+      })
+      await bump(env, 'q', uid)
+      if (accountId !== null && mode === 'chat') {
+        ctx.waitUntil(extractMemories(env, accountId, [...messages, { role: 'assistant', content: reply }]))
+      }
+      return json({ reply }, env)
+    }
+    if (path === '/ai/scenario') {
+      const place = (cap(bodyIn.place, 80) || '').trim()
+      if (!place) return json({ error: '请输入场景地点' }, env, 400)
+      const raw = await callAI(env, {
+        system: scenarioPackSystem(lesson),
+        // Client-supplied place goes in the user turn, never the system prompt.
+        messages: [{ role: 'user', content: `Scenario: ${place}` }],
+        max_tokens: 900,
+        jsonSchema: SCENARIO_SCHEMA,
+      })
+      await bump(env, 'q', uid)
+      try {
+        const pack = typeof raw === 'string' ? parseJson(raw) : raw
+        return json({ pack }, env)
+      } catch {
+        return json({ error: '场景生成失败，请重试' }, env, 502)
+      }
     }
   } catch {
     // Don't echo upstream error text to the client.
@@ -433,14 +481,22 @@ function withCors(resp: Response, env: Env, req: Request): Response {
 
 // ---------------------------------------------------------------- entry
 export default {
-  async fetch(req: Request, env: Env): Promise<Response> {
+  async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    const { pathname } = new URL(req.url)
+
     // Cloudflare Agents voice tutor — WebSocket routing (/agents/voice-tutor/*).
     // Handle before the JSON API router; WS upgrades bypass the CORS wrapper.
+    // Gate with the same identify() as the JSON API: the session cookie /
+    // x-app-passcode ride along on a same-origin WS upgrade, and open mode
+    // still resolves an IP identity, so it passes as before.
+    if (pathname.startsWith('/agents/') && req.method !== 'OPTIONS') {
+      const ident = await identify(req, env)
+      if (!ident || !ident.uid) return json({ error: '需要登录' }, env, 401, req)
+    }
     const agentResp = await routeAgentRequest(req, env)
     if (agentResp) return agentResp
 
     if (req.method === 'OPTIONS') return withCors(new Response(null), env, req)
-    const { pathname } = new URL(req.url)
 
     const route = async (): Promise<Response> => {
       if (pathname === '/health') {
@@ -457,6 +513,7 @@ export default {
               loginRequired: !!env.CF_ACCESS_TEAM_DOMAIN,
               membership: !!env.DB, // D1 accounts + activation codes + progress sync
               payment: payEnabled(env), // Stripe self-serve checkout
+              wallet: !!(env.DB && env.SESSION_SECRET), // earned-seconds economy + badges
             },
           },
           env,
@@ -479,7 +536,9 @@ export default {
       if (pathname === '/grok/token' && req.method === 'POST') return handleGrokToken(req, env)
       if (pathname === '/pay/checkout' && req.method === 'POST') return handleCheckout(req, env)
       if (pathname === '/pay/webhook' && req.method === 'POST') return handleStripeWebhook(req, env)
-      if (pathname.startsWith('/ai/') && req.method === 'POST') return handleAI(pathname, req, env)
+      if (pathname === '/wallet' && req.method === 'GET') return handleWallet(req, env)
+      if (pathname === '/earn' && req.method === 'POST') return handleEarn(req, env)
+      if (pathname.startsWith('/ai/') && req.method === 'POST') return handleAI(pathname, req, env, ctx)
       return json({ error: 'not found' }, env, 404)
     }
 
