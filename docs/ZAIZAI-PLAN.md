@@ -202,3 +202,39 @@ balance 变化 → grok/token 走 wallet 扣费路径(可 mock 无 XAI 环境仅
 
 Web Push、Stripe 真支付、邮箱找回、暗色模式、CFLiveTutor 的 lesson/scenario 注入(DO 侧,下轮)、
 场景补完课程 block、口令门去留。
+
+---
+
+## 8. v3.1 追加契约(2026-07-04 用户反馈轮)
+
+### 8.1 富卡片消息(F1)
+- 聊天条目 kind 扩展:`vocab-card`(翻转词卡 {word,ipa,zh,example_en})、`drill-card`(跟读挑战 {text,tip},录音→scorePronunciation→在在点评)、`listen-card`(语音气泡 {text,label},cfSpeak 播放)、`review-card`({due:number} 深链 /review)、`award-card`({seconds?,badge?} 到账动效)、`news-card`({title,level,summary_en,glossary:[{word,zh}],source})
+- worker `/ai/zaizai` 响应扩展:`{ reply, card?: { kind, data } }`——在在可按语境携带一张卡(prompt 引导:用户问单词→vocab-card;要练发音→drill-card;要听→listen-card);前端渲染 reply 气泡后追加卡片条目
+- `GET /ai/news`:worker fetch VOA Learning English RSS(learningenglish.voanews.com),KV 缓存 6h,llama json_schema 简化到 A2-B1+5 词 glossary;失败降级 502,前端回退"今日话题"生成
+
+### 8.2 记忆可见 + Web Push(W2+F2)
+- `GET /memories` → {memories:[{id,kind,text,at}]};`DELETE /memories/:id`(本人);Me 页「在在记得你」墙 + 聊天抽取后系统芯片"在在记住了:…"(chat 响应加 `remembered?: string[]`)
+- D1 0004_push.sql:`push_subs(user_id, endpoint TEXT PK, p256dh, auth, created_at)`
+- `/push/vapid`(公钥)、`POST /push/subscribe`、`POST /push/unsubscribe`;推送为**无载荷 tickle**(免 RFC8291 加密),SW push 事件 fetch `/zaizai/push-preview`(cookie 同源,返回个性化一句话)→ showNotification
+- VAPID:公钥进 wrangler.toml vars,私钥 secret `VAPID_PRIVATE_KEY`(用户设);/health features.push = !!私钥;ES256 JWT 用 WebCrypto 手写
+- Cron `0 23 * * *`(=北京 07:00)scheduled handler → 给全部订阅发 tickle
+- PWA 从 generateSW 切 **injectManifest**(src/sw.ts:precacheAndRoute + skipWaiting/clientsClaim + push/notificationclick 处理器)——保持既有即时更新语义
+- 应用内主动性(不依赖推送):visibilitychange 回归问候(>4h 离开)、当日已学完晚间复盘消息
+
+### 8.3 安置对话(F2)
+- 首开(无 profile 记忆时)在在三问:目标(考试/旅行/工作/兴趣)→ 自评水平(听不懂/能蹦词/能对话)→ 每日时间(15/30/60min);答案写 memory kind `pref`;brief prompt 引用 profile 调整派发侧重;可跳过
+
+### 8.4 付费墙与三层可视(F3)
+- `PlanSheet.tsx`:三列对比(免费=每日体验额度+学习赚时长 / 会员=额度放开+云同步 / 课程包=敬请期待),CTA:去学习赚 / 输激活码 / Stripe(payment cap 亮才显)
+- 触发点:Grok 429 额度不足、钱包不足以打电话时的实战电话按钮、Me 会员卡「升级」
+- GrokLiveTutor 429 错误 → 弹 PlanSheet(替换纯文字报错)
+
+### 8.5 新用户流程(F2)
+- 首开序列:欢迎语 → 安置三问 → `a2hs-card`(iOS 加主屏图文步骤,已安装则跳过 via display-mode)→ `register-card`(收益:云同步+赚额度+记忆)→ `push-card`(开启在在的morning call;iOS 未安装则先 a2hs)→ 第一课任务卡
+- 卡片可稍后/跳过,状态存 localStorage `zaizai:onboard:v1`
+
+### 8.6 文件归属
+- W2:worker/**(0004 迁移、push.ts、news、zaizai card/remembered、memories 端点、cron、wrangler.toml vars+triggers)
+- F1:lib/zaizai.ts、components/zaizai/cards/*.tsx(新)、ChatHome.tsx(卡片渲染+在在 card 响应)
+- F2:components/zaizai/Onboarding.tsx(新)、lib/push.ts(新)、src/sw.ts(新)、vite.config.ts(injectManifest+proxy /push /memories)、ChatHome.tsx 接入(F1 之后跑)
+- F3:PlanSheet.tsx(新)、Me.tsx、ai.tsx、GrokLiveTutor.tsx、caps.ts(push cap)
