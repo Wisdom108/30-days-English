@@ -37,6 +37,23 @@ export default function CFLiveTutor({ lesson: _lesson }: { lesson: LessonCtx }) 
       client.addEventListener('mutechange', (m) => setMuted(m))
       client.addEventListener('error', (e) => e && setError(String(e)))
       client.connect()
+      // connect() is fire-and-forget: the WebSocket opens asynchronously and
+      // startCall() bails with "Cannot start call: not connected" if the socket
+      // isn't OPEN yet. Wait for connectionchange(true) before starting.
+      await new Promise<void>((resolve, reject) => {
+        if (client.connected) return resolve()
+        const onConn = (ok: boolean) => {
+          if (!ok) return
+          clearTimeout(timer)
+          client.removeEventListener('connectionchange', onConn)
+          resolve()
+        }
+        const timer = setTimeout(() => {
+          client.removeEventListener('connectionchange', onConn)
+          reject(new Error('连接超时，请重试'))
+        }, 10000)
+        client.addEventListener('connectionchange', onConn)
+      })
       await client.startCall()
     } catch (e) {
       setError(e instanceof Error ? e.message : '连接失败，请重试')

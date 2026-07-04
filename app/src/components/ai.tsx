@@ -149,9 +149,9 @@ function AccountSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o:
   return (
     <Sheet open={open} onOpenChange={onOpenChange} side="bottom" title="账号">
       <div className="space-y-4 p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
-        {user ? (
+        {user?.account ? (
           <>
-            {/* signed in — identity + membership */}
+            {/* signed in — identity + membership (real D1 account only) */}
             <div className="flex items-center gap-3">
               <span className="grid h-11 w-11 place-items-center rounded-full bg-accent-soft text-h3 font-semibold text-fg">
                 {(user.email || '?')[0].toUpperCase()}
@@ -223,7 +223,13 @@ function AccountSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o:
           </>
         ) : (
           <>
-            {/* signed out — login / register */}
+            {/* signed out OR passcode-only (account:false) — login / register */}
+            {user && !user.account && (
+              <Callout tone="accent">
+                你正通过访问口令使用 · 注册一个账号即可<b>云同步进度</b>、<b>开通/管理会员</b>。
+              </Callout>
+            )}
+            {/* login / register */}
             <div className="grid grid-cols-2 gap-1 rounded-lg border border-border bg-surface-2 p-1">
               {(['login', 'register'] as const).map((t) => (
                 <button
@@ -285,10 +291,13 @@ export function AuthControls() {
   if (loading && !user) return <Skeleton className="h-11 w-11 rounded-lg" />
 
   // ---- account mode (D1 membership) ----
+  // "Signed in" for UI purposes = a REAL D1 account (account:true). A passcode
+  // "owner" is account:false — treat them as signed-out so they get an explicit
+  // 登录/注册 path (activation + payment both require a real account anyway).
   if (mode === 'account') {
     return (
       <>
-        {user ? (
+        {user?.account ? (
           <button
             onClick={() => setOpen(true)}
             aria-label="账号"
@@ -301,7 +310,7 @@ export function AuthControls() {
             {user.member && <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-red" />}
           </button>
         ) : (
-          <Button variant="secondary" onClick={() => setOpen(true)}><LogIn size={15} /> 登录</Button>
+          <Button variant="secondary" onClick={() => setOpen(true)}><LogIn size={15} /> 登录 / 注册</Button>
         )}
         <AccountSheet open={open} onOpenChange={setOpen} />
       </>

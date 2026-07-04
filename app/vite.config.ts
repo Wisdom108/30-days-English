@@ -48,6 +48,13 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,png,svg,woff2}'],
+        // Apply new versions immediately: without these a deployed fix only
+        // activates after the user closes EVERY tab (the new SW sits "waiting"),
+        // so shipped bug fixes look like they never landed. skipWaiting +
+        // clientsClaim make the new SW take over on the next navigation.
+        skipWaiting: true,
+        clientsClaim: true,
+        cleanupOutdatedCaches: true,
         // Cache Free Dictionary API lookups so click-to-define keeps working offline
         // once a word has been looked up.
         runtimeCaching: [
