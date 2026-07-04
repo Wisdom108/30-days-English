@@ -6,7 +6,7 @@ import { useAuth } from '../../auth'
 import { features } from '../../config'
 import { getLesson, TOTAL_DAYS } from '../../data/curriculum'
 import { addDays, dueCards, todayISO } from '../../lib/srs'
-import { displayStreak, getDayProgress } from '../../lib/storage'
+import { displayStreak, getDayProgress, isDayComplete, studiedToday } from '../../lib/storage'
 import { BLOCKS } from '../../blocks'
 import { aiChat, AIError, type ChatMsg, type LessonCtx } from '../../lib/ai'
 import {
@@ -72,6 +72,12 @@ export default function ChatHome() {
     streak: displayStreak(state),
     dueCards: dueCards(state.cards).length,
   }
+  // "Finished studying TODAY": completing a day advances currentDay, so the
+  // fresh day's block count reads 0 — check the current day OR the previous
+  // day having been completed today. The studiedToday conjunct keeps a long-
+  // finished Day 30 from counting every night forever.
+  const doneToday =
+    studiedToday(state) && (isDayComplete(state, current) || state.days[current - 1]?.completedAt === todayISO())
 
   const [entries, setEntries] = useState<ChatEntry[]>(() => loadChat())
   const [input, setInput] = useState('')
@@ -101,8 +107,8 @@ export default function ChatHome() {
   }, [])
   // Latest render values for the (possibly delayed) dispatch — CloudSync may
   // import fresher state while we wait for it to settle.
-  const liveRef = useRef({ stats, lessonCtx, prog, current, lastStudy: state.lastStudyDate })
-  liveRef.current = { stats, lessonCtx, prog, current, lastStudy: state.lastStudyDate }
+  const liveRef = useRef({ stats, lessonCtx, prog, current, lastStudy: state.lastStudyDate, doneToday })
+  liveRef.current = { stats, lessonCtx, prog, current, lastStudy: state.lastStudyDate, doneToday }
   useEffect(() => {
     if (loading || onboarding || bootRef.current === todayISO() || briefShownToday()) return
     const dispatch = () => {
@@ -160,7 +166,9 @@ export default function ChatHome() {
       // 在在 says it'll auto-apply on today's first block (auto-consume in
       // DayView, no button). Write-through append, silent-fail skip.
       if (user?.account && walletCap() && lastStudy === addDays(todayISO(), -2)) {
-        getWallet().then((w) => {
+        // forced fetch: the cached wallet may predate another device spending
+        // the last freeze — gated on the 2-day-gap check, so ≤1/day.
+        getWallet(true).then((w) => {
           if (!w || w.freezes <= 0) return
           const entry: ChatEntry = {
             id: newId(),
@@ -203,7 +211,7 @@ export default function ChatHome() {
   useEffect(() => {
     if (loading || onboarding) return
     const today = todayISO()
-    const { stats } = liveRef.current
+    const { stats, doneToday } = liveRef.current
     try {
       const now = Date.now()
       const last = Number(localStorage.getItem(SEEN_KEY) || 0)
@@ -218,13 +226,12 @@ export default function ChatHome() {
         push({
           role: 'assistant',
           kind: 'text',
-          payload:
-            stats.blocksDoneToday >= BLOCKS.length
-              ? '回来啦!今天的练习都清完了,来聊两句或练个场景?'
-              : `回来啦!今天还差 ${BLOCKS.length - stats.blocksDoneToday} 块,先挑一块热热身?`,
+          payload: doneToday
+            ? '回来啦!今天的练习都清完了,来聊两句或练个场景?'
+            : `回来啦!今天还差 ${BLOCKS.length - stats.blocksDoneToday} 块,先挑一块热热身?`,
         })
       }
-      if (stats.blocksDoneToday >= BLOCKS.length && new Date().getHours() >= 20 && localStorage.getItem(RECAP_KEY) !== today) {
+      if (doneToday && new Date().getHours() >= 20 && localStorage.getItem(RECAP_KEY) !== today) {
         localStorage.setItem(RECAP_KEY, today)
         push({
           role: 'assistant',
@@ -249,7 +256,7 @@ export default function ChatHome() {
     document.addEventListener('visibilitychange', onHide)
     return () => document.removeEventListener('visibilitychange', onHide)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, onboarding, wakeTick, stats.blocksDoneToday])
+  }, [loading, onboarding, wakeTick, stats.blocksDoneToday, doneToday])
 
   // Old dispatchers (command palette etc.) keep working: open the call sheet.
   useEffect(() => {

@@ -89,24 +89,28 @@ export async function refundWallet(env: Env, userId: number, seconds: number): P
 }
 
 /** Grant `n` streak freezes, guarded by a unique ledger ref (delta 0 — the
- *  audit row carries no seconds). INSERT OR IGNORE means replays are free, and
- *  re-running on a replayed earn self-heals a grant that failed halfway. */
+ *  audit row carries no seconds). Ledger insert + freeze bump run in ONE
+ *  db.batch() transaction, and the bump only fires when the ledger row landed
+ *  THIS call (EXISTS on ref + this call's timestamp) — so a replayed ref is a
+ *  complete no-op: the pair commits together or not at all, nothing to
+ *  "self-heal". */
 async function grantFreezes(db: D1Database, userId: number, ref: string, n: number): Promise<void> {
   const now = Date.now()
-  const g = await db
-    .prepare(
-      "INSERT OR IGNORE INTO wallet_ledger (user_id, delta_seconds, reason, ref, created_at) VALUES (?1, 0, 'grant:freeze', ?2, ?3)",
-    )
-    .bind(userId, ref, now)
-    .run()
-  if (!g.meta.changes) return
-  await db
-    .prepare(
-      'INSERT INTO wallet (user_id, balance_seconds, freezes, updated_at) VALUES (?1, 0, ?2, ?3) ' +
-        'ON CONFLICT(user_id) DO UPDATE SET freezes = freezes + ?2, updated_at = ?3',
-    )
-    .bind(userId, n, now)
-    .run()
+  await db.batch([
+    db
+      .prepare(
+        "INSERT OR IGNORE INTO wallet_ledger (user_id, delta_seconds, reason, ref, created_at) VALUES (?1, 0, 'grant:freeze', ?2, ?3)",
+      )
+      .bind(userId, ref, now),
+    db
+      .prepare(
+        'INSERT INTO wallet (user_id, balance_seconds, freezes, updated_at) ' +
+          'SELECT ?1, 0, ?2, ?3 ' +
+          'WHERE EXISTS (SELECT 1 FROM wallet_ledger WHERE user_id = ?1 AND ref = ?4 AND created_at = ?3) ' +
+          'ON CONFLICT(user_id) DO UPDATE SET freezes = freezes + ?2, updated_at = ?3',
+      )
+      .bind(userId, n, now, ref),
+  ])
 }
 
 /** Grant a badge (INSERT OR IGNORE). True only when it's newly earned. */
@@ -338,27 +342,35 @@ export async function handleFreezeConsume(req: Request, env: Env): Promise<Respo
     .bind(userId, ref)
     .first<{ x: number }>()
   if (prior) return json({ ok: true, consumed: false, freezes: await freezesNow() }, env, 200, req)
-  const upd = await db
-    .prepare('UPDATE wallet SET freezes = freezes - 1, updated_at = ?2 WHERE user_id = ?1 AND freezes >= 1')
-    .bind(userId, now)
-    .run()
-  if (!upd.meta.changes) {
-    return json({ ok: false, error: '没有可用的补签卡', freezes: await freezesNow() }, env, 200, req)
-  }
-  const ins = await db
-    .prepare(
-      "INSERT OR IGNORE INTO wallet_ledger (user_id, delta_seconds, reason, ref, created_at) VALUES (?1, 0, 'freeze:consume', ?2, ?3)",
-    )
-    .bind(userId, ref, now)
-    .run()
+  // Ledger insert + freeze decrement in ONE db.batch() transaction. The insert
+  // only fires while a freeze is available; the decrement only fires when the
+  // ledger row landed THIS call (ref + this call's timestamp). A replayed ref
+  // that slipped past the check above therefore mutates nothing, and the pair
+  // can never land half-applied — no compensating refund path needed.
+  const [ins] = await db.batch([
+    db
+      .prepare(
+        'INSERT OR IGNORE INTO wallet_ledger (user_id, delta_seconds, reason, ref, created_at) ' +
+          "SELECT ?1, 0, 'freeze:consume', ?2, ?3 " +
+          'WHERE (SELECT freezes FROM wallet WHERE user_id = ?1) >= 1',
+      )
+      .bind(userId, ref, now),
+    db
+      .prepare(
+        'UPDATE wallet SET freezes = freezes - 1, updated_at = ?2 WHERE user_id = ?1 AND freezes >= 1 ' +
+          'AND EXISTS (SELECT 1 FROM wallet_ledger WHERE user_id = ?1 AND ref = ?3 AND created_at = ?2)',
+      )
+      .bind(userId, now, ref),
+  ])
   if (!ins.meta.changes) {
-    // A concurrent twin claimed the ref between our check and decrement — give
-    // the freeze back and report the replay shape (the missed day IS patched).
-    await db
-      .prepare('UPDATE wallet SET freezes = freezes + 1, updated_at = ?2 WHERE user_id = ?1')
-      .bind(userId, now)
-      .run()
-    return json({ ok: true, consumed: false, freezes: await freezesNow() }, env, 200, req)
+    // Nothing inserted: either a concurrent twin claimed the ref first (the
+    // missed day IS patched — answer the replay shape) or there was no freeze.
+    const twin = await db
+      .prepare('SELECT 1 AS x FROM wallet_ledger WHERE user_id = ? AND ref = ?')
+      .bind(userId, ref)
+      .first<{ x: number }>()
+    if (twin) return json({ ok: true, consumed: false, freezes: await freezesNow() }, env, 200, req)
+    return json({ ok: false, error: '没有可用的补签卡', freezes: await freezesNow() }, env, 200, req)
   }
   return json({ ok: true, consumed: true, freezes: await freezesNow() }, env, 200, req)
 }

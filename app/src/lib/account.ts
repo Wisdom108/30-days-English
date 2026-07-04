@@ -90,6 +90,9 @@ export function mergeStates(a: AppState, b: AppState): AppState {
   // studyDates — monotonic history: union + sort + cap last 60
   const dates = [...new Set([...(a.studyDates ?? []), ...(b.studyDates ?? [])])].sort()
   if (dates.length) out.studyDates = dates.slice(-60)
+  // frozenDates — same monotonic union (a consumed freeze never un-consumes)
+  const frozen = [...new Set([...(a.frozenDates ?? []), ...(b.frozenDates ?? [])])].sort()
+  if (frozen.length) out.frozenDates = frozen.slice(-60)
   out.startDate =
     a.startDate && b.startDate
       ? a.startDate < b.startDate ? a.startDate : b.startDate

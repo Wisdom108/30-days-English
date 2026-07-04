@@ -8,11 +8,12 @@ import { useAuth } from '../auth'
 import { config } from '../config'
 import { authHeaders } from '../lib/access'
 import { pushAvailable } from '../lib/caps'
-import { isPushSubscribed, subscribePush, unsubscribePush } from '../lib/push'
+import { isPushSubscribed, subscribe, unsubscribePush } from '../lib/push'
 import { getWallet, walletCap, WALLET_EVENT, type WalletInfo } from '../lib/zaizai'
 import { openAccount } from './ai'
 import { openPlans } from './zaizai/PlanSheet'
 import { Badge, Button, IconButton, Skeleton } from './ui'
+import { useToast } from './ui/toast'
 import { cn } from '../lib/utils'
 
 // §3.1 BADGES 镜像 — 服务端真源在 worker/src/wallet.ts,此处只做展示。
@@ -177,7 +178,8 @@ function MemoryWall({ isAccount }: { isAccount: boolean }) {
     let alive = true
     fetch(`${config.workerUrl}/memories`, { credentials: 'include', headers: authHeaders() })
       .then((r) => (r.ok ? (r.json() as Promise<{ memories?: MemoryItem[] }>) : null))
-      .then((d) => alive && d && setMems(Array.isArray(d.memories) ? d.memories : []))
+      // non-ok → empty list (never leave the skeleton spinning forever)
+      .then((d) => alive && setMems(d && Array.isArray(d.memories) ? d.memories : []))
       .catch(() => alive && setMems([]))
     return () => { alive = false }
   }, [isAccount])
@@ -224,6 +226,7 @@ const pushSupported = () =>
   typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
 
 function PushRow() {
+  const { toast } = useToast()
   const [on, setOn] = useState<boolean | null>(null) // null = 状态未知(查询中)
   const [busy, setBusy] = useState(false)
 
@@ -241,7 +244,9 @@ function PushRow() {
         await unsubscribePush()
         setOn(false)
       } else {
-        setOn(await subscribePush()) // 内部含权限申请;拒绝 → false
+        const r = await subscribe() // 内部含权限申请;never throws
+        setOn(r.ok)
+        if (!r.ok) toast({ title: r.reason || '开启失败', tone: 'error' })
       }
     } catch {
       isPushSubscribed().then(setOn).catch(() => setOn(false)) // 失败按真实状态回摆

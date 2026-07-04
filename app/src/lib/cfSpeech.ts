@@ -90,7 +90,12 @@ async function ttsUrl(text: string): Promise<string> {
 let playSeq = 0
 let settlePrev: (() => void) | null = null
 
+// Generation counter so a stop can also cancel a cfSpeak that is still awaiting
+// synthesis (ttsUrl) — without it the pending play starts AFTER the user hit stop.
+let cfGen = 0
+
 export function stopCfSpeak() {
+  cfGen++
   if (settlePrev) { settlePrev(); settlePrev = null }
   if (el) {
     try { el.pause() } catch { /* ignore */ }
@@ -128,9 +133,13 @@ export function playUrl(url: string, rate = 1, onStart?: () => void): Promise<vo
   })
 }
 
-/** Synthesize `text` with the neural voice and play it (cached). */
+/** Synthesize `text` with the neural voice and play it (cached). A stopCfSpeak()
+ *  issued while synthesis is in flight cancels the pending play (resolves silently). */
 export async function cfSpeak(text: string, rate = 1, onStart?: () => void): Promise<void> {
-  await playUrl(await ttsUrl(text), rate, onStart)
+  const gen = cfGen
+  const url = await ttsUrl(text)
+  if (gen !== cfGen) return // stopped while awaiting synthesis — don't start playing
+  await playUrl(url, rate, onStart)
 }
 
 /** Warm the TTS cache for `text` without playing — call when the text becomes
@@ -159,14 +168,28 @@ export async function cfTranscribe(blob: Blob): Promise<string> {
 // Live recorder handle so the UI can finish a take early (tap-to-stop) instead
 // of waiting for the silence detector / hard cap.
 let activeStop: (() => void) | null = null
+// Module-level busy flag (set synchronously, before any await) — a second caller
+// must NOT silently steal the singleton stopper from an active take.
+let recActive = false
 
 /** Stop the in-flight recording early — transcription proceeds with what was heard. */
 export function stopCfRecording(): void {
   activeStop?.()
 }
 
-/** Record from the mic (auto-stops on silence) then transcribe via Whisper. */
+/** Record from the mic (auto-stops on silence) then transcribe via Whisper.
+ *  Rejects with 'recording-busy' if a take is already in progress. */
 export async function cfRecordAndTranscribe(maxMs = 10000): Promise<string> {
+  if (recActive) throw new Error('recording-busy')
+  recActive = true
+  try {
+    return await recordAndTranscribeInner(maxMs)
+  } finally {
+    recActive = false
+  }
+}
+
+async function recordAndTranscribeInner(maxMs: number): Promise<string> {
   const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
   const chunks: BlobPart[] = []
   const rec = new MediaRecorder(stream)

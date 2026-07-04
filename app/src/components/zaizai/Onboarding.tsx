@@ -14,10 +14,14 @@ import { useToast } from '../ui/toast'
 // zaizai:chat:v1(经 ChatHome append);交互卡由状态机现场渲染,不进聊天存储。
 // 状态机存 zaizai:onboard:v1,每步可稍后跳过。
 
-type Step = 'welcome' | 'q1' | 'q2' | 'q3' | 'a2hs' | 'register' | 'push' | 'done'
+// 'profile' is a transient marker persisted synchronously BEFORE the async
+// finishProfile call — a reload mid-flight resumes at a2hs instead of replaying
+// q3 (and re-posting the profile to the AI).
+type Step = 'welcome' | 'q1' | 'q2' | 'q3' | 'profile' | 'a2hs' | 'register' | 'push' | 'done'
 interface OnboardState {
   step: Step
   answers: { goal?: string; level?: string; time?: string }
+  at?: number // last save timestamp — lets stale post-profile steps expire
 }
 
 const KEY = 'zaizai:onboard:v1'
@@ -27,7 +31,9 @@ function load(): OnboardState {
     const raw = localStorage.getItem(KEY)
     if (raw) {
       const st = JSON.parse(raw) as OnboardState
-      if (st && typeof st.step === 'string') return { step: st.step, answers: st.answers || {} }
+      if (st && typeof st.step === 'string') {
+        return { step: st.step, answers: st.answers || {}, at: typeof st.at === 'number' ? st.at : undefined }
+      }
     }
   } catch {
     /* fresh */
@@ -37,17 +43,32 @@ function load(): OnboardState {
 
 function save(st: OnboardState): void {
   try {
-    localStorage.setItem(KEY, JSON.stringify(st))
+    localStorage.setItem(KEY, JSON.stringify({ ...st, at: Date.now() }))
   } catch {
     /* ignore */
   }
 }
 
+// Post-profile steps (installed/registered/push prompts) are nice-to-haves; a
+// user who parked there must not have the daily dispatch blocked forever.
+const EXPIRABLE: Step[] = ['profile', 'a2hs', 'register', 'push']
+const EXPIRE_MS = 48 * 60 * 60 * 1000
+
 /** First-open check (ChatHome). Existing installs — chat history already there
  *  but no onboard key — are settled in: mark done instead of onboarding them. */
 export function onboardingPending(): boolean {
   try {
-    if (localStorage.getItem(KEY)) return load().step !== 'done'
+    if (localStorage.getItem(KEY)) {
+      const st = load()
+      if (st.step === 'done') return false
+      // Parked past the questions for >48h (missing timestamp = legacy = expired)
+      // → settle as done so the morning brief + task cards dispatch again.
+      if (EXPIRABLE.includes(st.step) && Date.now() - (st.at ?? 0) > EXPIRE_MS) {
+        save({ step: 'done', answers: st.answers })
+        return false
+      }
+      return true
+    }
     if (loadChat().length > 0) {
       save({ step: 'done', answers: {} })
       return false
@@ -78,15 +99,19 @@ export default function Onboarding({
   append: (role: 'user' | 'assistant', text: string) => void
   onDone: () => void
 }) {
-  const { user } = useAuth()
+  const { user, mode, loading } = useAuth()
   const { toast } = useToast()
   const [st, setSt] = useState<OnboardState>(load)
   const [busy, setBusy] = useState(false)
 
+  // register 只在账号模式下有意义 — open/passcode/access 模式下 openAccount 是
+  // 空操作,这一步必须跳过(identity 未加载完前不武断跳)。
+  const skipRegister = (): boolean => !!user?.account || !features.worker || (!loading && mode !== 'account')
+
   const go = (next: Step, answers = st.answers) => {
-    // 自动跳过:已装到主屏 → 免 A2HS;已有账号/无服务端 → 免注册;无服务端 → 免推送
+    // 自动跳过:已装到主屏 → 免 A2HS;已有账号/非账号模式/无服务端 → 免注册;无服务端 → 免推送
     if (next === 'a2hs' && isStandalone()) next = 'register'
-    if (next === 'register' && (user?.account || !features.worker)) next = 'push'
+    if (next === 'register' && skipRegister()) next = 'push'
     if (next === 'push' && !features.worker) next = 'done'
     const s: OnboardState = { step: next, answers }
     save(s)
@@ -99,10 +124,15 @@ export default function Onboarding({
   useEffect(() => {
     if (booted.current) return
     booted.current = true
-    if (load().step === 'welcome') {
+    const cur = load()
+    if (cur.step === 'welcome') {
       append('assistant', WELCOME)
       append('assistant', QUESTIONS.q1.ask)
       go('q1')
+    } else if (cur.step === 'profile') {
+      // 上次在 finishProfile 半途中断 — 三问答案已持久化,直接续到 a2hs,
+      // 绝不重放 q3 / 重发 profile。
+      go('a2hs', cur.answers)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -110,9 +140,9 @@ export default function Onboarding({
   // 装完从主屏重开、注册完成回来时,把停在旧步骤的状态机推过去。
   useEffect(() => {
     if (st.step === 'a2hs' && isStandalone()) go('register')
-    else if (st.step === 'register' && user?.account) go('push')
+    else if (st.step === 'register' && skipRegister()) go('push')
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [st.step, user?.account])
+  }, [st.step, user?.account, mode, loading])
 
   const finishProfile = async (answers: OnboardState['answers']) => {
     const parts: string[] = []
@@ -165,6 +195,11 @@ export default function Onboarding({
       append('assistant', QUESTIONS.q3.ask)
       return go('q3', answers)
     }
+    // q3 答完:先同步落盘 'profile' 再走异步 finishProfile — 中途刷新/崩溃时
+    // 从 'profile' 恢复(跳到 a2hs),不会重放第三问、也不会重发 profile。
+    const s: OnboardState = { step: 'profile', answers }
+    save(s)
+    setSt(s)
     void finishProfile(answers)
   }
 
@@ -265,15 +300,18 @@ export default function Onboarding({
   }
 
   if (st.step === 'push') {
+    // 能力判定只看 pushSupported() —— iOS 恰好只在装到主屏后才暴露 PushManager,
+    // 桌面浏览器不装也能推。standalone/iOS 检测仅用于挑解释文案。
+    const ios = /iPad|iPhone|iPod/.test(navigator.userAgent)
     const reason = !user?.account
       ? '需要账号(上一步注册)'
-      : !isStandalone()
-        ? '需要先装到主屏幕'
-        : !pushSupported()
-          ? '此浏览器暂不支持通知'
-          : !pushAvailable()
-            ? '服务端推送未配置'
-            : null
+      : !pushSupported()
+        ? ios && !isStandalone()
+          ? '需要先装到主屏幕'
+          : '此浏览器暂不支持通知'
+        : !pushAvailable()
+          ? '服务端推送未配置'
+          : null
     return (
       <div className="flex">
         <div className="animate-in-up glass max-w-[88%] rounded-xl px-4 py-3.5">
@@ -300,5 +338,5 @@ export default function Onboarding({
     )
   }
 
-  return null // welcome (transient) / done
+  return null // welcome / profile (transient) / done
 }

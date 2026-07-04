@@ -60,20 +60,28 @@ export function isDayUnlocked(state: AppState, day: number): boolean {
 
 /** Mark a study block done, updating streak + unlocking the next day when all blocks finish.
  *  `bridged` = the caller just consumed a streak freeze covering exactly ONE missed day, so
- *  a 2-day gap counts as consecutive (streak +1 instead of reset). */
-export function completeBlock(state: AppState, day: number, block: BlockKey, opts?: { bridged?: boolean }): AppState {
+ *  a 2-day gap counts as consecutive (streak +1 instead of reset).
+ *  `today` = the caller's captured local date — a freeze verdict resolved just before
+ *  midnight must land on the SAME local day it was computed for. */
+export function completeBlock(
+  state: AppState,
+  day: number,
+  block: BlockKey,
+  opts?: { bridged?: boolean; today?: string },
+): AppState {
+  const today = opts?.today ?? todayISO()
   const prev = getDayProgress(state, day)
   const completedBlocks = { ...prev.completedBlocks, [block]: true }
   const allDone = Object.values(completedBlocks).every(Boolean)
 
   const next: AppState = {
     ...state,
-    startDate: state.startDate || todayISO(),
+    startDate: state.startDate || today,
     days: {
       ...state.days,
       [day]: {
         completedBlocks,
-        completedAt: allDone ? prev.completedAt || todayISO() : prev.completedAt,
+        completedAt: allDone ? prev.completedAt || today : prev.completedAt,
       },
     },
   }
@@ -82,11 +90,17 @@ export function completeBlock(state: AppState, day: number, block: BlockKey, opt
   // is completed on a new calendar day. Use LOCAL date math (addDays) — the old
   // toISOString() version computed "yesterday" in UTC, so for UTC+8 learners the
   // comparison never matched and the streak reset to 1 every single day.
-  const today = todayISO()
   // Study history — record today once (LOCAL date, capped last 60). A frozen
   // (bridged) day is NOT a studied day and never lands here.
   const dates = state.studyDates ?? []
   if (!dates.includes(today)) next.studyDates = [...dates, today].sort().slice(-60)
+  // Freeze bridge: record the covered day into cloud-synced state (drives the ❄
+  // cell in the week strip); the legacy localStorage list stays a read-fallback.
+  if (opts?.bridged === true) {
+    const missed = addDays(today, -1)
+    const frozen = state.frozenDates ?? []
+    if (!frozen.includes(missed)) next.frozenDates = [...frozen, missed].sort().slice(-60)
+  }
   if (next.lastStudyDate !== today) {
     const yesterday = addDays(today, -1)
     const consecutive =
@@ -197,6 +211,12 @@ export function parseImport(raw: string): AppState | null {
       if (Array.isArray(obj.studyDates))
         obj.studyDates = obj.studyDates.filter((x: unknown) => typeof x === 'string').slice(-60)
       else delete obj.studyDates
+    }
+    // frozenDates — same optional-history treatment as studyDates.
+    if ('frozenDates' in obj) {
+      if (Array.isArray(obj.frozenDates))
+        obj.frozenDates = obj.frozenDates.filter((x: unknown) => typeof x === 'string').slice(-60)
+      else delete obj.frozenDates
     }
     return { ...defaultState(), ...obj }
   } catch {

@@ -210,14 +210,14 @@ Web Push、Stripe 真支付、邮箱找回、暗色模式、CFLiveTutor 的 less
 ### 8.1 富卡片消息(F1)
 - 聊天条目 kind 扩展:`vocab-card`(翻转词卡 {word,ipa,zh,example_en})、`drill-card`(跟读挑战 {text,tip},录音→scorePronunciation→在在点评)、`listen-card`(语音气泡 {text,label},cfSpeak 播放)、`review-card`({due:number} 深链 /review)、`award-card`({seconds?,badge?} 到账动效)、`news-card`({title,level,summary_en,glossary:[{word,zh}],source})
 - worker `/ai/zaizai` 响应扩展:`{ reply, card?: { kind, data } }`——在在可按语境携带一张卡(prompt 引导:用户问单词→vocab-card;要练发音→drill-card;要听→listen-card);前端渲染 reply 气泡后追加卡片条目
-- `GET /ai/news`:worker fetch VOA Learning English RSS(learningenglish.voanews.com),KV 缓存 6h,llama json_schema 简化到 A2-B1+5 词 glossary;失败降级 502,前端回退"今日话题"生成
+- `GET /ai/news`:worker fetch VOA Learning English RSS(learningenglish.voanews.com),KV 缓存 6h,llama json_schema 简化到 A2-B1+5 词 glossary;失败降级 502,**前端 fetchNews 静默返回 null → 直接跳过 news-card**(无"今日话题"回退生成)
 
 ### 8.2 记忆可见 + Web Push(W2+F2)
 - `GET /memories` → {memories:[{id,kind,text,at}]};`DELETE /memories/:id`(本人);Me 页「在在记得你」墙 + 聊天抽取后系统芯片"在在记住了:…"(chat 响应加 `remembered?: string[]`)
 - D1 0004_push.sql:`push_subs(user_id, endpoint TEXT PK, p256dh, auth, created_at)`
 - `/push/vapid`(公钥)、`POST /push/subscribe`、`POST /push/unsubscribe`;推送为**无载荷 tickle**(免 RFC8291 加密),SW push 事件 fetch `/zaizai/push-preview`(cookie 同源,返回个性化一句话)→ showNotification
-- VAPID:公钥进 wrangler.toml vars,私钥 secret `VAPID_PRIVATE_KEY`(用户设);/health features.push = !!私钥;ES256 JWT 用 WebCrypto 手写
-- Cron `0 23 * * *`(=北京 07:00)scheduled handler → 给全部订阅发 tickle
+- VAPID:公钥进 wrangler.toml vars,私钥 secret `VAPID_PRIVATE_KEY`(用户设);/health features.push = **!!(私钥 && 公钥 && DB)**;ES256 JWT 用 WebCrypto 手写
+- Cron 两班(wrangler.toml triggers):`0 23 * * *`(=北京 07:00)晨呼 → 全部订阅;`0 12 * * *`(=北京 20:00)**晚间挽救 → 仅 progress 过期的订阅**(updated_at 距今 >14h 或从未同步);两班 SELECT 均 `ORDER BY RANDOM() LIMIT 40`(cron 子请求预算),命中上限时记日志
 - PWA 从 generateSW 切 **injectManifest**(src/sw.ts:precacheAndRoute + skipWaiting/clientsClaim + push/notificationclick 处理器)——保持既有即时更新语义
 - 应用内主动性(不依赖推送):visibilitychange 回归问候(>4h 离开)、当日已学完晚间复盘消息
 
@@ -238,3 +238,14 @@ Web Push、Stripe 真支付、邮箱找回、暗色模式、CFLiveTutor 的 less
 - F1:lib/zaizai.ts、components/zaizai/cards/*.tsx(新)、ChatHome.tsx(卡片渲染+在在 card 响应)
 - F2:components/zaizai/Onboarding.tsx(新)、lib/push.ts(新)、src/sw.ts(新)、vite.config.ts(injectManifest+proxy /push /memories)、ChatHome.tsx 接入(F1 之后跑)
 - F3:PlanSheet.tsx(新)、Me.tsx、ai.tsx、GrokLiveTutor.tsx、caps.ts(push cap)
+
+### 8.7 v3.1.x 实现补记(与上文冲突处以本节为准)
+
+- `POST /earn` body 必带 `day: 'YYYY-MM-DD'`(客户端本地日期;服务端校验格式且 ±36h;日上限按 (user_id, reason, day) 计)
+- 补签卡(streak freeze,迁移 0005:`wallet.freezes`):
+  - 授予:`streak_milestone` earn 每次 +1(ledger ref `freezegrant:streak:{n}`);会员每自然月首次 GET /wallet 懒发 +2(ref `freezegrant:month:{YYYY-MM}`,UTC 月);两者 ledger 插入与 freezes 变更同一 `db.batch()` 事务,唯一 ref → 重放零效果
+  - 消费:`POST /streak/freeze-consume {day, missed}`(missed 严格早于 day,最多回补 8 天)→ `{ok, consumed, freezes}`;幂等键 ledger ref `freezeuse:{missed}`:**重放 → ok:true, consumed:false,不再扣卡**;无卡 → ok:false(HTTP 200,业务结果非请求错误);扣卡与 ledger 同一 `db.batch()` 事务
+- `/push/subscribe` 加固:endpoint host 白名单(后缀匹配 fcm.googleapis.com / web.push.apple.com / *.push.services.mozilla.com / *.notify.windows.com,其余 400 '不支持的推送服务');每用户最多保 5 条订阅(upsert 后删更旧的)
+- push-preview:「已连续学习 N 天」只在 lastStudyDate(北京日)= 今天/昨天时引用;昨天+晚间 → "连胜差一步就断"挽救措辞;更早 → 挽救文案不带过期数字;模型输出为空时回退句**不写 KV 缓存**
+- tickle 清理:404/410 之外,**401/403(VAPID 换钥后的死订阅)同样删行**
+- **部署顺序:`wrangler d1 migrations apply thirty-days-en-db --remote` 必须先于 `wrangler deploy`**(新代码引用新列/表,先 deploy 会 500)

@@ -9,7 +9,7 @@ import type { BlockKey } from '../types'
 import { addDays, makeCard, todayISO } from '../lib/srs'
 import { isDayComplete, displayStreak } from '../lib/storage'
 import {
-  addFrozenDate, appendChatNotice, consumeFreeze, getWallet, invalidateWallet,
+  appendChatNotice, consumeFreeze, getWallet, invalidateWallet,
   postEarn, walletCap, type EarnEvent,
 } from '../lib/zaizai'
 import { useAuth } from '../auth'
@@ -29,6 +29,12 @@ const SHORT: Record<BlockKey, string> = {
   reading: '阅读',
   writing: '写作',
 }
+
+// Freeze-consume intent, persisted BEFORE the POST (value = the missed LOCAL
+// date). If the response is lost (crash / dropped connection), the retry can
+// recognize the worker's replay shape {ok:true,consumed:false} as OUR already-
+// consumed freeze instead of treating it as a no-op.
+const FREEZE_PENDING_KEY = 'zaizai:freeze-pending'
 
 export default function DayView() {
   const { day } = useParams()
@@ -106,35 +112,78 @@ export default function DayView() {
   // Streak freeze: exactly ONE missed local day (lastStudyDate == 前天) + a
   // freeze in the wallet → consume it BEFORE marking, so completeBlock bridges
   // the gap instead of resetting the run. Any failure → normal completion.
-  const freezePending = useRef(false)
-  const tryFreeze = async (): Promise<boolean> => {
-    const today = todayISO()
-    if (freezePending.current || !user?.account || !walletCap() || state.lastStudyDate !== addDays(today, -2)) return false
-    freezePending.current = true
+  const doTryFreeze = async (today: string): Promise<boolean> => {
+    if (!user?.account || !walletCap() || state.lastStudyDate !== addDays(today, -2)) return false
+    const missed = addDays(today, -1)
+    let pending: string | null = null
     try {
-      const w = await getWallet()
+      pending = localStorage.getItem(FREEZE_PENDING_KEY)
+    } catch {
+      /* ignore */
+    }
+    // A matching pending marker means a previous attempt may already have
+    // consumed the freeze (its response was lost) — skip the balance gate and
+    // go straight to the idempotent replay.
+    if (pending !== missed) {
+      const w = await getWallet(true) // forced — another device may have spent/earned freezes
       if (!w || w.freezes <= 0) return false
-      const missed = addDays(today, -1)
-      const r = await consumeFreeze(today, missed)
-      if (!r?.ok || !r.consumed) return false
-      addFrozenDate(missed) // week strip shows ❄ on the covered day
+      try {
+        localStorage.setItem(FREEZE_PENDING_KEY, missed) // persist intent BEFORE the POST
+      } catch {
+        /* ignore */
+      }
+    }
+    let r = await consumeFreeze(today, missed)
+    r ??= await consumeFreeze(today, missed) // network blip → ONE retry (endpoint idempotent by ref)
+    if (!r?.ok) return false
+    try {
+      localStorage.removeItem(FREEZE_PENDING_KEY)
+    } catch {
+      /* ignore */
+    }
+    if (r.consumed) {
       appendChatNotice(`❄️ 用掉一张冻结券,连胜续上了(还剩 ${r.freezes} 张)`)
       invalidateWallet()
-      return true
-    } finally {
-      freezePending.current = false
     }
+    // ok alone bridges: {ok:true,consumed:false} is the worker's replay shape —
+    // with our pending marker it IS our lost first attempt; the day is patched.
+    return true
   }
 
+  // ONE shared in-flight verdict: concurrent complete() calls await the SAME
+  // promise — no double-consume, no split bridge decisions. `today` is captured
+  // when the check starts so a midnight rollover mid-flight keeps its frame.
+  const freezeInflight = useRef<Promise<{ bridged: boolean; today: string }> | null>(null)
+  const tryFreeze = (): Promise<{ bridged: boolean; today: string }> => {
+    freezeInflight.current ??= (async () => {
+      const today = todayISO()
+      try {
+        return { bridged: await doTryFreeze(today), today }
+      } catch {
+        return { bridged: false, today }
+      } finally {
+        freezeInflight.current = null
+      }
+    })()
+    return freezeInflight.current
+  }
+
+  const [completing, setCompleting] = useState(false)
   const complete = async (k: BlockKey) => {
-    const willComplete = BLOCKS.every((b) => b.key === k || prog?.[b.key])
-    const bridged = await tryFreeze()
-    markBlock(dayNum, k, bridged ? { bridged: true } : undefined)
-    earn('block_complete', `block:${dayNum}:${k}`)
-    if (willComplete) return
-    // Advance to the next still-incomplete block.
-    const nextK = BLOCKS.find((b) => b.key !== k && !prog?.[b.key])?.key
-    if (nextK) setActive(nextK)
+    if (completing) return
+    setCompleting(true)
+    try {
+      const willComplete = BLOCKS.every((b) => b.key === k || prog?.[b.key])
+      const { bridged, today } = await tryFreeze()
+      markBlock(dayNum, k, bridged ? { bridged: true, today } : undefined)
+      earn('block_complete', `block:${dayNum}:${k}`)
+      if (willComplete) return
+      // Advance to the next still-incomplete block.
+      const nextK = BLOCKS.find((b) => b.key !== k && !prog?.[b.key])?.key
+      if (nextK) setActive(nextK)
+    } finally {
+      setCompleting(false)
+    }
   }
 
   const blockEl = (() => {
@@ -239,7 +288,9 @@ export default function DayView() {
       {/* persistent advance dock — one primary CTA */}
       <div className="fixed inset-x-0 bottom-0 z-30 mx-auto max-w-[560px] px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-4"
         style={{ background: 'linear-gradient(to top, var(--color-bg) 55%, transparent)' }}>
-        <Button size="lg" className="h-14 w-full rounded-xl text-base" onClick={dockAction}>
+        {/* disabled while a completion (incl. the freeze bridge) is in flight —
+            no queued double-completes behind one await */}
+        <Button size="lg" className="h-14 w-full rounded-xl text-base" onClick={dockAction} disabled={completing}>
           {/* keyed by done-state so the 完成X → 下一步 label change is perceived */}
           <span key={String(activeDone)} className="animate-in-up flex items-center gap-2">
             {dockLabel} <ArrowRight size={18} />

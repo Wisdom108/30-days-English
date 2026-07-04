@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Eye, Play, Square } from 'lucide-react'
 import { cfSpeak, cfVoiceAvailable } from '../../../lib/cfSpeech'
 import { speak, stopSpeaking } from '../../../lib/speech'
@@ -12,24 +12,30 @@ const BARS = [7, 13, 9, 16, 11, 18, 8, 14, 10, 17, 12, 6, 15, 9, 13, 7]
 export default function ListenCard({ data }: { data: ListenCardPayload }) {
   const [playing, setPlaying] = useState(false)
   const [revealed, setRevealed] = useState(false)
+  // Stale-guard: each play attempt gets a token; only the CURRENT attempt may
+  // flip `playing` back off, so a superseded play (stop → quick replay) can't
+  // clobber the new playback's UI state when its awaited promise settles late.
+  const seq = useRef(0)
 
   // Leaving the feed mid-playback must not leak audio.
   useEffect(() => () => stopSpeaking(), [])
 
   const play = async () => {
     if (playing) {
+      seq.current++ // invalidate the in-flight attempt before it settles
       stopSpeaking()
       setPlaying(false)
       return
     }
+    const mySeq = ++seq.current
     setPlaying(true)
     try {
       if (cfVoiceAvailable()) await cfSpeak(data.text)
       else await speak(data.text)
     } catch {
-      await speak(data.text).catch(() => {})
+      if (mySeq === seq.current) await speak(data.text).catch(() => {})
     } finally {
-      setPlaying(false)
+      if (mySeq === seq.current) setPlaying(false)
     }
   }
 

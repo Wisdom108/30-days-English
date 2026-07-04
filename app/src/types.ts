@@ -143,4 +143,5 @@ export interface AppState {
   unlockAll?: boolean // learners with a foundation can unlock all 30 days to jump ahead
   updatedAt?: number // last local mutation (ms) — drives last-writer-wins cloud merge
   studyDates?: string[] // LOCAL YYYY-MM-DD dates with ≥1 block completed, capped last 60 — drives the week strip
+  frozenDates?: string[] // LOCAL YYYY-MM-DD days covered by a consumed streak freeze (❄ in the week strip), capped last 60
 }

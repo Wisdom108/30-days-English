@@ -14,7 +14,7 @@ import {
 
 interface Ctx {
   state: AppState
-  markBlock: (day: number, block: BlockKey, opts?: { bridged?: boolean }) => void
+  markBlock: (day: number, block: BlockKey, opts?: { bridged?: boolean; today?: string }) => void
   unmarkBlock: (day: number, block: BlockKey) => void
   addCards: (cards: SrsCard[]) => void
   reviewOne: (card: SrsCard) => void
@@ -45,7 +45,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
-  const markBlock = useCallback((day: number, block: BlockKey, opts?: { bridged?: boolean }) => {
+  const markBlock = useCallback((day: number, block: BlockKey, opts?: { bridged?: boolean; today?: string }) => {
     mutate((s) => completeBlock(s, day, block, opts))
   }, [mutate])
 

@@ -87,20 +87,26 @@ export interface ZaizaiCard {
   data: Record<string, string>
 }
 
-const CARD_FIELDS: Record<CardKind, readonly string[]> = {
-  'vocab-card': ['word', 'ipa', 'zh', 'example_en'],
-  'drill-card': ['text', 'tip'],
-  'listen-card': ['text', 'label'],
+// Required/optional per kind — MUST mirror the client cardEntry() validator in
+// app/src/lib/zaizai.ts: it renders on the required field alone and simply
+// passes optional fields through when present. Requiring more here would drop
+// cards the client happily renders.
+const CARD_FIELDS: Record<CardKind, { required: readonly string[]; optional: readonly string[] }> = {
+  'vocab-card': { required: ['word'], optional: ['ipa', 'zh', 'example_en'] },
+  'drill-card': { required: ['text'], optional: ['tip'] },
+  'listen-card': { required: ['text'], optional: ['label'] },
 }
 
 /** Parse + strip a trailing fenced card directive from the model reply.
  *  Tail parsing was chosen over a second structured-output pass: zero extra
  *  latency/neurons, and a malformed tail degrades to plain text instead of a
- *  failed request. Any trailing fence that parses to JSON with a `kind` is
- *  stripped even when the card is invalid (raw JSON must never reach the chat
- *  bubble); non-JSON fences are left untouched. */
+ *  failed request. The fence body is backtick-free and the pattern is anchored
+ *  at $, so only the LAST fence can match — earlier code blocks in the reply
+ *  never get swallowed. Any trailing fence that parses to JSON with a `kind`
+ *  is stripped even when the card is invalid (raw JSON must never reach the
+ *  chat bubble); non-JSON fences are left untouched. */
 export function extractCard(reply: string): { reply: string; card?: ZaizaiCard } {
-  const m = reply.match(/```(?:card|json)?\s*(\{[\s\S]*?\})\s*```\s*$/)
+  const m = reply.match(/```(?:card|json)?\s*(\{[^`]*\})\s*```\s*$/)
   if (!m || m.index === undefined) return { reply }
   let parsed: unknown
   try {
@@ -111,13 +117,17 @@ export function extractCard(reply: string): { reply: string; card?: ZaizaiCard }
   const o = (parsed || {}) as Record<string, unknown>
   if (typeof o.kind !== 'string') return { reply }
   const stripped = reply.slice(0, m.index).trim() || '给你一张卡片:'
-  const fields = CARD_FIELDS[o.kind as CardKind]
+  const spec = CARD_FIELDS[o.kind as CardKind]
   const d = (o.data || {}) as Record<string, unknown>
-  if (!fields || !fields.every((f) => typeof d[f] === 'string' && (d[f] as string).trim())) {
+  const str = (f: string) => (typeof d[f] === 'string' ? (d[f] as string).trim() : '')
+  if (!spec || !spec.required.every((f) => str(f))) {
     return { reply: stripped } // card attempt with a bad kind/shape → drop it, keep clean text
   }
   const data: Record<string, string> = {}
-  for (const f of fields) data[f] = (d[f] as string).trim().slice(0, 300)
+  for (const f of [...spec.required, ...spec.optional]) {
+    const v = str(f)
+    if (v) data[f] = v.slice(0, 300)
+  }
   return { reply: stripped, card: { kind: o.kind as CardKind, data } }
 }
 
@@ -307,11 +317,15 @@ export async function handleMemories(req: Request, env: Env): Promise<Response> 
   if (!db || !env.SESSION_SECRET) return json({ error: NO_MEMBERSHIP }, env, 503, req)
   const userId = await readSession(req, env)
   if (userId === null) return json({ error: '需要登录' }, env, 401, req)
-  const { results } = await db
-    .prepare('SELECT id, kind, text, updated_at FROM memories WHERE user_id = ? ORDER BY weight DESC, updated_at DESC LIMIT ?')
-    .bind(userId, MEMORY_LIMIT)
-    .all<{ id: number; kind: string; text: string; updated_at: number }>()
-  return json({ memories: results.map((r) => ({ id: r.id, kind: r.kind, text: r.text, at: r.updated_at })) }, env, 200, req)
+  try {
+    const { results } = await db
+      .prepare('SELECT id, kind, text, updated_at FROM memories WHERE user_id = ? ORDER BY weight DESC, updated_at DESC LIMIT ?')
+      .bind(userId, MEMORY_LIMIT)
+      .all<{ id: number; kind: string; text: string; updated_at: number }>()
+    return json({ memories: results.map((r) => ({ id: r.id, kind: r.kind, text: r.text, at: r.updated_at })) }, env, 200, req)
+  } catch {
+    return json({ error: '记忆读取失败' }, env, 503, req) // transient D1 error — the Me wall shows a retry state
+  }
 }
 
 /** DELETE /memories/:id → 204 — scoped to the caller's user_id; idempotent. */

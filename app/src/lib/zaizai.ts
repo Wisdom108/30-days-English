@@ -3,7 +3,8 @@ import { authHeaders } from './access'
 import { AIError, type ChatMsg, type LessonCtx } from './ai'
 import { serverCaps, type ServerCaps } from './caps'
 import { todayISO } from './srs'
-import type { BlockKey } from '../types'
+import { loadState } from './storage'
+import type { AppState, BlockKey } from '../types'
 
 // 在在 (Zaizai) client — messenger endpoints + wallet + the local chat/memory
 // stores. All day stamps use LOCAL dates (srs.ts todayISO) — NEVER toISOString:
@@ -232,9 +233,12 @@ export async function consumeFreeze(
 }
 
 // ---- freeze-consumed dates (❄ cells in the week strip; LOCAL YYYY-MM-DD) ----
+// New freezes are recorded into cloud-synced AppState.frozenDates (storage.ts
+// completeBlock, bridged path); this localStorage list is a read-fallback for
+// pre-v3.1.x data that only ever lived on-device.
 const FROZEN_KEY = 'zaizai:frozen:v1'
 
-export function loadFrozenDates(): string[] {
+function localFrozenDates(): string[] {
   try {
     const list = JSON.parse(localStorage.getItem(FROZEN_KEY) || '[]') as string[]
     return Array.isArray(list) ? list.filter((x) => typeof x === 'string') : []
@@ -243,15 +247,14 @@ export function loadFrozenDates(): string[] {
   }
 }
 
-export function addFrozenDate(date: string): void {
-  try {
-    const list = loadFrozenDates().filter((x) => x !== date)
-    list.push(date)
-    localStorage.setItem(FROZEN_KEY, JSON.stringify(list.sort().slice(-60)))
-  } catch {
-    /* ignore */
-  }
+/** State-first frozen dates: state.frozenDates ∪ legacy localStorage list.
+ *  Callers without a live state in hand fall back to the persisted state. */
+export function getFrozenDates(state?: AppState): string[] {
+  const s = state ?? loadState()
+  return [...new Set([...(s.frozenDates ?? []), ...localFrozenDates()])].sort()
 }
+/** Back-compat name — existing call sites (ProgressCard) use this, zero-arg. */
+export const loadFrozenDates = getFrozenDates
 
 // ---- local chat store ----
 // `memory-chip` = the subtle system line "在在记住了:…" after memory extraction.

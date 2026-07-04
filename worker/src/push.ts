@@ -66,8 +66,26 @@ export function handleVapid(req: Request, env: Env): Response {
   return json({ publicKey: env.VAPID_PUBLIC_KEY }, env, 200, req)
 }
 
+// Only real browser push services may be stored — an arbitrary URL here would
+// turn the cron into an authenticated request cannon aimed wherever a user
+// says (SSRF/beacon). Suffix match covers regional shards (e.g.
+// updates.push.services.mozilla.com, *.notify.windows.com).
+const PUSH_SERVICE_HOSTS = ['fcm.googleapis.com', 'web.push.apple.com', 'push.services.mozilla.com', 'notify.windows.com']
+const MAX_SUBS_PER_USER = 5
+
+function allowedPushEndpoint(endpoint: string): boolean {
+  try {
+    const host = new URL(endpoint).hostname
+    return PUSH_SERVICE_HOSTS.some((h) => host === h || host.endsWith(`.${h}`))
+  } catch {
+    return false
+  }
+}
+
 /** POST /push/subscribe { endpoint, keys:{p256dh,auth} } — upsert (endpoint PK,
- *  so a re-subscribed device or a handed-over browser profile just re-owns it). */
+ *  so a re-subscribed device or a handed-over browser profile just re-owns it).
+ *  Endpoint host must be a known push service; each user keeps at most
+ *  MAX_SUBS_PER_USER rows (oldest evicted). */
 export async function handlePushSubscribe(req: Request, env: Env): Promise<Response> {
   const db = env.DB
   if (!db || !pushEnabled(env) || !env.SESSION_SECRET) return json({ error: NO_PUSH }, env, 503, req)
@@ -81,12 +99,22 @@ export async function handlePushSubscribe(req: Request, env: Env): Promise<Respo
   const p256dh = String(body.keys?.p256dh || '').slice(0, 256)
   const auth = String(body.keys?.auth || '').slice(0, 128)
   if (!/^https:\/\//.test(endpoint) || !p256dh || !auth) return json({ error: '无效的订阅' }, env, 400, req)
+  if (!allowedPushEndpoint(endpoint)) return json({ error: '不支持的推送服务' }, env, 400, req)
+  // created_at refreshes on conflict so a re-subscribe counts as newest — the
+  // cap prune below must never evict the device that just subscribed.
   await db
     .prepare(
       'INSERT INTO push_subs (user_id, endpoint, p256dh, auth, created_at) VALUES (?1, ?2, ?3, ?4, ?5) ' +
-        'ON CONFLICT(endpoint) DO UPDATE SET user_id = ?1, p256dh = ?3, auth = ?4',
+        'ON CONFLICT(endpoint) DO UPDATE SET user_id = ?1, p256dh = ?3, auth = ?4, created_at = ?5',
     )
     .bind(userId, endpoint, p256dh, auth, Date.now())
+    .run()
+  await db
+    .prepare(
+      'DELETE FROM push_subs WHERE user_id = ?1 AND endpoint NOT IN ' +
+        '(SELECT endpoint FROM push_subs WHERE user_id = ?1 ORDER BY created_at DESC LIMIT ?2)',
+    )
+    .bind(userId, MAX_SUBS_PER_USER)
     .run()
   return json({ ok: true }, env, 200, req)
 }
@@ -111,13 +139,24 @@ export async function handlePushUnsubscribe(req: Request, env: Env): Promise<Res
 // who actually got tickled.
 const PROGRESS_FRESH_MS = 14 * 3_600_000
 
+// A cron invocation gets a limited subrequest budget (50 on the free plan);
+// every tickle is one fetch and a prune costs a D1 call on top. Cap each run
+// and pick at random so an over-cap table degrades to fair rotation across
+// days instead of starving a fixed tail of subscribers.
+const CRON_MAX_TICKLES = 40
+
 /** Cron `0 23 * * *` UTC (= 北京 07:00): tickle every subscription. */
 export async function sendMorningTickles(env: Env): Promise<void> {
   const db = env.DB
   if (!db || !pushEnabled(env)) return
   let subs: { endpoint: string }[]
   try {
-    subs = (await db.prepare('SELECT endpoint FROM push_subs').all<{ endpoint: string }>()).results
+    subs = (
+      await db
+        .prepare('SELECT endpoint FROM push_subs ORDER BY RANDOM() LIMIT ?')
+        .bind(CRON_MAX_TICKLES)
+        .all<{ endpoint: string }>()
+    ).results
   } catch {
     return
   }
@@ -136,9 +175,9 @@ export async function sendEveningTickles(env: Env): Promise<void> {
       await db
         .prepare(
           'SELECT s.endpoint FROM push_subs s LEFT JOIN progress p ON p.user_id = s.user_id ' +
-            'WHERE p.updated_at IS NULL OR p.updated_at < ?',
+            'WHERE p.updated_at IS NULL OR p.updated_at < ? ORDER BY RANDOM() LIMIT ?',
         )
-        .bind(Date.now() - PROGRESS_FRESH_MS)
+        .bind(Date.now() - PROGRESS_FRESH_MS, CRON_MAX_TICKLES)
         .all<{ endpoint: string }>()
     ).results
   } catch {
@@ -148,9 +187,15 @@ export async function sendEveningTickles(env: Env): Promise<void> {
 }
 
 /** Shared tickle loop. Per-sub errors are swallowed (one dead endpoint must not
- *  stop the batch); 404/410 responses prune the row. JWTs are cached per
+ *  stop the batch); dead-sub responses prune the row. JWTs are cached per
  *  push-service origin. */
 async function tickleAll(env: Env, db: D1Database, subs: { endpoint: string }[]): Promise<void> {
+  if (subs.length >= CRON_MAX_TICKLES) {
+    // The SELECT hit its LIMIT — some subscribers were (probably) skipped this
+    // run. Random pick means they rotate in on later runs; log it so growth
+    // past the cap is visible in the cron tail.
+    console.log(`tickleAll: recipient set hit the ${CRON_MAX_TICKLES}-sub cron cap — remainder skipped this run`)
+  }
   const jwts = new Map<string, string>()
   const BATCH = 20 // modest bursts — stays far from the subrequest ceiling
   for (let i = 0; i < subs.length; i += BATCH) {
@@ -164,7 +209,10 @@ async function tickleAll(env: Env, db: D1Database, subs: { endpoint: string }[])
             jwts.set(origin, jwt)
           }
           const status = await sendTickle(env, endpoint, jwt)
-          if (status === 404 || status === 410) {
+          // 404/410: subscription is gone. 401/403: the push service rejects
+          // our VAPID auth for this sub (created against a different key pair)
+          // — permanently undeliverable, prune it too.
+          if (status === 401 || status === 403 || status === 404 || status === 410) {
             await db.prepare('DELETE FROM push_subs WHERE endpoint = ?').bind(endpoint).run()
           }
         } catch {
@@ -178,6 +226,13 @@ async function tickleAll(env: Env, db: D1Database, subs: { endpoint: string }[])
 // ---------------------------------------------------------------- push preview
 const PREVIEW_FALLBACK = '早上好,在在等你来练今天的英语,先开口说一句?'
 const PREVIEW_FALLBACK_PM = '今天还没见你来练英语,在在有点惦记——回来说一句就好?'
+
+/** Beijing calendar date (YYYY-MM-DD), `offsetDays` from now. Both crons are
+ *  Beijing-pinned (07:00 / 20:00 北京) and the audience is Beijing-local, so
+ *  the progress blob's client-local lastStudyDate is compared in this zone. */
+function beijingDay(offsetDays = 0): string {
+  return new Date(Date.now() + 8 * 3_600_000 + offsetDays * 86_400_000).toISOString().slice(0, 10)
+}
 
 /** GET /zaizai/push-preview → { text } — one personalized line built from the
  *  top-3 memories + the synced progress blob. The SW fetches this on `push`
@@ -211,10 +266,27 @@ export async function handlePushPreview(req: Request, env: Env): Promise<Respons
       .first<{ data: string; updated_at: number }>()
     if (prog?.data) {
       progressFresh = prog.updated_at > Date.now() - PROGRESS_FRESH_MS
-      const blob = JSON.parse(prog.data) as { days?: Record<string, unknown>; streak?: number } | null
+      const blob = JSON.parse(prog.data) as {
+        days?: Record<string, unknown>
+        streak?: number
+        lastStudyDate?: string
+      } | null
       const dayCount = blob?.days && typeof blob.days === 'object' ? Object.keys(blob.days).length : 0
       if (dayCount > 0) facts.push(`学员已学到 Day ${Math.min(dayCount, 30)}/30`)
-      if (typeof blob?.streak === 'number' && blob.streak > 0) facts.push(`已连续学习 ${Math.round(blob.streak)} 天`)
+      // The streak number is only quotable while it is actually alive:
+      // lastStudyDate must be Beijing-today or Beijing-yesterday. Anything
+      // older means the streak already broke — a lapsed user gets the rescue
+      // copy WITHOUT a stale「已连续学习 N 天」claim. Yesterday + evening is
+      // the one true "one step from breaking" moment, so only then does the
+      // fact carry the at-risk framing.
+      if (typeof blob?.streak === 'number' && blob.streak > 0 && typeof blob?.lastStudyDate === 'string') {
+        const n = Math.round(blob.streak)
+        if (blob.lastStudyDate === beijingDay(0)) {
+          facts.push(`已连续学习 ${n} 天`)
+        } else if (blob.lastStudyDate === beijingDay(-1)) {
+          facts.push(evening ? `已连续学习 ${n} 天,今天还没打卡——这条连胜差一步就断` : `已连续学习 ${n} 天`)
+        }
+      }
     }
   } catch {
     /* stats are garnish — a bare line still works */
@@ -240,7 +312,10 @@ export async function handlePushPreview(req: Request, env: Env): Promise<Respons
       ],
       max_tokens: 300,
     })
-    const text = String(raw).trim().replace(/\s+/g, ' ').slice(0, 80) || fallback
+    const text = String(raw).trim().replace(/\s+/g, ' ').slice(0, 80)
+    // Empty model output → serve the static fallback UNCACHED (same rule as the
+    // catch below): caching it would pin a generic line for the whole half-day.
+    if (!text) return json({ text: fallback }, env, 200, req)
     await env.QUOTA.put(key, text, { expirationTtl: 26 * 3600 })
     return json({ text }, env, 200, req)
   } catch {

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Mic, Volume2 } from 'lucide-react'
 import type { LessonCtx } from '../../../lib/ai'
 import { cfRecordAndTranscribe, cfVoiceAvailable, stopCfRecording } from '../../../lib/cfSpeech'
@@ -15,19 +15,32 @@ export default function DrillCard({ data, lesson }: { data: DrillCardPayload; le
   const [heard, setHeard] = useState<string | null>(null)
   const [verdict, setVerdict] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // Synchronous ownership flag for the CF recorder singleton: set before any
+  // await (double-tap can't start two takes) and read by the unmount cleanup
+  // so leaving the feed mid-take releases the mic.
+  const takeRef = useRef(false)
+
+  useEffect(
+    () => () => {
+      if (takeRef.current) stopCfRecording()
+    },
+    [],
+  )
 
   const record = async () => {
-    if (rec) {
-      if (cfPath) stopCfRecording()
+    if (takeRef.current || rec) {
+      if (cfPath) stopCfRecording() // tap-to-stop (also swallows an accidental double-tap)
       return
     }
+    takeRef.current = true
     setRec(true)
     setScore(null)
     setHeard(null)
     setVerdict(null)
     setError(null)
     try {
-      const t = cfPath ? await cfRecordAndTranscribe() : (await recognizeOnce()).transcript
+      const t = (cfPath ? await cfRecordAndTranscribe() : (await recognizeOnce()).transcript).trim()
+      if (!t) throw new Error('no-speech') // Whisper heard noise, not words — nothing to score
       const s = scorePronunciation(data.text, t)
       setHeard(t)
       setScore(s)
@@ -39,8 +52,16 @@ export default function DrillCard({ data, lesson }: { data: DrillCardPayload; le
         .then(({ reply }) => setVerdict(reply))
         .catch(() => {})
     } catch (e) {
-      setError(e instanceof Error && e.message.includes('登录') ? '请先登录以使用录音评分' : '没听清,再试一次?')
+      const msg = e instanceof Error ? e.message : ''
+      setError(
+        msg.includes('登录')
+          ? '请先登录以使用录音评分'
+          : msg === 'recording-busy'
+            ? '上一段录音还没结束,稍等一下'
+            : '没听清,再试一次?',
+      )
     } finally {
+      takeRef.current = false
       setRec(false)
     }
   }
