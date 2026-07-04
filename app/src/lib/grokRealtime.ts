@@ -84,18 +84,25 @@ export async function startGrok(opts: StartOpts): Promise<GrokSession> {
 
   // 2. WebSocket (ephemeral token as subprotocol).
   const ws = new WebSocket(`${XAI_WS}?model=${encodeURIComponent(model)}`, [proto])
-  const ctx = new AudioContext({ sampleRate: RATE })
+  // Two SEPARATE contexts: a clean one that only plays the tutor's audio, and a
+  // dedicated one for mic capture. Sharing a single context lets the mic's
+  // main-thread ScriptProcessor stall playback → the crackle/static.
+  const playCtx = new AudioContext({ sampleRate: RATE })
+  const micCtx = new AudioContext({ sampleRate: RATE })
 
-  // gapless PCM playback queue
+  // Gapless PCM playback queue. A jitter buffer of lead time absorbs network
+  // jitter so chunks never underrun (an underrun leaves a gap = a click, and a
+  // stream of clicks is the "电流声").
+  const JITTER = 0.12
   let nextTime = 0
   const sources = new Set<AudioBufferSourceNode>()
   const playChunk = (f32: Float32Array) => {
-    const buf = ctx.createBuffer(1, f32.length, RATE)
+    const buf = playCtx.createBuffer(1, f32.length, RATE)
     buf.getChannelData(0).set(f32)
-    const src = ctx.createBufferSource()
+    const src = playCtx.createBufferSource()
     src.buffer = buf
-    src.connect(ctx.destination)
-    const t = Math.max(ctx.currentTime + 0.02, nextTime)
+    src.connect(playCtx.destination)
+    const t = Math.max(playCtx.currentTime + JITTER, nextTime)
     src.start(t)
     nextTime = t + buf.duration
     sources.add(src)
@@ -128,15 +135,21 @@ export async function startGrok(opts: StartOpts): Promise<GrokSession> {
       },
     }))
     try {
-      ms = await navigator.mediaDevices.getUserMedia({ audio: true })
-      if (ctx.state === 'suspended') await ctx.resume()
-      const source = ctx.createMediaStreamSource(ms)
-      proc = ctx.createScriptProcessor(4096, 1, 1)
-      const zero = ctx.createGain()
+      // Echo cancellation + noise suppression: cleaner mic, and (on speakers)
+      // stops the tutor's own voice looping back into the mic → fewer artifacts
+      // and spurious barge-ins.
+      ms = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      })
+      if (micCtx.state === 'suspended') await micCtx.resume()
+      if (playCtx.state === 'suspended') await playCtx.resume()
+      const source = micCtx.createMediaStreamSource(ms)
+      proc = micCtx.createScriptProcessor(4096, 1, 1)
+      const zero = micCtx.createGain()
       zero.gain.value = 0 // route capture graph to destination w/o echoing the mic
       source.connect(proc)
       proc.connect(zero)
-      zero.connect(ctx.destination)
+      zero.connect(micCtx.destination)
       proc.onaudioprocess = (e) => {
         if (muted || ws.readyState !== WebSocket.OPEN) return
         ws.send(JSON.stringify({ type: 'input_audio_buffer.append', audio: f32ToPcm16Base64(e.inputBuffer.getChannelData(0)) }))
@@ -202,8 +215,9 @@ export async function startGrok(opts: StartOpts): Promise<GrokSession> {
     ms?.getTracks().forEach((t) => { try { t.stop() } catch { /* ignore */ } })
     flushPlayback()
     try { ws.close() } catch { /* ignore */ }
-    // Close the capture context last (it returns a promise; swallow rejections).
-    ctx.close().catch(() => { /* already closed */ })
+    // Close both contexts last (each returns a promise; swallow rejections).
+    micCtx.close().catch(() => { /* already closed */ })
+    playCtx.close().catch(() => { /* already closed */ })
     onStatus('closed')
   }
   const mute = (m: boolean) => {

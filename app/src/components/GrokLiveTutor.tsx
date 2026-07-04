@@ -14,11 +14,11 @@ type Turn = { role: 'user' | 'ai'; text: string }
 // Character presets (mirror the Worker's PERSONAS). Picking one changes the
 // tutor's voice AND personality, so it feels like a distinct real person.
 const CHARACTERS = [
-  { key: 'emma', name: 'Emma', blurb: '温柔 · 咖啡馆朋友' },
-  { key: 'aria', name: 'Aria', blurb: '元气 · 活力搭子' },
-  { key: 'sam', name: 'Sam', blurb: '随和 · 哥们儿' },
-  { key: 'rex', name: 'Rex', blurb: '沉稳 · 私教导师' },
-  { key: 'leo', name: 'Leo', blurb: '热血 · 陪练教练' },
+  { key: 'emma', name: 'Emma', blurb: '温柔 · 会聊天的朋友' },
+  { key: 'aria', name: 'Aria', blurb: '元气 · 爱笑的搭子' },
+  { key: 'sam', name: 'Sam', blurb: '随和 · 毒舌哥们儿' },
+  { key: 'rex', name: 'Rex', blurb: '好奇 · 爱讲故事' },
+  { key: 'leo', name: 'Leo', blurb: '热血 · 应援担当' },
 ] as const
 
 export default function GrokLiveTutor({ lesson }: { lesson: LessonCtx }) {
