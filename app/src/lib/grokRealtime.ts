@@ -86,8 +86,15 @@ export async function startGrok(opts: StartOpts): Promise<GrokSession> {
   const ws = new WebSocket(`${XAI_WS}?model=${encodeURIComponent(model)}`, [proto])
   // Two SEPARATE contexts: a clean one that only plays the tutor's audio, and a
   // dedicated one for mic capture. Sharing a single context lets the mic's
-  // main-thread ScriptProcessor stall playback → the crackle/static.
-  const playCtx = new AudioContext({ sampleRate: RATE })
+  // main-thread ScriptProcessor stall playback → crackle.
+  //
+  // Playback context uses the hardware's NATIVE rate (no forced 24k). Forcing a
+  // context to a non-native rate makes the browser resample the whole output at
+  // that odd rate, which adds a persistent hiss/static ("收音机底噪"); instead we
+  // tag each buffer as 24kHz (its true rate) and let the browser resample it to
+  // native with its good resampler. The mic context stays at 24k because Grok
+  // expects 24kHz PCM input.
+  const playCtx = new AudioContext()
   const micCtx = new AudioContext({ sampleRate: RATE })
 
   // Gapless PCM playback queue. A jitter buffer of lead time absorbs network
