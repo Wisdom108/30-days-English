@@ -1,10 +1,18 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ChevronRight, LogIn, Medal, Settings2, Timer } from 'lucide-react'
+import {
+  AlertTriangle, BellRing, Brain, ChevronRight, Heart, Loader2, LogIn, Medal,
+  Settings2, Sparkles, Star, Target, Timer, X,
+} from 'lucide-react'
 import { useAuth } from '../auth'
+import { config } from '../config'
+import { authHeaders } from '../lib/access'
+import { pushAvailable } from '../lib/caps'
+import { isPushSubscribed, subscribePush, unsubscribePush } from '../lib/push'
 import { getWallet, walletCap, WALLET_EVENT, type WalletInfo } from '../lib/zaizai'
 import { openAccount } from './ai'
-import { Badge, Button, Skeleton } from './ui'
+import { openPlans } from './zaizai/PlanSheet'
+import { Badge, Button, IconButton, Skeleton } from './ui'
 import { cn } from '../lib/utils'
 
 // §3.1 BADGES 镜像 — 服务端真源在 worker/src/wallet.ts,此处只做展示。
@@ -131,8 +139,124 @@ function BadgeWall({ earned }: { earned: Set<string> }) {
   )
 }
 
-// 我的 — 钱包 + 徽章墙 + 账号入口 + 数据/设置链接。AccountSheet 由顶栏
-// AuthControls 全局挂载,这里只 openAccount() 唤起,不重复实现。
+// ---- 在在记得你 (§8.2) — D1 memories 可见 + 可删 ----
+interface MemoryItem { id: number; kind: string; text: string; at: number }
+
+const MEM_ICONS: Record<string, typeof Brain> = {
+  plan: Target,
+  weakness: AlertTriangle,
+  highlight: Star,
+  quirk: Sparkles,
+  pref: Heart,
+}
+
+/** 相对时间,中文短格式。 */
+function rel(at: number): string {
+  const m = Math.floor(Math.max(0, Date.now() - at) / 60000)
+  if (m < 1) return '刚刚'
+  if (m < 60) return `${m} 分钟前`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h} 小时前`
+  return `${Math.floor(h / 24)} 天前`
+}
+
+function MemoryWall({ isAccount }: { isAccount: boolean }) {
+  const [mems, setMems] = useState<MemoryItem[] | null>(null)
+
+  useEffect(() => {
+    if (!isAccount) return
+    let alive = true
+    fetch(`${config.workerUrl}/memories`, { credentials: 'include', headers: authHeaders() })
+      .then((r) => (r.ok ? (r.json() as Promise<{ memories?: MemoryItem[] }>) : null))
+      .then((d) => alive && d && setMems(Array.isArray(d.memories) ? d.memories : []))
+      .catch(() => alive && setMems([]))
+    return () => { alive = false }
+  }, [isAccount])
+
+  // 乐观删除 — 先从列表移除,DELETE 静默发出(幂等,失败下次刷新会回来)。
+  const remove = (id: number) => {
+    setMems((m) => (m ? m.filter((x) => x.id !== id) : m))
+    fetch(`${config.workerUrl}/memories/${id}`, { method: 'DELETE', credentials: 'include', headers: authHeaders() }).catch(() => {})
+  }
+
+  return (
+    <section className="glass rounded-xl p-4">
+      <div className="label-nd mb-2 flex items-center gap-1.5"><Brain size={12} /> 在在记得你</div>
+      {!isAccount ? (
+        <>
+          <p className="text-sm text-fg-muted">注册后在在才能记住你 —— 目标、弱点、聊过的事,都会写进它的长期记忆。</p>
+          <Button variant="secondary" className="mt-3 w-full" onClick={openAccount}><LogIn size={15} /> 注册解锁记忆</Button>
+        </>
+      ) : mems === null ? (
+        <Skeleton className="h-12 rounded-lg" />
+      ) : mems.length === 0 ? (
+        <p className="text-sm text-fg-muted">还没有记忆 —— 去和在在多聊几句,它会记住重要的事。</p>
+      ) : (
+        <div className="space-y-0.5">
+          {mems.map((m) => {
+            const Icon = MEM_ICONS[m.kind] ?? Brain
+            return (
+              <div key={m.id} className="flex items-center gap-2.5 rounded-lg px-1 py-1">
+                <Icon size={14} className="shrink-0 text-fg-muted" />
+                <span className="min-w-0 flex-1 text-sm text-fg-secondary">{m.text}</span>
+                <span className="t-tab shrink-0 text-meta text-fg-dim">{rel(m.at)}</span>
+                <IconButton label="删除这条记忆" size="sm" onClick={() => remove(m.id)}><X size={13} /></IconButton>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </section>
+  )
+}
+
+// ---- morning call (§8.2) — Web Push 订阅开关,lib/push 由 F2 提供 ----
+const pushSupported = () =>
+  typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
+
+function PushRow() {
+  const [on, setOn] = useState<boolean | null>(null) // null = 状态未知(查询中)
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    let alive = true
+    isPushSubscribed().then((v: boolean) => alive && setOn(v)).catch(() => alive && setOn(false))
+    return () => { alive = false }
+  }, [])
+
+  const toggle = async () => {
+    if (busy || on === null) return
+    setBusy(true)
+    try {
+      if (on) {
+        await unsubscribePush()
+        setOn(false)
+      } else {
+        setOn(await subscribePush()) // 内部含权限申请;拒绝 → false
+      }
+    } catch {
+      isPushSubscribed().then(setOn).catch(() => setOn(false)) // 失败按真实状态回摆
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <section className="glass flex items-center gap-3 rounded-xl px-4 py-3.5">
+      <BellRing size={16} className="shrink-0 text-fg-secondary" />
+      <div className="min-w-0 flex-1">
+        <div className="text-body font-medium text-fg">在在的 morning call</div>
+        <p className="mt-0.5 text-meta text-fg-muted">每天早上推一句话,叫你回来开口</p>
+      </div>
+      <Button variant="secondary" size="sm" className="shrink-0" onClick={toggle} disabled={busy || on === null}>
+        {busy ? <Loader2 size={14} className="animate-spin" /> : on ? '关闭' : '开启'}
+      </Button>
+    </section>
+  )
+}
+
+// 我的 — 钱包 + 徽章墙 + 记忆墙 + 账号入口 + 数据/设置链接。AccountSheet 与
+// PlanSheet 由顶栏 AuthControls 全局挂载,这里只 openAccount()/openPlans() 唤起。
 export default function Me() {
   const { user, authEnabled, mode } = useAuth()
   const nav = useNavigate()
@@ -162,6 +286,8 @@ export default function Me() {
       {walletCap() && <WalletCard isAccount={isAccount} wallet={wallet} />}
 
       <BadgeWall earned={new Set(wallet?.badges ?? [])} />
+
+      {mode === 'account' && <MemoryWall isAccount={isAccount} />}
 
       {/* account card */}
       <section className="glass rounded-xl p-4">
@@ -194,7 +320,17 @@ export default function Me() {
             <Button onClick={openAccount}><LogIn size={15} /> 登录 / 注册</Button>
           </div>
         )}
+        {/* 三档方案对比入口 (§8.4) — PlanSheet 只在 account 模式挂载 */}
+        {mode === 'account' && (
+          <button onClick={openPlans} className="press mt-3 flex w-full items-center gap-1.5 border-t border-border-soft pt-3 text-left text-sm text-fg-secondary transition-colors hover:text-fg">
+            <Sparkles size={13} className="shrink-0" /> 方案对比 · 免费 / 会员 / 课程包
+            <ChevronRight size={14} className="ml-auto shrink-0 text-fg-dim" />
+          </button>
+        )}
       </section>
+
+      {/* morning call 开关 — 服务端有 push 能力 + 已登录 + 浏览器支持才露出 */}
+      {pushAvailable() && isAccount && pushSupported() && <PushRow />}
 
       {/* links */}
       <button onClick={() => nav('/progress')} className="press glass flex w-full items-center gap-3 rounded-xl px-4 py-3.5 text-left">

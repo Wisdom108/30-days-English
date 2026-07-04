@@ -11,6 +11,8 @@ import { BLOCKS } from '../../blocks'
 import { aiChat, AIError, type ChatMsg, type LessonCtx } from '../../lib/ai'
 import {
   briefShownToday,
+  cardEntry,
+  fetchNews,
   genScenario,
   loadChat,
   localMemoryText,
@@ -22,9 +24,15 @@ import {
   saveChat,
   zaizaiBrief,
   zaizaiChat,
+  type AwardCardPayload,
   type ChatEntry,
+  type DrillCardPayload,
+  type ListenCardPayload,
+  type NewsCardPayload,
+  type ReviewCardPayload,
   type ScenarioPack,
   type TaskCardPayload,
+  type VocabCardPayload,
   type ZaizaiStats,
 } from '../../lib/zaizai'
 import { openAccount } from '../ai'
@@ -33,9 +41,16 @@ import { useToast } from '../ui/toast'
 import ProgressCard from './ProgressCard'
 import ScenarioCard from './ScenarioCard'
 import CallSheet from './CallSheet'
+import Onboarding, { onboardingPending } from './Onboarding'
+import { AwardCard, DrillCard, ListenCard, NewsCard, ReviewCard, VocabCard } from './cards'
 import { cn } from '../../lib/utils'
 
 const PRESETS = ['机场', '点餐', '打车', '酒店', '问路', '购物']
+
+// in-app proactivity stamps (§8.2) — all LOCAL dates / epoch ms in localStorage
+const SEEN_KEY = 'zaizai:lastSeen' // last time the tab was visible (epoch ms)
+const WB_KEY = 'zaizai:welcomeback:date' // welcome-back shown (1/day)
+const RECAP_KEY = 'zaizai:recap:date' // evening recap shown (1/day)
 
 export default function ChatHome() {
   const { state } = useApp()
@@ -63,6 +78,8 @@ export default function ChatHome() {
   const [roleplay, setRoleplay] = useState<string | null>(null)
   const [callOpen, setCallOpen] = useState(false)
   const [callScenario, setCallScenario] = useState<string | undefined>(undefined)
+  // v3.1 安置流程 (§8.3/§8.5):active 时压住晨报派发,onDone 后正常派发首任务卡
+  const [onboarding, setOnboarding] = useState(onboardingPending)
 
   useEffect(() => saveChat(entries), [entries])
 
@@ -85,7 +102,7 @@ export default function ChatHome() {
   const liveRef = useRef({ stats, lessonCtx, prog, current })
   liveRef.current = { stats, lessonCtx, prog, current }
   useEffect(() => {
-    if (loading || bootRef.current === todayISO() || briefShownToday()) return
+    if (loading || onboarding || bootRef.current === todayISO() || briefShownToday()) return
     const dispatch = () => {
       if (bootRef.current === todayISO() || briefShownToday()) return
       bootRef.current = todayISO()
@@ -97,11 +114,15 @@ export default function ChatHome() {
         payload: { day: current, key: b.key, title_zh: b.title_zh, minutes: b.minutes },
         at: Date.now(),
       }))
+      // Due reviews ride the same synchronous batch as the task cards.
+      const batch: ChatEntry[] = [...tasks]
+      if (stats.dueCards > 0)
+        batch.push({ id: newId(), role: 'assistant', kind: 'review-card', payload: { due: stats.dueCards }, at: Date.now() })
       // Task cards land + persist SYNCHRONOUSLY (write-through) — an unmount
       // during the brief fetch can no longer lose them. Mark the day here, where
       // entries are actually persisted.
-      saveChat([...loadChat(), ...tasks])
-      setEntries((es) => [...es, ...tasks])
+      saveChat([...loadChat(), ...batch])
+      setEntries((es) => [...es, ...batch])
       markBriefShown()
       const fallback =
         `早!今天是 Day ${current}/30${stats.streak > 0 ? `,已经连着学了 ${stats.streak} 天` : ''}。` +
@@ -111,7 +132,7 @@ export default function ChatHome() {
       const finish = (text: string, kind: 'brief' | 'text') => {
         const entry: ChatEntry = { id: newId(), role: 'assistant', kind, payload: text, at: Date.now() }
         const insert = (es: ChatEntry[]) => {
-          const i = tasks.length ? es.findIndex((e) => e.id === tasks[0].id) : -1
+          const i = batch.length ? es.findIndex((e) => e.id === batch[0].id) : -1
           return i < 0 ? [...es, entry] : [...es.slice(0, i), entry, ...es.slice(i)]
         }
         saveChat(insert(loadChat()))
@@ -123,6 +144,13 @@ export default function ChatHome() {
           .then(({ reply }) => finish(reply, 'brief'))
           .catch(() => finish(fallback, 'text'))
           .finally(() => setBusy(false))
+        // Daily news trails the task cards — write-through append; silent-fail skip.
+        fetchNews().then((n) => {
+          if (!n) return
+          const entry: ChatEntry = { id: newId(), role: 'assistant', kind: 'news-card', payload: n, at: Date.now() }
+          saveChat([...loadChat(), entry])
+          setEntries((es) => [...es, entry])
+        })
       } else {
         finish(fallback, 'text')
       }
@@ -146,7 +174,63 @@ export default function ChatHome() {
     }
     dispatch()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, wakeTick, user?.account])
+  }, [loading, wakeTick, user?.account, onboarding])
+
+  // ---- in-app proactivity (§8.2): welcome-back after >4h away SAME local day
+  // (a cross-midnight return is greeted by the morning brief instead) + evening
+  // recap once all blocks are done and it's 20:00+. Both throttled 1/day.
+  // Runs on mount + tab wake (wakeTick) + block completions; the tab-hide
+  // listener keeps lastSeen fresh so the away gap is measured from departure.
+  useEffect(() => {
+    if (loading || onboarding) return
+    const today = todayISO()
+    const { stats } = liveRef.current
+    try {
+      const now = Date.now()
+      const last = Number(localStorage.getItem(SEEN_KEY) || 0)
+      localStorage.setItem(SEEN_KEY, String(now))
+      if (
+        last &&
+        now - last > 4 * 3600_000 &&
+        new Date(last).toDateString() === new Date(now).toDateString() &&
+        localStorage.getItem(WB_KEY) !== today
+      ) {
+        localStorage.setItem(WB_KEY, today)
+        push({
+          role: 'assistant',
+          kind: 'text',
+          payload:
+            stats.blocksDoneToday >= BLOCKS.length
+              ? '回来啦!今天的练习都清完了,来聊两句或练个场景?'
+              : `回来啦!今天还差 ${BLOCKS.length - stats.blocksDoneToday} 块,先挑一块热热身?`,
+        })
+      }
+      if (stats.blocksDoneToday >= BLOCKS.length && new Date().getHours() >= 20 && localStorage.getItem(RECAP_KEY) !== today) {
+        localStorage.setItem(RECAP_KEY, today)
+        push({
+          role: 'assistant',
+          kind: 'text',
+          payload:
+            `今天 ${BLOCKS.length}/${BLOCKS.length} 全部完成,漂亮。` +
+            (stats.streak > 1 ? `连续 ${stats.streak} 天了。` : '') +
+            (stats.dueCards > 0 ? `还有 ${stats.dueCards} 张复习到期,睡前清一下?` : '早点休息,明天见。'),
+        })
+      }
+    } catch {
+      /* storage broken — skip */
+    }
+    const onHide = () => {
+      if (document.visibilityState !== 'hidden') return
+      try {
+        localStorage.setItem(SEEN_KEY, String(Date.now()))
+      } catch {
+        /* ignore */
+      }
+    }
+    document.addEventListener('visibilitychange', onHide)
+    return () => document.removeEventListener('visibilitychange', onHide)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, onboarding, wakeTick, stats.blocksDoneToday])
 
   // Old dispatchers (command palette etc.) keep working: open the call sheet.
   useEffect(() => {
@@ -200,13 +284,20 @@ export default function ChatHome() {
     setBusy(true)
     try {
       const history: ChatMsg[] = [...entries, mine]
-        .filter((e) => typeof e.payload === 'string' && e.kind !== 'task-card' && e.kind !== 'scenario-pack')
+        .filter((e) => typeof e.payload === 'string' && e.kind !== 'task-card' && e.kind !== 'scenario-pack' && e.kind !== 'memory-chip')
         .slice(-8)
         .map((e) => ({ role: e.role, content: e.payload as string }))
-      const { reply } = roleplay
-        ? await aiChat(history, lessonCtx, roleplay)
-        : await zaizaiChat(history, lessonCtx, stats, guestMemory())
-      push({ role: 'assistant', kind: 'text', payload: reply })
+      if (roleplay) {
+        const { reply } = await aiChat(history, lessonCtx, roleplay)
+        push({ role: 'assistant', kind: 'text', payload: reply })
+      } else {
+        const { reply, card, remembered } = await zaizaiChat(history, lessonCtx, stats, guestMemory())
+        push({ role: 'assistant', kind: 'text', payload: reply })
+        const ce = cardEntry(card) // 在在 may attach one contextual card after the bubble
+        if (ce) push({ role: 'assistant', ...ce })
+        if (remembered?.length)
+          push({ role: 'assistant', kind: 'memory-chip', payload: remembered.join('、') })
+      }
     } catch (e) {
       errBubble(e)
     } finally {
@@ -240,11 +331,15 @@ export default function ChatHome() {
     if (user?.account) {
       earnPending.current = true
       postEarn('scenario_complete', nextScenarioRef())
-        .then((r) =>
-          r && r.earned > 0
-            ? toast({ title: `场景完成 · 赚到 ${Math.floor(r.earned / 60)} 分钟通话`, tone: 'success' })
-            : toast({ title: '场景完成', tone: 'success' }),
-        )
+        .then((r) => {
+          if (r && r.earned > 0) {
+            toast({ title: `场景完成 · 赚到 ${Math.floor(r.earned / 60)} 分钟通话`, tone: 'success' })
+            push({ role: 'assistant', kind: 'award-card', payload: { seconds: r.earned } })
+          } else {
+            toast({ title: '场景完成', tone: 'success' })
+          }
+          r?.newBadges?.forEach((b) => push({ role: 'assistant', kind: 'award-card', payload: { badge: b } }))
+        })
         .finally(() => {
           earnPending.current = false
         })
@@ -284,6 +379,20 @@ export default function ChatHome() {
         </div>
       )
     }
+    if (e.kind === 'vocab-card') return <div key={e.id} className="flex"><VocabCard data={e.payload as VocabCardPayload} /></div>
+    if (e.kind === 'drill-card') return <div key={e.id} className="flex"><DrillCard data={e.payload as DrillCardPayload} lesson={lessonCtx} /></div>
+    if (e.kind === 'listen-card') return <div key={e.id} className="flex"><ListenCard data={e.payload as ListenCardPayload} /></div>
+    if (e.kind === 'review-card') return <div key={e.id} className="flex"><ReviewCard data={e.payload as ReviewCardPayload} /></div>
+    if (e.kind === 'award-card') return <div key={e.id} className="flex"><AwardCard data={e.payload as AwardCardPayload} /></div>
+    if (e.kind === 'news-card') return <div key={e.id} className="flex"><NewsCard data={e.payload as NewsCardPayload} /></div>
+    if (e.kind === 'memory-chip')
+      return (
+        <div key={e.id} className="flex justify-center">
+          <span className="animate-in-up max-w-[85%] truncate rounded-full bg-surface-2 px-3 py-1 text-meta text-fg-muted">
+            在在记住了:{String(e.payload)}
+          </span>
+        </div>
+      )
     const me = e.role === 'user'
     return (
       <div key={e.id} className={cn('flex', me && 'justify-end')}>
@@ -306,6 +415,14 @@ export default function ChatHome() {
           bar (~160px / ~116px on md) so autoscrolled messages never park behind them */}
       <div className="flex-1 space-y-2.5 pt-4 pb-40 md:pb-28">
         {entries.map(renderEntry)}
+        {onboarding && (
+          <Onboarding
+            stats={stats}
+            lesson={lessonCtx}
+            append={(role, text) => push({ role, kind: 'text', payload: text })}
+            onDone={() => setOnboarding(false)}
+          />
+        )}
         {busy && (
           <div className="flex">
             <div className="bubble-ai flex items-center gap-1 px-3.5 py-3">

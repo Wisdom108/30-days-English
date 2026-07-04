@@ -11,6 +11,7 @@ import { useApp } from '../state'
 import { defaultState } from '../lib/storage'
 import { aiChat, aiTutor, AIError, type ChatMsg, type LessonCtx } from '../lib/ai'
 import { Button, Callout, IconButton, Input, Skeleton, Badge, Sheet, SCRIM } from './ui'
+import PlanSheet from './zaizai/PlanSheet'
 import { cn } from '../lib/utils'
 
 const prefersReduced = () =>
@@ -319,6 +320,8 @@ export function AuthControls() {
           <Button variant="secondary" onClick={() => setOpen(true)}><LogIn size={15} /> 登录 / 注册</Button>
         )}
         <AccountSheet open={open} onOpenChange={setOpen} />
+        {/* 方案对比 (§8.4) — 全局单例,openPlans() 从任何页面唤起(account 模式才有会员概念) */}
+        <PlanSheet />
       </>
     )
   }

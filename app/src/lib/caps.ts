@@ -14,6 +14,7 @@ export interface ServerCaps {
   voiceAgent: boolean // Cloudflare Agents realtime voice tutor (Workers AI, free, no key)
   payment: boolean // Stripe self-serve checkout (needs server-side Stripe key)
   wallet: boolean // earned-seconds economy: D1 wallet + badges (needs DB + session secret)
+  push: boolean // Web Push morning tickles (needs VAPID keys + DB server-side)
 }
 
 let caps: ServerCaps = {
@@ -25,6 +26,7 @@ let caps: ServerCaps = {
   voiceAgent: features.worker,
   payment: false,
   wallet: false,
+  push: false,
 }
 
 export function serverCaps(): ServerCaps {
@@ -39,6 +41,11 @@ export function walletAvailable(): boolean {
 /** True when the Worker has Stripe self-serve checkout configured. */
 export function paymentAvailable(): boolean {
   return caps.payment
+}
+
+/** True when the Worker can send Web Push morning tickles (VAPID keys + D1). */
+export function pushAvailable(): boolean {
+  return caps.push
 }
 
 /** True when the Worker has the OpenAI Realtime voice path configured. */
@@ -72,6 +79,7 @@ export async function loadCaps(): Promise<ServerCaps> {
         voiceAgent: d.features?.voiceAgent ?? features.worker,
         payment: !!d.features?.payment,
         wallet: !!d.features?.wallet,
+        push: !!d.features?.push,
       }
     }
   } catch {

@@ -17,10 +17,22 @@ import {
   statsFrom,
   loadMemories,
   extractMemories,
+  extractCard,
+  handleMemories,
+  handleMemoryDelete,
   scenarioPackSystem,
   isScenarioPack,
   SCENARIO_SCHEMA,
 } from './zaizai'
+import { handleNews } from './news'
+import {
+  pushEnabled,
+  handleVapid,
+  handlePushSubscribe,
+  handlePushUnsubscribe,
+  handlePushPreview,
+  sendMorningTickles,
+} from './push'
 // Re-export the voice-agent Durable Object so Wrangler registers the class.
 export { VoiceTutor } from './voiceAgent'
 import {
@@ -75,6 +87,9 @@ export interface Env {
   STRIPE_PRICE_MONTH?: string // Stripe Price ID for the monthly plan
   STRIPE_PRICE_QUARTER?: string // Stripe Price ID for the quarterly plan
   STRIPE_PRICE_YEAR?: string // Stripe Price ID for the yearly plan
+  // Web Push (payload-free tickles) — OPTIONAL. Both keys + DB → /health push:true.
+  VAPID_PUBLIC_KEY?: string // wrangler.toml [vars]: base64url raw P-256 point (applicationServerKey)
+  VAPID_PRIVATE_KEY?: string // secret: wrangler secret put VAPID_PRIVATE_KEY (PKCS8, base64)
 }
 
 export interface Msg {
@@ -93,7 +108,7 @@ function cors(env: Env, req?: Request): Record<string, string> {
   const allowOrigin = allowed === '*' ? origin || '*' : allowed
   const h: Record<string, string> = {
     'Access-Control-Allow-Origin': allowOrigin,
-    'Access-Control-Allow-Methods': 'GET, POST, PUT, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'content-type, x-app-passcode',
     'Access-Control-Max-Age': '86400',
     Vary: 'Origin',
@@ -220,6 +235,10 @@ async function handleAI(path: string, req: Request, env: Env, ctx: ExecutionCont
     return json({ error: ident.member ? '今日 AI 额度已用完，明天再来～' : FREE_QUOTA_MSG }, env, 429)
   }
 
+  // GET /ai/news lives here to inherit the identify + q-quota gate; its daily
+  // KV cache makes it ~free (only a fresh generation bumps the quota).
+  if (path === '/ai/news') return handleNews(req, env, uid)
+
   const bodyIn = (await req.json().catch(() => ({}))) as Record<string, unknown>
   const lesson = lessonFrom(bodyIn.lesson)
 
@@ -292,16 +311,29 @@ async function handleAI(path: string, req: Request, env: Env, ctx: ExecutionCont
       // Account users get D1 memories; guests bring their own local notes (capped).
       const accountId = env.DB && uid.startsWith('u:') ? Number(uid.slice(2)) : null
       const memories = accountId !== null ? await loadMemories(env, accountId) : cap(bodyIn.localMemory, 1200) || ''
-      const reply = await callAIText(env, {
+      const raw = await callAIText(env, {
         system: zaizaiSystem(memories, lesson, stats, mode),
         messages,
         max_tokens: mode === 'brief' ? 400 : 700,
       })
       await bump(env, 'q', uid)
+      // Chat replies may end with a fenced card directive — parse + strip it.
+      const { reply, card } = mode === 'chat' ? extractCard(raw) : { reply: raw, card: undefined }
+      const out: Record<string, unknown> = { reply }
+      if (card) out.card = card
       if (accountId !== null && mode === 'chat') {
-        ctx.waitUntil(extractMemories(env, accountId, [...messages, { role: 'assistant', content: reply }]))
+        const convo: Msg[] = [...messages, { role: 'assistant', content: reply }]
+        if (messages.length <= 6) {
+          // Short chats: extract inline (one cheap llama pass) so the client can
+          // show 「在在记住了:…」. Longer ones keep the fire-and-forget path —
+          // no added latency, `remembered` simply omitted.
+          const remembered = await extractMemories(env, accountId, convo)
+          if (remembered.length) out.remembered = remembered
+        } else {
+          ctx.waitUntil(extractMemories(env, accountId, convo))
+        }
       }
-      return json({ reply }, env)
+      return json(out, env)
     }
     if (path === '/ai/scenario') {
       const place = (cap(bodyIn.place, 80) || '').trim()
@@ -520,6 +552,7 @@ export default {
               membership: !!env.DB, // D1 accounts + activation codes + progress sync
               payment: payEnabled(env), // Stripe self-serve checkout
               wallet: !!(env.DB && env.SESSION_SECRET), // earned-seconds economy + badges
+              push: pushEnabled(env), // Web Push morning tickles (VAPID keys + D1)
             },
           },
           env,
@@ -544,10 +577,25 @@ export default {
       if (pathname === '/pay/webhook' && req.method === 'POST') return handleStripeWebhook(req, env)
       if (pathname === '/wallet' && req.method === 'GET') return handleWallet(req, env)
       if (pathname === '/earn' && req.method === 'POST') return handleEarn(req, env)
+      // 在在 memories — visible + deletable (D1 session, own rows only).
+      if (pathname === '/memories' && req.method === 'GET') return handleMemories(req, env)
+      const memDel = req.method === 'DELETE' ? pathname.match(/^\/memories\/(\d+)$/) : null
+      if (memDel) return handleMemoryDelete(req, env, Number(memDel[1]))
+      // Web Push (payload-free tickles; the SW fetches /zaizai/push-preview).
+      if (pathname === '/push/vapid' && req.method === 'GET') return handleVapid(req, env)
+      if (pathname === '/push/subscribe' && req.method === 'POST') return handlePushSubscribe(req, env)
+      if (pathname === '/push/unsubscribe' && req.method === 'POST') return handlePushUnsubscribe(req, env)
+      if (pathname === '/zaizai/push-preview' && req.method === 'GET') return handlePushPreview(req, env)
+      if (pathname === '/ai/news' && req.method === 'GET') return handleAI(pathname, req, env, ctx)
       if (pathname.startsWith('/ai/') && req.method === 'POST') return handleAI(pathname, req, env, ctx)
       return json({ error: 'not found' }, env, 404)
     }
 
     return withCors(await route(), env, req)
+  },
+
+  // Cron `0 23 * * *` UTC = 北京 07:00 — 在在 morning tickle to every subscriber.
+  async scheduled(_ctrl: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    ctx.waitUntil(sendMorningTickles(env))
   },
 }

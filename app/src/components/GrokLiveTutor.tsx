@@ -5,7 +5,8 @@ import type { LessonCtx } from '../lib/ai'
 import { getWallet, walletCap } from '../lib/zaizai'
 import { useAuth } from '../auth'
 import { AiGate } from './ai'
-import { Callout } from './ui'
+import { openPlans } from './zaizai/PlanSheet'
+import { Button, Callout } from './ui'
 import { useToast } from './ui/toast'
 import { cn } from '../lib/utils'
 
@@ -183,7 +184,19 @@ export default function GrokLiveTutor({ lesson, scenario }: { lesson: LessonCtx;
           </div>
         )}
 
-        {error && <Callout tone="red" role="alert" className="mt-4 w-full text-left">{error}</Callout>}
+        {error && (
+          <Callout tone="red" role="alert" className="mt-4 w-full text-left">
+            {error.includes('额度不足') ? (
+              // 钱包/免费额度都花完的 429 —— 指路方案对比,而不是甩一行报错 (§8.4)
+              <div className="flex items-center justify-between gap-3">
+                <span>通话额度不足 —— 学习可赚,会员畅聊。</span>
+                <Button size="sm" variant="secondary" className="shrink-0" onClick={openPlans}>查看方案</Button>
+              </div>
+            ) : (
+              error
+            )}
+          </Callout>
+        )}
         <p className="mt-4 text-center text-meta text-fg-dim">Grok 原生实时语音 · 连续对话 · 可打断</p>
       </div>
     </AiGate>

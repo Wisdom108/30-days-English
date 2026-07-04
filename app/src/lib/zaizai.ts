@@ -34,6 +34,61 @@ export interface WalletInfo {
 
 export type EarnEvent = 'block_complete' | 'day_complete' | 'scenario_complete' | 'streak_milestone'
 
+// ---- rich-card payloads (§8.1) ----
+export interface VocabCardPayload {
+  word: string
+  ipa: string
+  zh: string
+  example_en: string
+}
+export interface DrillCardPayload {
+  text: string
+  tip?: string
+}
+export interface ListenCardPayload {
+  text: string
+  label?: string
+}
+export interface ReviewCardPayload {
+  due: number
+}
+export interface AwardCardPayload {
+  seconds?: number
+  badge?: string
+}
+export interface NewsCardPayload {
+  title: string
+  level: string
+  summary_en: string
+  glossary: { word: string; zh: string }[]
+  source: string
+}
+
+/** /ai/zaizai chat response — 在在 may attach ONE contextual card + the memory
+ *  facts it just extracted (both optional; older workers return reply only). */
+export interface ZaizaiChatResponse {
+  reply: string
+  card?: { kind?: string; data?: unknown }
+  remembered?: string[]
+}
+
+/** Narrow an untrusted worker `card` into a renderable entry (llama output —
+ *  validate shape, trim strings) or null if it's garbage. */
+export function cardEntry(
+  card: ZaizaiChatResponse['card'],
+): { kind: 'vocab-card' | 'drill-card' | 'listen-card'; payload: VocabCardPayload | DrillCardPayload | ListenCardPayload } | null {
+  const d = (card?.data || null) as Record<string, unknown> | null
+  if (!d) return null
+  const str = (k: string) => (typeof d[k] === 'string' ? (d[k] as string).trim() : '')
+  if (card?.kind === 'vocab-card' && str('word'))
+    return { kind: 'vocab-card', payload: { word: str('word'), ipa: str('ipa'), zh: str('zh'), example_en: str('example_en') } }
+  if (card?.kind === 'drill-card' && str('text'))
+    return { kind: 'drill-card', payload: { text: str('text'), tip: str('tip') || undefined } }
+  if (card?.kind === 'listen-card' && str('text'))
+    return { kind: 'listen-card', payload: { text: str('text'), label: str('label') || undefined } }
+  return null
+}
+
 // ---- AI endpoints (same post pattern as ai.ts) ----
 async function post<T>(path: string, body: unknown): Promise<T> {
   if (!features.ai) throw new AIError('AI 未配置')
@@ -54,8 +109,32 @@ export function zaizaiChat(
   lesson: LessonCtx,
   stats?: ZaizaiStats,
   localMemory?: string,
-): Promise<{ reply: string }> {
+): Promise<ZaizaiChatResponse> {
   return post('/ai/zaizai', { messages, lesson, mode: 'chat', stats, localMemory })
+}
+
+/** GET /ai/news — VOA-simplified daily news (worker caches 6h). Silent-fail →
+ *  null; callers just skip the card. */
+export async function fetchNews(): Promise<NewsCardPayload | null> {
+  if (!features.ai) return null
+  try {
+    const res = await fetch(`${config.workerUrl}/ai/news`, { credentials: 'include', headers: authHeaders() })
+    if (!res.ok) return null
+    const d = (await res.json().catch(() => null)) as (Partial<NewsCardPayload> & { news?: Partial<NewsCardPayload> }) | null
+    const n = d?.news ?? d // tolerate both `{news:{…}}` and bare payload
+    if (!n || typeof n.title !== 'string' || !n.title.trim()) return null
+    return {
+      title: n.title.trim(),
+      level: typeof n.level === 'string' ? n.level : '',
+      summary_en: typeof n.summary_en === 'string' ? n.summary_en : '',
+      glossary: Array.isArray(n.glossary)
+        ? n.glossary.filter((g): g is { word: string; zh: string } => !!g && typeof g.word === 'string' && typeof g.zh === 'string').slice(0, 8)
+        : [],
+      source: typeof n.source === 'string' ? n.source : '',
+    }
+  } catch {
+    return null
+  }
 }
 
 export function zaizaiBrief(stats: ZaizaiStats, lesson: LessonCtx, localMemory?: string): Promise<{ reply: string }> {
@@ -127,7 +206,20 @@ export async function postEarn(
 }
 
 // ---- local chat store ----
-export type ChatKind = 'text' | 'task-card' | 'scenario-pack' | 'brief' | 'call-summary'
+// `memory-chip` = the subtle system line "在在记住了:…" after memory extraction.
+export type ChatKind =
+  | 'text'
+  | 'task-card'
+  | 'scenario-pack'
+  | 'brief'
+  | 'call-summary'
+  | 'vocab-card'
+  | 'drill-card'
+  | 'listen-card'
+  | 'review-card'
+  | 'award-card'
+  | 'news-card'
+  | 'memory-chip'
 export interface TaskCardPayload {
   day: number
   key: BlockKey
@@ -138,7 +230,16 @@ export interface ChatEntry {
   id: string
   role: 'user' | 'assistant'
   kind: ChatKind
-  payload: string | TaskCardPayload | ScenarioPack
+  payload:
+    | string
+    | TaskCardPayload
+    | ScenarioPack
+    | VocabCardPayload
+    | DrillCardPayload
+    | ListenCardPayload
+    | ReviewCardPayload
+    | AwardCardPayload
+    | NewsCardPayload
   at: number
 }
 

@@ -29,6 +29,11 @@ not_found_handling = "single-page-application"
 [ai]
 binding = "AI"
 
+# 在在 morning call — daily payload-free Web Push tickle to every subscriber.
+# 23:00 UTC = 北京 07:00. Handled by the `scheduled` export (src/push.ts).
+[triggers]
+crons = ["0 23 * * *"]
+
 [vars]
 # AI model: Cloudflare Workers AI (free daily allocation, open-source models, no
 # API key). Swap to a lighter model to save "neurons" quota, e.g.
@@ -69,6 +74,11 @@ FREE_REALTIME_QUOTA = "2"
 # Voices: eve / ara / rex / sal / leo.
 XAI_REALTIME_MODEL = "grok-voice-latest"
 XAI_REALTIME_VOICE = "eve"
+# Web Push (在在 morning call) — VAPID application-server PUBLIC key: base64url of
+# the raw P-256 point (the browser's applicationServerKey). Its pair is a secret:
+#   wrangler secret put VAPID_PRIVATE_KEY   (PKCS8 DER, standard base64)
+# Both set + D1 bound → /health features.push:true. Rotate the two TOGETHER.
+VAPID_PUBLIC_KEY = "BD6JhhPn1K2t4yC3wWJHhyyAmvp8pEVhuwAhiPT2eWUCnfS6Ekz5XO15b5GEn0_4NZyHI6geTXnxX2w11N_V1wM"
 
 # Per-user daily quota counter. Create with:
 #   wrangler kv namespace create QUOTA

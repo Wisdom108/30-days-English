@@ -11,7 +11,7 @@ import { VitePWA } from 'vite-plugin-pwa'
 const WORKER = 'https://thirty-days-en.thinkuniverse.workers.dev'
 type Fwd = { target: string; changeOrigin: boolean; secure: boolean; ws?: boolean }
 const proxy: Record<string, Fwd> = Object.fromEntries(
-  ['/health', '/me', '/login', '/logout', '/auth', '/progress', '/ai', '/speech', '/realtime', '/grok', '/wallet', '/earn'].map((p) => [
+  ['/health', '/me', '/login', '/logout', '/auth', '/progress', '/ai', '/speech', '/realtime', '/grok', '/wallet', '/earn', '/push', '/memories', '/zaizai'].map((p) => [
     p,
     { target: WORKER, changeOrigin: true, secure: true } as Fwd,
   ]),
@@ -27,6 +27,13 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
+      // v3.1: custom SW (src/sw.ts) via injectManifest — Web Push needs push/
+      // notificationclick handlers, which generateSW can't express. The instant
+      // -update semantics (skipWaiting/clientsClaim/cleanupOutdatedCaches) and
+      // the dictionary runtime cache moved verbatim into sw.ts.
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
       registerType: 'autoUpdate',
       includeAssets: ['apple-touch-icon.png', 'favicon.svg', 'favicon-32.png'],
       manifest: {
@@ -46,28 +53,8 @@ export default defineConfig({
           { src: 'maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
-      workbox: {
+      injectManifest: {
         globPatterns: ['**/*.{js,css,html,png,svg,woff2}'],
-        // Apply new versions immediately: without these a deployed fix only
-        // activates after the user closes EVERY tab (the new SW sits "waiting"),
-        // so shipped bug fixes look like they never landed. skipWaiting +
-        // clientsClaim make the new SW take over on the next navigation.
-        skipWaiting: true,
-        clientsClaim: true,
-        cleanupOutdatedCaches: true,
-        // Cache Free Dictionary API lookups so click-to-define keeps working offline
-        // once a word has been looked up.
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/api\.dictionaryapi\.dev\/.*/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'dictionary-api',
-              expiration: { maxEntries: 1000, maxAgeSeconds: 60 * 60 * 24 * 90 },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
-        ],
       },
     }),
   ],
