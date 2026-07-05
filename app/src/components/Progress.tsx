@@ -3,14 +3,17 @@ import { Download, Upload, CalendarClock, AlertTriangle, Check, Zap, Sparkles } 
 import { BlockIcon } from './blockicons'
 import * as AlertDialogPrimitive from '@radix-ui/react-alert-dialog'
 import { useApp } from '../state'
+import { useAuth } from '../auth'
 import { CURRICULUM, TOTAL_DAYS } from '../data/curriculum'
-import { exportState, parseImport } from '../lib/storage'
+import { defaultState, exportState, parseImport } from '../lib/storage'
+import { pushProgress } from '../lib/account'
 import type { AppState } from '../types'
 import { BLOCKS } from '../blocks'
 import { todayISO } from '../lib/srs'
-import { buildIcs, downloadIcs } from '../lib/calendar'
+import { buildIcs, downloadFile, downloadIcs } from '../lib/calendar'
 import { getVoiceMode, setVoiceMode, hdVoiceAvailable, type VoiceMode } from '../lib/speech'
 import { Button, Cells, SectionLabel, ConfirmDialog, Select, Collapse } from './ui'
+import { useToast } from './ui/toast'
 import { cn } from '../lib/utils'
 
 const REMINDER_HOURS = [6, 7, 8, 9, 12, 18, 20, 21]
@@ -55,21 +58,22 @@ function VoiceSetting() {
 // 数据与设置页：只留 Dashboard 不画的那张图（每日模块打卡），其余是工具折叠行。
 export default function Progress() {
   const { state, reset, importAll } = useApp()
+  const { user, mode } = useAuth()
+  const { toast } = useToast()
   const [hour, setHour] = useState(7)
   const [pendingImport, setPendingImport] = useState<AppState | null>(null)
   const [importError, setImportError] = useState<string | null>(null)
   const importRef = useRef<HTMLInputElement>(null)
 
-  const doExport = () => {
+  const doExport = async () => {
     const blob = new Blob([exportState(state)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `30days-english-backup-${todayISO()}.json`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
+    const ok = await downloadFile(blob, `30days-english-backup-${todayISO()}.json`)
+    if (!ok) toast({ title: '导出失败，请重试', tone: 'error' })
+  }
+
+  const doExportIcs = async () => {
+    const ok = await downloadIcs(buildIcs(CURRICULUM, state.startDate || todayISO(), hour))
+    if (!ok) toast({ title: '导出失败，请重试', tone: 'error' })
   }
 
   const doImport = (file: File) => {
@@ -80,7 +84,27 @@ export default function Progress() {
       setImportError(null)
       setPendingImport(next)
     }
+    const fail = () => toast({ title: '读取文件失败，请重试', tone: 'error' })
+    reader.onerror = fail
+    reader.onabort = fail
     reader.readAsText(file)
+  }
+
+  // Cloud-first reset. Constraint: the empty state MUST land in the cloud (with a
+  // fresh updatedAt) before the local clear, or CloudSync's debounced pull-merge
+  // resurrects the wiped progress from the cloud copy ~3s later. Known limit: a
+  // stale copy on ANOTHER device can still union old days back in — mergeStates
+  // has no delete semantics.
+  const doReset = async () => {
+    if (mode === 'account' && user?.account) {
+      try {
+        await pushProgress({ ...defaultState(), updatedAt: Date.now() })
+      } catch {
+        toast({ title: '清空失败：无法同步到云端，进度保持不变', tone: 'error' })
+        return
+      }
+    }
+    reset()
   }
 
   const matured = Object.values(state.cards).filter((c) => c.repetitions >= 2).length
@@ -135,7 +159,7 @@ export default function Progress() {
                 }))}
                 className="w-24"
               />
-              <Button onClick={() => downloadIcs(buildIcs(CURRICULUM, state.startDate || todayISO(), hour))}>
+              <Button onClick={doExportIcs}>
                 <CalendarClock size={15} /> 导出日历提醒
               </Button>
             </div>
@@ -177,7 +201,7 @@ export default function Progress() {
               description="这将删除所有打卡记录、词卡进度和写作内容，且无法撤销。建议先导出备份。"
               confirmLabel="确认清空"
               destructive
-              onConfirm={reset}
+              onConfirm={doReset}
               trigger={
                 <Button variant="ghost" size="sm" className="text-danger hover:bg-danger-soft hover:text-danger">
                   <AlertTriangle size={13} /> 清空全部进度

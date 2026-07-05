@@ -389,6 +389,13 @@ async function handleSpeechToken(req: Request, env: Env): Promise<Response> {
 const DEFAULT_TTS = '@cf/deepgram/aura-2-en'
 const DEFAULT_STT = '@cf/openai/whisper-large-v3-turbo'
 
+// Deepgram Aura-2 voice ids we expose for per-role dialogue casting (speaker A =
+// a warm female, B = a male, etc.). An arbitrary `voice` from the client is
+// NEVER forwarded raw to AI.run — only a value in this set is passed through.
+const AURA_VOICES = new Set([
+  'asteria', 'arcas', 'luna', 'thalia', 'apollo', 'orion', 'athena', 'zeus', 'hera', 'aurora',
+])
+
 function b64(buf: ArrayBuffer): string {
   const bytes = new Uint8Array(buf)
   let s = ''
@@ -407,12 +414,16 @@ async function handleTts(req: Request, env: Env): Promise<Response> {
   if (!(await underQuota(env, 'sp', uid, spCap))) {
     return json({ error: ident.member ? '今日语音额度已用完' : FREE_QUOTA_MSG }, env, 429)
   }
-  const body = (await req.json().catch(() => ({}))) as { text?: string }
+  const body = (await req.json().catch(() => ({}))) as { text?: string; voice?: string }
   const text = String(body.text || '').slice(0, 800)
   if (!text.trim()) return json({ error: '没有可朗读的内容' }, env, 400)
   try {
     const model = (env.CF_TTS_MODEL || DEFAULT_TTS) as keyof AiModels
-    const r = (await env.AI.run(model, { text } as never)) as unknown
+    // Per-role voice: only honored on the Aura family, and only for a whitelisted
+    // speaker id — so a dialogue's A/B lines cast two distinct neural voices.
+    const speaker = /aura/.test(String(model)) && AURA_VOICES.has(String(body.voice || '')) ? String(body.voice) : ''
+    const input = speaker ? { text, speaker } : { text }
+    const r = (await env.AI.run(model, input as never)) as unknown
     await bump(env, 'sp', uid)
     // Aura returns an audio ReadableStream; MeloTTS returns { audio: base64 }.
     let audio: BodyInit | null = null

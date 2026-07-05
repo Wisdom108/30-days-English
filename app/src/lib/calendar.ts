@@ -72,14 +72,38 @@ export function buildIcs(
   return lines.join('\r\n')
 }
 
-export function downloadIcs(content: string, filename = '30-days-english.ics') {
-  const blob = new Blob([content], { type: 'text/calendar;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  URL.revokeObjectURL(url)
+/** Shared blob download. Constraints: iOS Safari (esp. standalone PWA) does not
+ *  support <a download> reliably — Web Share with a File is the only dependable
+ *  path there, so it goes first (probe with canShare). On the anchor fallback the
+ *  object URL must outlive the click (a sync revoke aborts the download), hence
+ *  the delayed revoke. Returns false only when both paths threw — caller must
+ *  surface the failure. A user-cancelled share (AbortError) is success (silent). */
+export async function downloadFile(blob: Blob, filename: string): Promise<boolean> {
+  const file = new File([blob], filename, { type: blob.type })
+  if (navigator.canShare?.({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file] })
+      return true
+    } catch (e) {
+      if ((e as Error).name === 'AbortError') return true
+      // share rejected for another reason → fall through to <a download>
+    }
+  }
+  try {
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    setTimeout(() => URL.revokeObjectURL(url), 3000)
+    return true
+  } catch {
+    return false
+  }
+}
+
+export function downloadIcs(content: string, filename = '30-days-english.ics'): Promise<boolean> {
+  return downloadFile(new Blob([content], { type: 'text/calendar;charset=utf-8' }), filename)
 }

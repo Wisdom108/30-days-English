@@ -280,14 +280,23 @@ export default function ChatHome() {
   const errBubble = (e: unknown) =>
     push({ role: 'assistant', kind: 'text', payload: `(${e instanceof AIError ? e.message : '出错了,请重试'})` })
 
+  // Not signed in → open the account sheet. The sheet may not be mounted when
+  // the /me probe failed (auth fell back), so also toast — a tap is never silent.
+  const requireUser = (): boolean => {
+    if (user) return true
+    toast({ title: '请先登录', description: '若网络未连接,请稍后再试' })
+    openAccount()
+    return false
+  }
+
   const runScenario = async (place: string) => {
     if (busy || !features.ai) return
-    if (!user) return openAccount()
+    if (!requireUser()) return
     push({ role: 'user', kind: 'text', payload: `场景演练:${place}` })
     setBusy(true)
     try {
       const { pack } = await genScenario(place, lessonCtx)
-      if (!user.account) pushLocalMemory(`学员想练的场景:${place}`)
+      if (!user?.account) pushLocalMemory(`学员想练的场景:${place}`)
       push({ role: 'assistant', kind: 'scenario-pack', payload: pack })
     } catch (e) {
       errBubble(e)
@@ -299,7 +308,7 @@ export default function ChatHome() {
   const send = async () => {
     const text = input.trim()
     if (!text || busy || !features.ai) return
-    if (!user) return openAccount()
+    if (!requireUser()) return
     setInput('')
     if (scenarioMode) {
       setScenarioMode(false)
@@ -337,14 +346,18 @@ export default function ChatHome() {
   }
 
   const startCall = (s?: string) => {
-    if (!user) return openAccount()
+    if (!requireUser()) return
     setCallScenario(s)
     setCallOpen(true)
   }
 
-  const earnPending = useRef(false)
+  // Per-card in-flight ledger: a global boolean would swallow card B's 完成
+  // while card A's earn is still posting. Same-card double-tap is blocked
+  // here; DIFFERENT cards may post concurrently — each earn carries its own
+  // ref and the worker is idempotent per ref.
+  const earnPending = useRef(new Set<string>())
   const finishScenario = (entryId: string) => {
-    if (earnPending.current) return // postEarn in flight — no double-claim
+    if (earnPending.current.has(entryId)) return // this card's postEarn in flight — no double-claim
     const cur = entries.find((en) => en.id === entryId)
     if (cur && (cur.payload as ScenarioPack & { done?: boolean }).done) return // already claimed
     setRoleplay(null)
@@ -355,7 +368,7 @@ export default function ChatHome() {
       ),
     )
     if (user?.account) {
-      earnPending.current = true
+      earnPending.current.add(entryId)
       postEarn('scenario_complete', nextScenarioRef())
         .then((r) => {
           if (r && r.earned > 0) {
@@ -367,7 +380,7 @@ export default function ChatHome() {
           r?.newBadges?.forEach((b) => push({ role: 'assistant', kind: 'award-card', payload: { badge: b } }))
         })
         .finally(() => {
-          earnPending.current = false
+          earnPending.current.delete(entryId)
         })
     } else {
       toast({ title: '场景完成', description: '注册账号可赚取通话时长', tone: 'success' })

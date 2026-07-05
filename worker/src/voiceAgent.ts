@@ -15,12 +15,39 @@ const TUTOR_SYSTEM =
   "Gently correct a major mistake by restating it correctly, then ask a short follow-up question to keep the conversation going. " +
   "Be patient, positive, and never switch to Chinese."
 
-const VoiceAgentBase = withVoice(Agent, { historyLimit: 20, audioFormat: 'mp3' })
+// Gapless call audio. The stock TTS asks Aura for MP3; separately-encoded MP3
+// chunks each carry encoder-padding silence that clicks at every sentence
+// boundary. Ask for WAV (linear PCM) instead — no padding, so the streamed
+// sentences play seamlessly. aura-2-en accepts encoding/container per its
+// Workers AI schema; if the binding ever rejects them we fall back to the
+// library's default (MP3) so the call can never go silent.
+class WavAuraTTS extends WorkersAITTS {
+  constructor(private readonly ai: Env['AI'], private readonly opts: { model: string; speaker: string }) {
+    super(ai, opts)
+  }
+  async synthesize(text: string, signal?: AbortSignal): Promise<ArrayBuffer | null> {
+    try {
+      const res = (await this.ai.run(
+        this.opts.model as never,
+        { text, speaker: this.opts.speaker, encoding: 'linear16', container: 'wav' } as never,
+        { returnRawResponse: true, ...(signal ? { signal } : {}) } as never,
+      )) as unknown as Response
+      return await res.arrayBuffer()
+    } catch {
+      return super.synthesize(text, signal) // params rejected → default MP3, still plays
+    }
+  }
+}
+
+const VoiceAgentBase = withVoice(Agent, { historyLimit: 20, audioFormat: 'wav' })
 
 export class VoiceTutor extends VoiceAgentBase<Env> {
   // Built-in Workers AI providers — no external API keys.
   transcriber = new WorkersAIFluxSTT(this.env.AI)
-  tts = new WorkersAITTS(this.env.AI, { model: '@cf/deepgram/aura-1', speaker: 'asteria' })
+  // aura-2-en is the newer, higher-fidelity Deepgram voice the rest of the app
+  // already uses for read-aloud; aura-1 was the source of the "telephone/tinny"
+  // timbre on the free call. WAV output (above) removes the sentence-boundary clicks.
+  tts = new WavAuraTTS(this.env.AI, { model: '@cf/deepgram/aura-2-en', speaker: 'asteria' })
 
   async onTurn(transcript: string, context: VoiceTurnContext) {
     const workersAi = createWorkersAI({ binding: this.env.AI })

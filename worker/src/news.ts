@@ -92,15 +92,28 @@ export async function handleNews(req: Request, env: Env, uid: string): Promise<R
   try {
     let item: { title: string; description: string } | null = null
     for (const url of FEEDS) {
-      const r = await fetch(url, { headers: { accept: 'application/rss+xml, text/xml' } }).catch(() => null)
+      // VOA hangs from some CF colos (connection opens, response never comes) —
+      // an unbounded fetch here dangles the client request. 5s per feed, hard.
+      const r = await fetch(url, {
+        headers: { accept: 'application/rss+xml, text/xml' },
+        signal: AbortSignal.timeout(5000),
+      }).catch(() => null)
       if (!r?.ok) continue
       item = firstItem(await r.text())
       if (item) break
     }
-    if (!item) throw new Error('no feed item')
+    // No reachable feed → self-contained daily topic (varied by weekday) so the
+    // card never depends on an external host being reachable from this colo.
+    const fromFeed = !!item
+    if (!item) {
+      const topics = ['daily life', 'food and cooking', 'travel', 'technology', 'health', 'nature and animals', 'work and study']
+      item = { title: topics[new Date().getUTCDay()], description: '' }
+    }
     const raw = await callAI(env, {
       system:
-        'You turn one VOA Learning English news item into study material for a Chinese learner. ' +
+        (fromFeed
+          ? 'You turn one VOA Learning English news item into study material for a Chinese learner. '
+          : 'You write one short, interesting everyday-knowledge read for a Chinese English learner on the given topic. ') +
         'Produce: title (simple English headline), summary_en (at most 80 words, CEFR A2-B1 vocabulary, short ' +
         'sentences; if the description is empty, write a brief factual A2-B1 introduction to the topic named in ' +
         'the title), glossary (exactly 5 useful English words from the material, each with a concise Chinese ' +
@@ -118,7 +131,7 @@ export async function handleNews(req: Request, env: Env, uid: string): Promise<R
       level: 'A2-B1',
       summary_en: parsed.summary_en.trim().slice(0, 900),
       glossary: parsed.glossary.slice(0, 5).map((g) => ({ word: g.word.slice(0, 60), zh: g.zh.slice(0, 120) })),
-      source: 'VOA Learning English',
+      source: fromFeed ? 'VOA Learning English' : '每日话题',
     }
     await env.QUOTA.put(key, JSON.stringify(out), { expirationTtl: 6 * 3600 })
     return json(out, env, 200, req)

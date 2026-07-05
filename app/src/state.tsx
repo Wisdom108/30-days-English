@@ -77,6 +77,9 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     mutate((s) => ({ ...s, unlockAll: true }))
   }, [mutate])
 
+  // Constraint: local-only. In account mode the caller must push an empty state
+  // (fresh updatedAt) to the cloud FIRST (see Progress.tsx doReset), or CloudSync's
+  // pull-merge restores the cloud copy ~3s later.
   const reset = useCallback(() => {
     clearState()
     setState(loadState())

@@ -132,7 +132,37 @@ export async function startGrok(opts: StartOpts): Promise<GrokSession> {
   let proc: ScriptProcessorNode | null = null
   let muted = false
   let aiRunning = ''
-  let stopped = false // teardown guard — set by stop(), checked by async callbacks
+  let stopped = false // teardown done — set by teardown(), checked by async callbacks
+  let closedNotified = false // 'closed' already delivered to onStatus — never repeat it
+
+  // Idempotent resource release, shared by stop() AND the remote-disconnect
+  // paths (ws.onclose / ws.onerror). A remote drop must free everything a local
+  // hang-up would: mic tracks, ScriptProcessor, and BOTH AudioContexts. Leaving
+  // the mic open keeps the OS session in record mode (silencing the rest of the
+  // app's TTS), and every leaked pair of contexts counts toward iOS's
+  // ~4-AudioContext cap, after which new calls fail silently.
+  const teardown = () => {
+    if (stopped) return
+    stopped = true
+    try { if (proc) proc.onaudioprocess = null } catch { /* ignore */ }
+    try { proc?.disconnect() } catch { /* ignore */ }
+    // Release the mic FIRST: stopping the audio tracks drops the OS session out
+    // of record/play-and-record mode and hands the output route back to ordinary
+    // playback (speechSynthesis + <audio>). Leaving it open is what silences the
+    // rest of the app's TTS after a realtime call ends.
+    ms?.getAudioTracks().forEach((t) => { t.enabled = false; try { t.stop() } catch { /* ignore */ } })
+    ms?.getTracks().forEach((t) => { try { t.stop() } catch { /* ignore */ } })
+    flushPlayback()
+    try { ws.close() } catch { /* ignore */ }
+    // Close both contexts last (each returns a promise; swallow rejections).
+    micCtx.close().catch(() => { /* already closed */ })
+    playCtx.close().catch(() => { /* already closed */ })
+  }
+  const notifyClosed = () => {
+    if (closedNotified) return
+    closedNotified = true
+    onStatus('closed')
+  }
 
   ws.onopen = async () => {
     if (stopped) return
@@ -177,11 +207,12 @@ export async function startGrok(opts: StartOpts): Promise<GrokSession> {
       }
       onStatus('listening')
     } catch {
-      onError('麦克风打开失败，请检查权限')
+      if (!stopped) onError('麦克风打开失败，请检查权限')
     }
   }
 
   ws.onmessage = (e) => {
+    if (stopped) return // torn down — a dead session must not touch the UI or the closed contexts
     let evt: { type?: string; delta?: string; transcript?: string; error?: { message?: string } }
     try { evt = JSON.parse(typeof e.data === 'string' ? e.data : '') } catch { return }
     switch (evt.type) {
@@ -219,26 +250,20 @@ export async function startGrok(opts: StartOpts): Promise<GrokSession> {
         break
     }
   }
-  ws.onerror = () => onError('实时连接出错')
-  ws.onclose = () => onStatus('closed')
+  ws.onerror = () => {
+    if (stopped) return
+    onError('实时连接出错')
+    teardown() // the socket is dead — free mic/contexts now; the onclose that follows reports 'closed'
+  }
+  ws.onclose = () => {
+    teardown() // remote disconnect: release resources exactly like a local stop() would
+    notifyClosed() // still report 'closed' — but only once (a local stop() already did)
+  }
 
   const stop = () => {
     if (stopped) return
-    stopped = true
-    try { if (proc) proc.onaudioprocess = null } catch { /* ignore */ }
-    try { proc?.disconnect() } catch { /* ignore */ }
-    // Release the mic FIRST: stopping the audio tracks drops the OS session out
-    // of record/play-and-record mode and hands the output route back to ordinary
-    // playback (speechSynthesis + <audio>). Leaving it open is what silences the
-    // rest of the app's TTS after a realtime call ends.
-    ms?.getAudioTracks().forEach((t) => { t.enabled = false; try { t.stop() } catch { /* ignore */ } })
-    ms?.getTracks().forEach((t) => { try { t.stop() } catch { /* ignore */ } })
-    flushPlayback()
-    try { ws.close() } catch { /* ignore */ }
-    // Close both contexts last (each returns a promise; swallow rejections).
-    micCtx.close().catch(() => { /* already closed */ })
-    playCtx.close().catch(() => { /* already closed */ })
-    onStatus('closed')
+    teardown()
+    notifyClosed() // same semantics as before: release everything, then report 'closed'
   }
   const mute = (m: boolean) => {
     muted = m

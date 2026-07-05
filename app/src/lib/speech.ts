@@ -14,7 +14,15 @@ import { wordAudio } from './dictionary'
 export type VoiceMode = 'system' | 'hd'
 const VOICE_KEY = 'voice-mode'
 export function getVoiceMode(): VoiceMode {
-  try { return localStorage.getItem(VOICE_KEY) === 'hd' ? 'hd' : 'system' } catch { return 'system' }
+  // Never-chosen → default HD. iOS speechSynthesis is muted by the ring/silent
+  // switch and silently drops utterances in PWAs — every play button "does
+  // nothing". Aura plays through the media channel (<audio>), which iOS keeps
+  // audible even on silent. speakOne() still falls back to the system voice
+  // whenever HD isn't reachable (caps not loaded / guest 401 / offline).
+  try {
+    const v = localStorage.getItem(VOICE_KEY)
+    return v === 'hd' || v === 'system' ? v : 'hd'
+  } catch { return 'system' }
 }
 export function setVoiceMode(m: VoiceMode): void {
   try { localStorage.setItem(VOICE_KEY, m) } catch { /* ignore */ }
@@ -39,6 +47,22 @@ const browserTts = () => typeof window !== 'undefined' && 'speechSynthesis' in w
 export type VoiceKey = 'a' | 'b'
 let cachedVoice: SpeechSynthesisVoice | null = null
 let cachedVoice2: SpeechSynthesisVoice | null = null
+
+// Per-role NEURAL voices: speaker A = a warm female (asteria), B = a male
+// (arcas), both @cf/deepgram/aura-2-en ids — so HD dialogue sounds like two
+// people, matching the system-voice A/B contrast (no more single-actor HD).
+const CF_VOICE: Record<VoiceKey, string> = { a: 'asteria', b: 'arcas' }
+const cfVoiceFor = (k: VoiceKey | undefined): string | undefined => (k ? CF_VOICE[k] : undefined)
+
+// Circuit breaker for the neural tier. Each dialogue line is an independent
+// speakOne() call; without this, a single mid-dialogue neural failure (quota
+// out / 5xx / offline) would drop just THAT line to the robotic system voice
+// while siblings stay neural — the "suddenly mixes AI and system voice" bug.
+// The one-shot retry in cfSpeak already absorbs transient blips, so reaching
+// the catch means HD is genuinely down: cool it for a window and let the whole
+// rest of the run play consistently on the system voice instead.
+let hdColdUntil = 0
+const HD_COOLDOWN_MS = 45000
 
 const voiceScore = (v: SpeechSynthesisVoice) => {
   const n = v.name.toLowerCase()
@@ -104,7 +128,9 @@ async function speakOne(
 ): Promise<void> {
   const t = text.trim()
   const isWord = !!t && !/\s/.test(t) && /^[A-Za-z][A-Za-z'-]*$/.test(t)
-  const hd = getVoiceMode() === 'hd' && hdVoiceAvailable()
+  // During the cooldown after a real neural failure, treat HD as unreachable so
+  // the whole dialogue stays on ONE voice instead of interleaving tiers.
+  const hd = getVoiceMode() === 'hd' && hdVoiceAvailable() && Date.now() >= hdColdUntil
 
   // SYSTEM mode (default): the phone voice, instantly. No network, no login.
   if (!hd) return browserSpeak(text, rate, onStart, voiceKey)
@@ -138,14 +164,19 @@ async function speakOne(
   }
   if (!superseded() && cfVoiceAvailable()) {
     try {
-      await cfSpeak(isWord ? `${t}.` : text, rate, onStart)
+      await cfSpeak(isWord ? `${t}.` : text, rate, onStart, cfVoiceFor(voiceKey))
       return
-    } catch {
-      /* fall through */
+    } catch (e) {
+      // A login gate (401) isn't "HD down" — it's per-request auth. Anything
+      // else (quota/5xx/network, after the retry) means the neural tier is
+      // genuinely unreachable: cool it so the rest of the dialogue doesn't each
+      // re-attempt and interleave neural with the system fallback.
+      if (!(e instanceof Error && e.message === '请先登录')) hdColdUntil = Date.now() + HD_COOLDOWN_MS
+      /* fall through to the system voice (with the A/B key preserved) */
     }
   }
   if (superseded()) return
-  return browserSpeak(text, rate, onStart)
+  return browserSpeak(text, rate, onStart, voiceKey)
 }
 
 /** Speak `text`. `onStart` fires when sound actually begins. `voiceKey` picks
@@ -178,20 +209,23 @@ export async function speakPassage(text: string, rate = 1, onStart?: () => void)
 /** Fire-and-forget cache warm for speech the user is ABOUT to tap (the visible
  *  flashcard word, the current listening sentence, the shadowing line). Only
  *  meaningful in HD mode — the system voice has nothing to warm. */
-export function prefetchSpeak(text: string): void {
-  if (getVoiceMode() !== 'hd' || !hdVoiceAvailable()) return
+export function prefetchSpeak(text: string, voiceKey?: VoiceKey): void {
+  if (getVoiceMode() !== 'hd' || !hdVoiceAvailable() || Date.now() < hdColdUntil) return
   const t = text.trim()
   if (!t) return
   const isWord = !/\s/.test(t) && /^[A-Za-z][A-Za-z'-]*$/.test(t)
   if (isWord) {
+    // A single word prefers a real human recording (voice-agnostic); the CF
+    // fallback warm must match the speaker the tap will use.
     wordAudio(t)
-      .then((url) => { if (!url) prefetchTts(`${t}.`) })
+      .then((url) => { if (!url) prefetchTts(`${t}.`, cfVoiceFor(voiceKey)) })
       .catch(() => { /* best-effort */ })
     return
   }
   // Sentences: Azure synthesizes per-call via its SDK (no URL cache) — only the
-  // CF tier benefits from warming.
-  if (!azureAvailable()) prefetchTts(t)
+  // CF tier benefits from warming. Warm the SAME voice the line will play in, or
+  // the prefetch caches the wrong entry and the line hits the network live.
+  if (!azureAvailable()) prefetchTts(t, cfVoiceFor(voiceKey))
 }
 
 function browserSpeak(text: string, rate = 1, onStart?: () => void, voiceKey?: VoiceKey): Promise<void> {

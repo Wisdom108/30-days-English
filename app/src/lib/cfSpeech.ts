@@ -53,25 +53,41 @@ if (typeof window !== 'undefined') {
 const ttsCache = new Map<string, string>()
 const MAX_CACHE = 60
 
-async function ttsUrl(text: string): Promise<string> {
-  const hit = ttsCache.get(text)
+async function ttsUrl(text: string, voice?: string): Promise<string> {
+  // Cache/dedupe per (voice, text): speaker A and B saying the same words must
+  // NOT collide onto one voice, and a warmed entry must return the right voice.
+  const cacheKey = voice ? `${voice}|${text}` : text
+  const hit = ttsCache.get(cacheKey)
   if (hit) return hit
-  const res = await fetch(`${config.workerUrl}/speech/tts`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'content-type': 'application/json', ...authHeaders() },
-    body: JSON.stringify({ text }),
-  })
+  const reqBody = voice ? { text, voice } : { text }
+  // One retry on a transient failure (network throw / 5xx). A single blip must
+  // NOT demote this line to the robotic system voice mid-dialogue. 401 (login)
+  // and 429 (quota out) are terminal — retrying them just wastes a call.
+  let res: Response | null = null
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      res = await fetch(`${config.workerUrl}/speech/tts`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json', ...authHeaders() },
+        body: JSON.stringify(reqBody),
+      })
+    } catch {
+      res = null // network error → retry once
+    }
+    if (res && res.status < 500) break
+  }
+  if (!res) throw new Error('语音合成失败')
   if (res.status === 401) throw new Error('请先登录')
   if (!res.ok) throw new Error('语音合成失败')
   const url = URL.createObjectURL(await res.blob())
-  ttsCache.set(text, url)
+  ttsCache.set(cacheKey, url)
   if (ttsCache.size > MAX_CACHE) {
     // Evict the oldest entry that ISN'T the currently-loaded blob — revoking or
     // dropping the playing src would leak it AND force a re-fetch on replay.
     const curSrc = audioEl().src
     for (const k of ttsCache.keys()) {
-      if (k === text) continue
+      if (k === cacheKey) continue
       const u = ttsCache.get(k)
       if (u && u === curSrc) continue
       if (u) URL.revokeObjectURL(u)
@@ -133,35 +149,54 @@ export function playUrl(url: string, rate = 1, onStart?: () => void): Promise<vo
   })
 }
 
-/** Synthesize `text` with the neural voice and play it (cached). A stopCfSpeak()
- *  issued while synthesis is in flight cancels the pending play (resolves silently). */
-export async function cfSpeak(text: string, rate = 1, onStart?: () => void): Promise<void> {
+/** Synthesize `text` with the neural voice and play it (cached). `voice` selects
+ *  a per-role Aura speaker (A/B dialogue). A stopCfSpeak() issued while synthesis
+ *  is in flight cancels the pending play (resolves silently). */
+export async function cfSpeak(text: string, rate = 1, onStart?: () => void, voice?: string): Promise<void> {
   const gen = cfGen
-  const url = await ttsUrl(text)
+  const url = await ttsUrl(text, voice)
   if (gen !== cfGen) return // stopped while awaiting synthesis — don't start playing
   await playUrl(url, rate, onStart)
 }
 
-/** Warm the TTS cache for `text` without playing — call when the text becomes
- *  visible so the first tap is instant instead of waiting on synthesis. */
-export function prefetchTts(text: string): void {
-  if (!cfVoiceAvailable() || ttsCache.has(text)) return
-  ttsUrl(text).catch(() => { /* best-effort */ })
+/** Warm the TTS cache for `text` (in the given `voice`) without playing — call
+ *  when the text becomes visible so the first tap is instant. */
+export function prefetchTts(text: string, voice?: string): void {
+  const cacheKey = voice ? `${voice}|${text}` : text
+  if (!cfVoiceAvailable() || ttsCache.has(cacheKey)) return
+  ttsUrl(text, voice).catch(() => { /* best-effort */ })
 }
 
 // --- STT (Whisper) --------------------------------------------------------
 
 /** Send recorded audio to Whisper and return the transcript. */
 export async function cfTranscribe(blob: Blob): Promise<string> {
-  const res = await fetch(`${config.workerUrl}/speech/stt`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'content-type': blob.type || 'application/octet-stream', ...authHeaders() },
-    body: blob,
-  })
+  // 上传必须有硬超时:挂起的 fetch 会让 recordAndTranscribeInner 永不 settle,
+  // recActive 单例永久占用,之后所有录音都 throw 'recording-busy'。
+  let signal: AbortSignal | undefined
+  try {
+    signal = AbortSignal.timeout(15000)
+  } catch {
+    // 旧 Safari 无 AbortSignal.timeout — 退回无超时,不能因构造 signal 而崩
+  }
+  let res: Response
+  try {
+    res = await fetch(`${config.workerUrl}/speech/stt`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'content-type': blob.type || 'application/octet-stream', ...authHeaders() },
+      body: blob,
+      signal,
+    })
+  } catch {
+    // 超时/中断/网络错统一收敛为既有文案,调用方 catch 已兜底
+    throw new Error('识别失败')
+  }
   if (res.status === 401) throw new Error('请先登录')
   if (!res.ok) throw new Error('识别失败')
-  const data = (await res.json()) as { text?: string }
+  // signal 也可能在读 body 时触发 abort — 同样收敛
+  const data = (await res.json().catch(() => null)) as { text?: string } | null
+  if (!data) throw new Error('识别失败')
   return (data.text || '').trim()
 }
 

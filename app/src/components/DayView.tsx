@@ -285,17 +285,24 @@ export default function DayView() {
         </div>
       )}
 
-      {/* persistent advance dock — one primary CTA */}
-      <div className="fixed inset-x-0 bottom-0 z-30 mx-auto max-w-[560px] px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-4"
+      {/* persistent advance dock — one primary CTA. pointer-events-none on the
+          container: its mostly-transparent gradient box otherwise swallows taps
+          on content scrolled beneath it (same pattern as toast.tsx). */}
+      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 mx-auto max-w-[560px] px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-4"
         style={{ background: 'linear-gradient(to top, var(--color-bg) 55%, transparent)' }}>
-        {/* disabled while a completion (incl. the freeze bridge) is in flight —
-            no queued double-completes behind one await */}
-        <Button size="lg" className="h-14 w-full rounded-xl text-base" onClick={dockAction} disabled={completing}>
-          {/* keyed by done-state so the 完成X → 下一步 label change is perceived */}
-          <span key={String(activeDone)} className="animate-in-up flex items-center gap-2">
-            {dockLabel} <ArrowRight size={18} />
-          </span>
-        </Button>
+        {/* pointer-events-auto lives on a wrapper, NOT the Button — the Button
+            base has disabled:pointer-events-none, which would let clicks fall
+            through to content under the dock while `completing` is true */}
+        <div className="pointer-events-auto">
+          {/* disabled while a completion (incl. the freeze bridge) is in flight —
+              no queued double-completes behind one await */}
+          <Button size="lg" className="h-14 w-full rounded-xl text-base" onClick={dockAction} disabled={completing}>
+            {/* keyed by done-state so the 完成X → 下一步 label change is perceived */}
+            <span key={String(activeDone)} className="animate-in-up flex items-center gap-2">
+              {dockLabel} <ArrowRight size={18} />
+            </span>
+          </Button>
+        </div>
       </div>
     </div>
   )

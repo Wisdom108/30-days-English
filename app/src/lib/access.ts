@@ -7,6 +7,23 @@ import { config, features } from '../config'
 //   - 'open'     → no login (anonymous, IP rate-limited)
 
 export type AuthMode = 'account' | 'access' | 'passcode' | 'open'
+const isMode = (v: unknown): v is AuthMode =>
+  v === 'account' || v === 'access' || v === 'passcode' || v === 'open'
+
+// Last mode successfully reported by /me. A failed probe (offline PWA cold
+// start, transient worker 5xx) must NOT fall back to 'open' — that unmounts
+// the login UI for the whole session. Reuse the last known-good mode instead;
+// 'open' only before the first ever successful probe.
+const MODE_KEY = 'auth:last-mode'
+const lastKnownMode = (): AuthMode => {
+  const v = localStorage.getItem(MODE_KEY)
+  return isMode(v) ? v : 'open'
+}
+
+// Whether the latest getIdentity() probe failed — AuthProvider re-probes on
+// 'online'/tab-wake only while this is set, so a healthy session never re-polls.
+let fetchFailed = false
+export const identityFetchFailed = (): boolean => fetchFailed
 export interface Identity {
   email: string // display name (username in account mode)
   member?: boolean
@@ -50,16 +67,27 @@ export async function getIdentity(): Promise<{ user: Identity | null; mode: Auth
       memberUntil?: number | null
       account?: boolean
     }
-    const mode = data.mode || 'open'
+    if (!isMode(data.mode)) {
+      // Modeless body (non-JSON 5xx, gateway error page) — treat as a failed probe.
+      fetchFailed = true
+      return { user: null, mode: lastKnownMode() }
+    }
+    fetchFailed = false
+    try {
+      localStorage.setItem(MODE_KEY, data.mode)
+    } catch {
+      /* storage broken — mode just won't persist */
+    }
     return {
       user:
         res.ok && data.email
           ? { email: data.email, member: data.member, memberUntil: data.memberUntil ?? null, account: data.account }
           : null,
-      mode,
+      mode: data.mode,
     }
   } catch {
-    return { user: null, mode: 'open' }
+    fetchFailed = true
+    return { user: null, mode: lastKnownMode() }
   }
 }
 

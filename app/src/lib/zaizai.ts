@@ -120,7 +120,16 @@ export function zaizaiChat(
 export async function fetchNews(): Promise<NewsCardPayload | null> {
   if (!features.ai) return null
   try {
-    const res = await fetch(`${config.workerUrl}/ai/news`, { credentials: 'include', headers: authHeaders() })
+    const res = await fetch(`${config.workerUrl}/ai/news`, {
+      credentials: 'include',
+      headers: authHeaders(),
+      // Fire-and-forget card (appended after the brief, blocks nothing), but the
+      // first daily generation is a real model call (~15-20s) before the 6h KV
+      // cache warms — so allow headroom to actually land first-try, while still
+      // capping a wedged upstream (older Safari lacks AbortSignal.timeout → the
+      // synchronous throw is caught below → null → card silently skipped).
+      signal: AbortSignal.timeout(28000),
+    })
     if (!res.ok) return null
     const d = (await res.json().catch(() => null)) as (Partial<NewsCardPayload> & { news?: Partial<NewsCardPayload> }) | null
     const n = d?.news ?? d // tolerate both `{news:{…}}` and bare payload

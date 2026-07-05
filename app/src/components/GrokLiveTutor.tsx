@@ -44,10 +44,14 @@ export default function GrokLiveTutor({ lesson, scenario }: { lesson: LessonCtx;
   const [persona, setPersona] = useState<string>('emma')
   const [badges, setBadges] = useState<string[] | null>(null) // null = unknown → no locks
   const sessionRef = useRef<GrokSession | null>(null)
+  // Session generation: bumped on hang-up / redial / unmount so callbacks from a
+  // defunct session are ignored (e.g. the ws close event that arrives AFTER a
+  // manual hang-up must not overwrite 'idle' with 'closed').
+  const genRef = useRef(0)
   const dead = useRef(false) // set on unmount — a connect that resolves late must not orphan its session
   const endRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => () => { dead.current = true; sessionRef.current?.stop() }, [])
+  useEffect(() => () => { dead.current = true; genRef.current++; sessionRef.current?.stop() }, [])
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [turns, status])
 
   useEffect(() => {
@@ -68,6 +72,12 @@ export default function GrokLiveTutor({ lesson, scenario }: { lesson: LessonCtx;
   }
 
   const start = async () => {
+    // Supersede + kill any previous session BEFORE dialing: after a remote drop
+    // the old session may still hold the mic, and each redial without stopping
+    // it leaks 2 AudioContexts (iOS caps ~4 → later calls go silent).
+    const gen = ++genRef.current
+    sessionRef.current?.stop()
+    sessionRef.current = null
     setError(null)
     setConnecting(true)
     try {
@@ -75,23 +85,38 @@ export default function GrokLiveTutor({ lesson, scenario }: { lesson: LessonCtx;
         lesson,
         persona,
         scenario,
-        onStatus: (s) => setStatus(s),
-        onUserText: (t) => t && setTurns((prev) => upsert(prev, 'user', t)),
-        onAiText: (t, _done) => t && setTurns((prev) => upsert(prev, 'ai', t)),
-        onError: (m) => setError(m),
+        onStatus: (st) => {
+          if (genRef.current !== gen) return // defunct session (hung up / redialed)
+          if (st === 'closed') {
+            // Remote disconnect (a local stop() bumps gen first, so it never
+            // lands here): session tore itself down — put the UI back to idle
+            // so the orb redials and the character picker returns.
+            sessionRef.current = null
+            setStatus('idle')
+            toast({ title: '通话已断开' })
+          } else {
+            setStatus(st)
+          }
+        },
+        onUserText: (t) => { if (genRef.current === gen && t) setTurns((prev) => upsert(prev, 'user', t)) },
+        onAiText: (t, _done) => { if (genRef.current === gen && t) setTurns((prev) => upsert(prev, 'ai', t)) },
+        onError: (m) => { if (genRef.current === gen) setError(m) },
       })
-      if (dead.current) { s.stop(); return } // sheet dismissed mid-connect
+      if (dead.current || genRef.current !== gen) { s.stop(); return } // dismissed or hung up mid-connect
       sessionRef.current = s
       if (s.walletSpent) toast({ title: '本次通话已花费 5 分钟通话时长' })
     } catch (e) {
-      setError(e instanceof Error ? e.message : '连接失败，请重试')
-      setStatus('idle')
+      if (genRef.current === gen) {
+        setError(e instanceof Error ? e.message : '连接失败，请重试')
+        setStatus('idle')
+      }
     } finally {
       setConnecting(false)
     }
   }
 
   const stop = () => {
+    genRef.current++ // discard late callbacks (e.g. the async ws close event) from this session
     sessionRef.current?.stop()
     sessionRef.current = null
     setStatus('idle')

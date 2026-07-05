@@ -40,7 +40,9 @@ export default function VocabBlock({ lesson }: { lesson: DayLesson }) {
             else if (e.key === 'ArrowRight') go(1)
             else if (e.key === 'ArrowLeft') go(-1)
           }}
-          onTouchStart={(e) => { touchX.current = e.touches[0].clientX }}
+          // reset the swipe flag at gesture start: iOS never fires click after a
+          // real swipe, so a stale `true` would swallow the NEXT genuine tap
+          onTouchStart={(e) => { swiped.current = false; touchX.current = e.touches[0].clientX }}
           onTouchEnd={(e) => {
             if (touchX.current == null) return
             const dx = e.changedTouches[0].clientX - touchX.current

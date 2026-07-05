@@ -57,7 +57,7 @@ export default function ListeningBlock({ lesson }: { lesson: DayLesson }) {
   const curSpeaker = meta[si]?.speaker
 
   // Warm the current sentence's audio as it appears — replay taps are instant.
-  useEffect(() => { prefetchSpeak(curText) }, [curText])
+  useEffect(() => { prefetchSpeak(curText, curKey) }, [curText, curKey])
 
   const [di, setDi] = useState(0)
   const [ans, setAns] = useState('')
@@ -78,7 +78,7 @@ export default function ListeningBlock({ lesson }: { lesson: DayLesson }) {
     setPlaying(true)
     for (let i = si; i < sentences.length && playingRef.current; i++) {
       setSi(i)
-      if (i + 1 < sentences.length) prefetchSpeak(meta[i + 1].clean) // warm the next line
+      if (i + 1 < sentences.length) prefetchSpeak(meta[i + 1].clean, meta[i + 1].key) // warm the next line (its voice)
       await speak(meta[i].clean, rate, undefined, meta[i].key) // A/B voice
     }
     playingRef.current = false

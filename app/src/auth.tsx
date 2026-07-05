@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { getIdentity, type Identity, type AuthMode } from './lib/access'
+import { getIdentity, identityFetchFailed, type Identity, type AuthMode } from './lib/access'
 import { loadCaps } from './lib/caps'
 import { features } from './config'
 
@@ -41,6 +41,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       alive = false
     }
   }, [tick])
+
+  // Self-heal after a failed /me probe (offline PWA cold start, transient
+  // worker 5xx): re-probe when connectivity plausibly returns. Gated on the
+  // failure flag so a healthy session never re-polls.
+  useEffect(() => {
+    if (!features.worker) return
+    const retry = () => identityFetchFailed() && setTick((t) => t + 1)
+    const onVis = () => document.visibilityState === 'visible' && retry()
+    window.addEventListener('online', retry)
+    document.addEventListener('visibilitychange', onVis)
+    return () => {
+      window.removeEventListener('online', retry)
+      document.removeEventListener('visibilitychange', onVis)
+    }
+  }, [])
 
   const value = useMemo<AuthCtx>(
     () => ({ user, mode, loading, authEnabled: features.worker, refresh: () => setTick((t) => t + 1) }),

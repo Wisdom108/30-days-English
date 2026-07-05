@@ -45,7 +45,14 @@ const REASON_LABELS: Record<string, string> = {
 
 const mins = (seconds: number) => Math.floor(seconds / 60)
 
-function WalletCard({ isAccount, wallet }: { isAccount: boolean; wallet: WalletInfo | null }) {
+type WalletStatus = 'loading' | 'loaded' | 'error'
+
+function WalletCard({ isAccount, wallet, status, onRetry }: {
+  isAccount: boolean
+  wallet: WalletInfo | null
+  status: WalletStatus
+  onRetry: () => void
+}) {
   if (!isAccount) {
     return (
       <section className="glass rounded-xl p-4">
@@ -62,7 +69,19 @@ function WalletCard({ isAccount, wallet }: { isAccount: boolean; wallet: WalletI
   return (
     <section className="glass rounded-xl p-4">
       <div className="label-nd mb-2 flex items-center gap-1.5"><Timer size={12} /> 额度钱包</div>
-      {!wallet ? (
+      {status === 'error' && !wallet ? (
+        // getWallet 对 401/网络错都返回 null,无法区分 — 文案同时覆盖两种路径
+        <div className="flex items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-sm text-fg-secondary">额度加载失败</p>
+            <p className="mt-0.5 text-meta text-fg-muted">
+              网络波动可重试;若登录已过期,请
+              <button onClick={openAccount} className="press text-fg-secondary underline underline-offset-2">重新登录</button>
+            </p>
+          </div>
+          <Button variant="secondary" size="sm" className="shrink-0" onClick={onRetry}>重试</Button>
+        </div>
+      ) : !wallet ? (
         <Skeleton className="h-16 rounded-lg" />
       ) : (
         <>
@@ -276,28 +295,50 @@ export default function Me() {
   const nav = useNavigate()
   const isAccount = !!user?.account
   const [wallet, setWallet] = useState<WalletInfo | null>(null)
+  const [walletStatus, setWalletStatus] = useState<WalletStatus>('loading')
+  const [walletRetry, setWalletRetry] = useState(0)
 
   useEffect(() => {
     if (!isAccount) {
       setWallet(null)
+      setWalletStatus('loading')
       return
     }
     let alive = true
-    const load = (force = false) => getWallet(force).then((w) => alive && w && setWallet(w))
-    load()
+    const load = (force = false) => {
+      // 已加载后的刷新失败不得清掉在展示的数据,也不得打回骨架
+      setWalletStatus((s) => (s === 'loaded' ? s : 'loading'))
+      getWallet(force).then((w) => {
+        if (!alive) return
+        if (w) {
+          setWallet(w)
+          setWalletStatus('loaded')
+        } else {
+          setWalletStatus((s) => (s === 'loaded' ? s : 'error'))
+        }
+      })
+    }
+    load(walletRetry > 0) // 重试必须绕过 getWallet 缓存
     const onWallet = () => load(true)
     window.addEventListener(WALLET_EVENT, onWallet)
     return () => {
       alive = false
       window.removeEventListener(WALLET_EVENT, onWallet)
     }
-  }, [isAccount])
+  }, [isAccount, walletRetry])
 
   return (
     <div className="mx-auto max-w-[560px] space-y-3">
       <h1 className="text-h1 font-semibold text-fg">我的</h1>
 
-      {walletCap() && <WalletCard isAccount={isAccount} wallet={wallet} />}
+      {walletCap() && (
+        <WalletCard
+          isAccount={isAccount}
+          wallet={wallet}
+          status={walletStatus}
+          onRetry={() => setWalletRetry((n) => n + 1)}
+        />
+      )}
 
       <BadgeWall earned={new Set(wallet?.badges ?? [])} />
 
