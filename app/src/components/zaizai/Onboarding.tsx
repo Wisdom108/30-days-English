@@ -225,7 +225,7 @@ export default function Onboarding({
     const q = QUESTIONS[st.step]
     return (
       <div className="flex">
-        <div className="animate-in-up glass max-w-[88%] rounded-xl px-3.5 py-3">
+        <div className="animate-in-up card-solid max-w-[88%] rounded-xl px-3.5 py-3">
           <div className="flex flex-wrap gap-1.5">
             {q.options.map((o) => (
               <button key={o} onClick={() => answer(o)} disabled={busy} className="press rounded-full bg-accent-soft px-3.5 py-1.5 text-sm font-medium text-brand disabled:opacity-45">
@@ -245,7 +245,7 @@ export default function Onboarding({
     const ios = /iPad|iPhone|iPod/.test(navigator.userAgent)
     return (
       <div className="flex">
-        <div className="animate-in-up glass max-w-[88%] rounded-xl px-4 py-3.5">
+        <div className="animate-in-up card-solid max-w-[88%] rounded-xl px-4 py-3.5">
           <div className="flex items-center gap-2 text-body font-medium text-fg">
             <Smartphone size={16} className="shrink-0 text-brand" /> 把在在装到主屏幕
           </div>
@@ -281,7 +281,7 @@ export default function Onboarding({
   if (st.step === 'register') {
     return (
       <div className="flex">
-        <div className="animate-in-up glass max-w-[88%] rounded-xl px-4 py-3.5">
+        <div className="animate-in-up card-solid max-w-[88%] rounded-xl px-4 py-3.5">
           <div className="flex items-center gap-2 text-body font-medium text-fg">
             <UserPlus size={16} className="shrink-0 text-brand" /> 注册一个账号
           </div>
@@ -314,7 +314,7 @@ export default function Onboarding({
           : null
     return (
       <div className="flex">
-        <div className="animate-in-up glass max-w-[88%] rounded-xl px-4 py-3.5">
+        <div className="animate-in-up card-solid max-w-[88%] rounded-xl px-4 py-3.5">
           <div className="flex items-center gap-2 text-body font-medium text-fg">
             <Bell size={16} className="shrink-0 text-brand" /> 开启在在的 morning call
           </div>

@@ -5,7 +5,7 @@ import type { NewsCardPayload } from '../../../lib/zaizai'
 // 每日新闻卡:标题 + 难度 chip + 简化摘要(点读)+ 生词 chips(点发音)+ 来源行。
 export default function NewsCard({ data }: { data: NewsCardPayload }) {
   return (
-    <div className="glass w-full max-w-[88%] rounded-xl p-4">
+    <div className="card-solid w-full max-w-[88%] rounded-xl p-4">
       <div className="flex items-center gap-2">
         <Newspaper size={14} className="shrink-0 text-fg-muted" />
         <span className="label-nd">每日新闻</span>

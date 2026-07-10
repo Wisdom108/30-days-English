@@ -10,8 +10,21 @@ import { defaultState, parseImport } from '../lib/storage'
 const SYNC_OWNER = 'sync:owner'
 
 // Compare two states ignoring updatedAt, so a timestamp-only delta doesn't loop.
-const sameContent = (a: AppState, b: AppState) =>
-  JSON.stringify({ ...a, updatedAt: 0 }) === JSON.stringify({ ...b, updatedAt: 0 })
+// AppState is treated immutably everywhere (every mutation spreads a new object),
+// so the canonical serialization is memoized per object (WeakMap): one sync run —
+// which compares `next` against BOTH local and remote — stringifies each distinct
+// object at most once instead of doing two full-state stringifys per comparison,
+// and the adopted state's key survives across runs. Semantics are unchanged.
+const contentKeyCache = new WeakMap<AppState, string>()
+const contentKey = (s: AppState): string => {
+  let key = contentKeyCache.get(s)
+  if (key === undefined) {
+    key = JSON.stringify({ ...s, updatedAt: 0 })
+    contentKeyCache.set(s, key)
+  }
+  return key
+}
+const sameContent = (a: AppState, b: AppState) => a === b || contentKey(a) === contentKey(b)
 
 // Cloud progress sync (account mode). One sync = pull → merge → adopt → push, so
 // concurrent devices CONVERGE (union completion + last-writer edits) instead of a

@@ -15,8 +15,9 @@ import { Check, ChevronDown, ChevronLeft, ChevronRight, X } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
 // Shared scrim for all overlays (single source so they can't drift).
+// Pure fade, no blur — backdrop-filter is reserved for the 4 fixed chrome pieces.
 export const SCRIM =
-  'fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px] data-[state=open]:animate-in-up data-[state=closed]:animate-out'
+  'fixed inset-0 z-50 bg-black/40 data-[state=open]:fade-in data-[state=closed]:fade-out'
 const RING = 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 focus-visible:ring-offset-2 focus-visible:ring-offset-bg'
 
 // ============================================================================
@@ -24,7 +25,7 @@ const RING = 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring
 // ============================================================================
 const buttonVariants = cva(
   cn(
-    'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg font-medium transition-all duration-150 select-none active:scale-[0.985] disabled:opacity-45 disabled:pointer-events-none',
+    'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg font-medium transition-[transform,background-color,border-color,box-shadow,opacity] duration-150 select-none active:scale-[0.985] disabled:opacity-45 disabled:pointer-events-none',
     RING,
   ),
   {
@@ -138,6 +139,53 @@ export function Segment({ className, children, ...props }: HTMLAttributes<HTMLDi
 
 export function SectionLabel({ className, children }: { className?: string; children: ReactNode }) {
   return <div className={cn('label-nd mt-6 mb-2 first:mt-0', className)}>{children}</div>
+}
+
+// ============================================================================
+// CellGroup / Cell — iOS insetGrouped list
+// ============================================================================
+/** insetGrouped container: rounded 10px solid group; hairline dividers between
+ *  rows come from the `.cell-group` CSS (0.5px, inset 16px left). */
+export function CellGroup({ className, children, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div className={cn('cell-group overflow-hidden rounded-[10px] bg-surface', className)} {...props}>
+      {children}
+    </div>
+  )
+}
+
+/** insetGrouped row. Renders a <button> when `onClick` is present (with iOS
+ *  press highlight + inset focus ring), else a <div>. `chevron` appends the
+ *  iOS disclosure indicator. Content is free-form flex children. */
+export function Cell({
+  className,
+  chevron,
+  children,
+  onClick,
+  ...props
+}: HTMLAttributes<HTMLElement> & { chevron?: boolean }) {
+  const cls = cn(
+    'flex min-h-11 w-full items-center gap-3 px-4 text-left text-body text-fg transition-colors duration-75 active:bg-[#e9e9ea]',
+    onClick && 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand/40',
+    className,
+  )
+  const tail = chevron ? (
+    <ChevronRight size={17} className="ml-auto shrink-0 text-[#c7c7cc]" aria-hidden="true" />
+  ) : null
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} className={cls} {...(props as ButtonHTMLAttributes<HTMLButtonElement>)}>
+        {children}
+        {tail}
+      </button>
+    )
+  }
+  return (
+    <div className={cls} {...(props as HTMLAttributes<HTMLDivElement>)}>
+      {children}
+      {tail}
+    </div>
+  )
 }
 
 // ---- Collapse — THE one fold pattern (animated grid-rows, chevron header) ----
@@ -339,15 +387,15 @@ export function Callout({
 }) {
   const styles =
     tone === 'warning'
-      ? { bar: 'var(--color-fg-muted)', bg: 'var(--color-surface-2)' }
+      ? { icon: 'var(--color-warning)', bg: 'var(--color-warning-soft)' }
       : tone === 'red'
-      ? { bar: 'var(--color-red)', bg: 'var(--color-red-soft)' }
-      : { bar: 'var(--color-fg)', bg: 'var(--color-accent-soft)' }
+      ? { icon: 'var(--color-red)', bg: 'var(--color-red-soft)' }
+      : { icon: 'var(--color-brand)', bg: 'var(--color-accent-soft)' }
   return (
     <div
       role={role}
-      className={cn('flex gap-3 rounded-lg p-4', className)}
-      style={{ background: styles.bg, boxShadow: `inset 3px 0 0 0 ${styles.bar}` }}
+      className={cn('flex gap-3 rounded-xl p-4', className)}
+      style={{ background: styles.bg, color: styles.icon }}
     >
       {icon && <span className="mt-0.5 shrink-0">{icon}</span>}
       <div className="text-sm leading-relaxed text-fg">{children}</div>
@@ -364,7 +412,8 @@ export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputE
       <input
         ref={ref}
         className={cn(
-          'h-11 w-full rounded-lg border border-border bg-surface px-3.5 text-body text-fg outline-none transition-shadow placeholder:text-fg-dim focus:border-brand focus:ring-2 focus:ring-brand/30',
+          // 16px floor — anything smaller triggers iOS Safari's focus auto-zoom
+          'h-11 w-full rounded-lg border border-border bg-surface px-3.5 text-[16px] text-fg outline-none transition-shadow placeholder:text-fg-dim focus:border-brand focus:ring-2 focus:ring-brand/30',
           className,
         )}
         {...props}
@@ -379,7 +428,8 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<H
       <textarea
         ref={ref}
         className={cn(
-          'w-full resize-y rounded-lg border border-border bg-surface p-3.5 text-body text-fg outline-none transition-shadow placeholder:text-fg-dim focus:border-brand focus:ring-2 focus:ring-brand/30',
+          // 16px floor — anything smaller triggers iOS Safari's focus auto-zoom
+          'w-full resize-y rounded-lg border border-border bg-surface p-3.5 text-[16px] text-fg outline-none transition-shadow placeholder:text-fg-dim focus:border-brand focus:ring-2 focus:ring-brand/30',
           className,
         )}
         {...props}
@@ -496,32 +546,48 @@ export function Sheet({
   children: ReactNode
   className?: string
 }) {
+  const isBottom = side === 'bottom'
   const pos =
     side === 'left'
       ? 'inset-y-0 left-0 h-full w-[280px] border-r rounded-r-xl data-[state=open]:animate-in-up data-[state=closed]:animate-out'
       : side === 'right'
       ? 'inset-y-0 right-0 h-full w-[420px] max-w-[92vw] border-l rounded-l-xl data-[state=open]:animate-in-up data-[state=closed]:animate-out'
       : // bottom sheet slides from its edge (mobile); desktop side-panel fades
-        'sheet-in-bottom inset-x-0 bottom-0 max-h-[85vh] w-full rounded-t-xl border-t md:inset-y-0 md:right-0 md:left-auto md:h-full md:w-[420px] md:rounded-t-none md:rounded-l-xl md:border-l md:border-t-0'
+        'sheet-in-bottom inset-x-0 bottom-0 max-h-[85dvh] w-full rounded-t-[28px] border-t md:inset-y-0 md:right-0 md:left-auto md:h-full md:w-[420px] md:rounded-t-none md:rounded-l-xl md:border-l md:border-t-0'
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className={SCRIM} />
         <DialogPrimitive.Content
+          onOpenAutoFocus={(e) => e.preventDefault()}
           className={cn(
             'fixed z-50 border-border bg-surface shadow-[var(--shadow-popover)] focus:outline-none',
             pos,
             className,
           )}
         >
-          {title && (
-            <div className="flex items-center justify-between border-b border-border px-4 py-3.5">
-              <DialogPrimitive.Title className="label-nd">{title}</DialogPrimitive.Title>
-              <DialogPrimitive.Close asChild>
-                <IconButton label="关闭"><X size={16} /></IconButton>
-              </DialogPrimitive.Close>
-            </div>
-          )}
+          {isBottom && <div className="grabber mt-2.5 md:hidden" aria-hidden="true" />}
+          {title &&
+            (isBottom ? (
+              // iOS sheet header: centered semibold title, close pinned right
+              <div className="relative flex min-h-11 items-center justify-center px-12 pt-1.5 pb-2">
+                <DialogPrimitive.Title className="truncate text-[17px] font-semibold text-fg">
+                  {title}
+                </DialogPrimitive.Title>
+                <DialogPrimitive.Close asChild>
+                  <IconButton label="关闭" className="absolute right-1.5 top-1/2 -translate-y-1/2">
+                    <X size={16} />
+                  </IconButton>
+                </DialogPrimitive.Close>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between border-b border-border px-4 py-3.5">
+                <DialogPrimitive.Title className="label-nd">{title}</DialogPrimitive.Title>
+                <DialogPrimitive.Close asChild>
+                  <IconButton label="关闭"><X size={16} /></IconButton>
+                </DialogPrimitive.Close>
+              </div>
+            ))}
           {children}
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>
@@ -611,7 +677,10 @@ export function ConfirmDialog({
       <AlertDialogPrimitive.Trigger asChild>{trigger}</AlertDialogPrimitive.Trigger>
       <AlertDialogPrimitive.Portal>
         <AlertDialogPrimitive.Overlay className={SCRIM} />
-        <AlertDialogPrimitive.Content className="fixed left-1/2 top-1/2 z-50 w-[92vw] max-w-[400px] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow-popover)] data-[state=open]:animate-in-up data-[state=closed]:animate-out">
+        <AlertDialogPrimitive.Content
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          className="fixed left-1/2 top-1/2 z-50 w-[92vw] max-w-[400px] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow-popover)] data-[state=open]:animate-in-up data-[state=closed]:animate-out"
+        >
           <AlertDialogPrimitive.Title className="text-h2 font-semibold text-fg">
             {title}
           </AlertDialogPrimitive.Title>

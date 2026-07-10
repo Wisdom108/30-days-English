@@ -56,8 +56,15 @@ export default function ListeningBlock({ lesson }: { lesson: DayLesson }) {
   const curKey = meta[si]?.key
   const curSpeaker = meta[si]?.speaker
 
-  // Warm the current sentence's audio as it appears — replay taps are instant.
-  useEffect(() => { prefetchSpeak(curText, curKey) }, [curText, curKey])
+  // Warm the current sentence's audio LAZILY (~2s after it appears): an
+  // immediate warm on every step competes with the entry animation and the
+  // user's own play tap; the timer is cancelled on change/unmount so a stale
+  // line never gets fetched. (prefetchSpeak itself is best-effort fire-and-
+  // forget — it swallows its own network errors.)
+  useEffect(() => {
+    const t = window.setTimeout(() => prefetchSpeak(curText, curKey), 2000)
+    return () => window.clearTimeout(t)
+  }, [curText, curKey])
 
   const [di, setDi] = useState(0)
   const [ans, setAns] = useState('')
@@ -129,7 +136,7 @@ export default function ListeningBlock({ lesson }: { lesson: DayLesson }) {
           {/* current sentence — LARGEST thing on screen, tap a word to hear it */}
           <p key={si} className="animate-in-up mt-5 px-1 text-left">
             {isDialogue && curSpeaker && (
-              <span className={cn('mb-2 inline-grid h-6 w-6 place-items-center rounded-full text-[11px] font-bold', curKey === 'a' ? 'bg-fg text-bg' : 'bg-red-deep text-white')}>
+              <span className={cn('mb-2 inline-grid h-6 w-6 place-items-center rounded-full text-[11px] font-bold', curKey === 'a' ? 'bg-fg text-bg' : 'bg-red-deep text-brand-fg')}>
                 {curSpeaker}
               </span>
             )}
@@ -199,8 +206,12 @@ export default function ListeningBlock({ lesson }: { lesson: DayLesson }) {
                 ref={inputRef}
                 value={ans}
                 onChange={(e) => { setAns(e.target.value); setResult(null) }}
-                onKeyDown={(e) => { if (e.key !== 'Enter') return; result !== null ? next() : check() }}
+                onKeyDown={(e) => { if (e.key !== 'Enter' || e.nativeEvent.isComposing) return; result !== null ? next() : check() }}
                 placeholder="听到的词…"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                enterKeyHint="go"
                 aria-label={`听写填空 第 ${di + 1} 题`}
                 className="h-12 flex-1 rounded-xl border border-border-strong bg-surface-2 px-4 text-body-lg text-fg outline-none placeholder:text-fg-dim focus:border-brand focus:ring-2 focus:ring-brand/30"
               />

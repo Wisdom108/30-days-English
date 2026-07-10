@@ -1,6 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowUp, Check, ChevronRight, Mic, Sparkles, X } from 'lucide-react'
 import { useApp } from '../../state'
 import { useAuth } from '../../auth'
 import { features } from '../../config'
@@ -26,28 +25,18 @@ import {
   walletCap,
   zaizaiBrief,
   zaizaiChat,
-  type AwardCardPayload,
   type ChatEntry,
-  type DrillCardPayload,
-  type ListenCardPayload,
-  type NewsCardPayload,
-  type ReviewCardPayload,
   type ScenarioPack,
   type TaskCardPayload,
-  type VocabCardPayload,
   type ZaizaiStats,
 } from '../../lib/zaizai'
 import { openAccount } from '../ai'
-import { BlockIcon } from '../blockicons'
 import { useToast } from '../ui/toast'
 import ProgressCard from './ProgressCard'
-import ScenarioCard from './ScenarioCard'
 import CallSheet from './CallSheet'
 import Onboarding, { onboardingPending } from './Onboarding'
-import { AwardCard, DrillCard, ListenCard, NewsCard, ReviewCard, VocabCard } from './cards'
-import { cn } from '../../lib/utils'
-
-const PRESETS = ['机场', '点餐', '打车', '酒店', '问路', '购物']
+import MessageFeed, { type FeedActions } from './MessageFeed'
+import Composer from './Composer'
 
 // in-app proactivity stamps (§8.2) — all LOCAL dates / epoch ms in localStorage
 const SEEN_KEY = 'zaizai:lastSeen' // last time the tab was visible (epoch ms)
@@ -62,9 +51,13 @@ export default function ChatHome() {
 
   const current = Math.min(state.currentDay, TOTAL_DAYS)
   const lesson = getLesson(current)
-  const lessonCtx: LessonCtx = lesson
-    ? { day: lesson.day, theme: lesson.theme, title_en: lesson.title_en, grammar: lesson.grammarNote?.point_en, level: 'A2-B1' }
-    : {}
+  const lessonCtx: LessonCtx = useMemo(
+    () =>
+      lesson
+        ? { day: lesson.day, theme: lesson.theme, title_en: lesson.title_en, grammar: lesson.grammarNote?.point_en, level: 'A2-B1' }
+        : {},
+    [lesson],
+  )
   const prog = getDayProgress(state, current)
   const stats: ZaizaiStats = {
     day: current,
@@ -80,7 +73,7 @@ export default function ChatHome() {
     studiedToday(state) && (isDayComplete(state, current) || state.days[current - 1]?.completedAt === todayISO())
 
   const [entries, setEntries] = useState<ChatEntry[]>(() => loadChat())
-  const [input, setInput] = useState('')
+  // NOTE: the draft text lives inside <Composer/> — typing must not re-render the feed.
   const [busy, setBusy] = useState(false)
   const [scenarioMode, setScenarioMode] = useState(false)
   const [roleplay, setRoleplay] = useState<string | null>(null)
@@ -90,6 +83,11 @@ export default function ChatHome() {
   const [onboarding, setOnboarding] = useState(onboardingPending)
 
   useEffect(() => saveChat(entries), [entries])
+
+  // Latest entries for the stable action handlers (finishScenario/send read
+  // through this — their identity must not chase the array).
+  const entriesRef = useRef(entries)
+  entriesRef.current = entries
 
   const push = (e: Omit<ChatEntry, 'id' | 'at'>) =>
     setEntries((es) => [...es, { ...e, id: newId(), at: Date.now() }])
@@ -305,39 +303,43 @@ export default function ChatHome() {
     }
   }
 
-  const send = async () => {
-    const text = input.trim()
-    if (!text || busy || !features.ai) return
-    if (!requireUser()) return
-    setInput('')
+  /** Composer hands us a trimmed draft; false → it keeps the text (not signed
+   *  in / busy), true → it clears the field. */
+  const handleSend = (text: string): boolean => {
+    if (busy || !features.ai) return false
+    if (!requireUser()) return false
     if (scenarioMode) {
       setScenarioMode(false)
-      return runScenario(text)
+      void runScenario(text)
+      return true
     }
     const mine: ChatEntry = { id: newId(), role: 'user', kind: 'text', payload: text, at: Date.now() }
+    const history: ChatMsg[] = [...entriesRef.current, mine]
+      .filter((e) => typeof e.payload === 'string' && e.kind !== 'task-card' && e.kind !== 'scenario-pack' && e.kind !== 'memory-chip')
+      .slice(-8)
+      .map((e) => ({ role: e.role, content: e.payload as string }))
     setEntries((es) => [...es, mine])
     setBusy(true)
-    try {
-      const history: ChatMsg[] = [...entries, mine]
-        .filter((e) => typeof e.payload === 'string' && e.kind !== 'task-card' && e.kind !== 'scenario-pack' && e.kind !== 'memory-chip')
-        .slice(-8)
-        .map((e) => ({ role: e.role, content: e.payload as string }))
-      if (roleplay) {
-        const { reply } = await aiChat(history, lessonCtx, roleplay)
-        push({ role: 'assistant', kind: 'text', payload: reply })
-      } else {
-        const { reply, card, remembered } = await zaizaiChat(history, lessonCtx, stats, guestMemory())
-        push({ role: 'assistant', kind: 'text', payload: reply })
-        const ce = cardEntry(card) // 在在 may attach one contextual card after the bubble
-        if (ce) push({ role: 'assistant', ...ce })
-        if (remembered?.length)
-          push({ role: 'assistant', kind: 'memory-chip', payload: remembered.join('、') })
+    void (async () => {
+      try {
+        if (roleplay) {
+          const { reply } = await aiChat(history, lessonCtx, roleplay)
+          push({ role: 'assistant', kind: 'text', payload: reply })
+        } else {
+          const { reply, card, remembered } = await zaizaiChat(history, lessonCtx, stats, guestMemory())
+          push({ role: 'assistant', kind: 'text', payload: reply })
+          const ce = cardEntry(card) // 在在 may attach one contextual card after the bubble
+          if (ce) push({ role: 'assistant', ...ce })
+          if (remembered?.length)
+            push({ role: 'assistant', kind: 'memory-chip', payload: remembered.join('、') })
+        }
+      } catch (e) {
+        errBubble(e)
+      } finally {
+        setBusy(false)
       }
-    } catch (e) {
-      errBubble(e)
-    } finally {
-      setBusy(false)
-    }
+    })()
+    return true
   }
 
   const startPractice = (pack: ScenarioPack, s: string) => {
@@ -358,7 +360,7 @@ export default function ChatHome() {
   const earnPending = useRef(new Set<string>())
   const finishScenario = (entryId: string) => {
     if (earnPending.current.has(entryId)) return // this card's postEarn in flight — no double-claim
-    const cur = entries.find((en) => en.id === entryId)
+    const cur = entriesRef.current.find((en) => en.id === entryId)
     if (cur && (cur.payload as ScenarioPack & { done?: boolean }).done) return // already claimed
     setRoleplay(null)
     // Flag the pack done (persists via the saveChat effect) so 完成 can't be farmed.
@@ -388,156 +390,87 @@ export default function ChatHome() {
     push({ role: 'assistant', kind: 'text', payload: '这个场景拿下了!想再练一个,还是打通电话实战一下?' })
   }
 
-  const renderEntry = (e: ChatEntry) => {
-    if (e.kind === 'task-card') {
-      const t = e.payload as TaskCardPayload
-      const done = !!getDayProgress(state, t.day).completedBlocks[t.key]
-      return (
-        <div key={e.id} className="flex">
-          <button
-            onClick={() => nav(`/day/${t.day}?b=${t.key}`)}
-            className={cn('press glass flex w-full max-w-[88%] items-center gap-3 rounded-xl px-4 py-3 text-left', done && 'opacity-60')}
-          >
-            <BlockIcon k={t.key} size={18} className="shrink-0 text-fg-secondary" />
-            <span className="min-w-0 flex-1">
-              <span className={cn('block truncate text-body font-medium', done ? 'text-fg-muted line-through' : 'text-fg')}>
-                {t.title_zh}
-              </span>
-              <span className="text-meta text-fg-muted">Day {t.day} · {t.minutes} 分钟</span>
-            </span>
-            {done ? <Check size={15} className="shrink-0 text-success" /> : <ChevronRight size={15} className="shrink-0 text-fg-dim" />}
-          </button>
-        </div>
-      )
-    }
-    if (e.kind === 'scenario-pack') {
-      const pack = e.payload as ScenarioPack
-      return (
-        <div key={e.id} className="flex">
-          <ScenarioCard pack={pack} onPractice={(s) => startPractice(pack, s)} onCall={startCall} onDone={() => finishScenario(e.id)} />
-        </div>
-      )
-    }
-    if (e.kind === 'vocab-card') return <div key={e.id} className="flex"><VocabCard data={e.payload as VocabCardPayload} /></div>
-    if (e.kind === 'drill-card') return <div key={e.id} className="flex"><DrillCard data={e.payload as DrillCardPayload} lesson={lessonCtx} /></div>
-    if (e.kind === 'listen-card') return <div key={e.id} className="flex"><ListenCard data={e.payload as ListenCardPayload} /></div>
-    if (e.kind === 'review-card') return <div key={e.id} className="flex"><ReviewCard data={e.payload as ReviewCardPayload} /></div>
-    if (e.kind === 'award-card') return <div key={e.id} className="flex"><AwardCard data={e.payload as AwardCardPayload} /></div>
-    if (e.kind === 'news-card') return <div key={e.id} className="flex"><NewsCard data={e.payload as NewsCardPayload} /></div>
-    if (e.kind === 'memory-chip') {
-      // freeze notices (❄ prefix) are already full sentences — no 记住了 prefix
-      const chip = String(e.payload)
-      return (
-        <div key={e.id} className="flex justify-center">
-          <span className="animate-in-up max-w-[85%] truncate rounded-full bg-surface-2 px-3 py-1 text-meta text-fg-muted">
-            {chip.startsWith('❄') ? chip : `在在记住了:${chip}`}
-          </span>
-        </div>
-      )
-    }
-    const me = e.role === 'user'
-    return (
-      <div key={e.id} className={cn('flex', me && 'justify-end')}>
-        <div className={cn('max-w-[85%] whitespace-pre-wrap px-3.5 py-2 text-body leading-relaxed', me ? 'bubble-me' : 'bubble-ai')}>
-          {e.kind === 'brief' && <div className="mb-0.5 font-mono text-[9px] uppercase tracking-[0.2em] opacity-60">今日晨报</div>}
-          {String(e.payload)}
-        </div>
-      </div>
-    )
+  // ---- stable action surface (v3.2 §12): identity NEVER changes, latest
+  // implementations are read through implRef — so the memoized MessageFeed /
+  // Composer rows aren't re-rendered by fresh closures every parent render.
+  const impl = {
+    task: (t: TaskCardPayload) => nav(`/day/${t.day}?b=${t.key}`),
+    practice: startPractice,
+    call: startCall,
+    done: finishScenario,
+    send: handleSend,
+    preset: runScenario,
+    stopRoleplay: () => setRoleplay(null),
   }
+  const implRef = useRef(impl)
+  implRef.current = impl
+  const [actions] = useState<FeedActions & { send: (t: string) => boolean; preset: (p: string) => void; stopRoleplay: () => void }>(
+    () => ({
+      task: (t) => implRef.current.task(t),
+      practice: (pack, brief) => implRef.current.practice(pack, brief),
+      call: (s?: string) => implRef.current.call(s),
+      done: (id) => implRef.current.done(id),
+      send: (t) => implRef.current.send(t),
+      preset: (p) => void implRef.current.preset(p),
+      stopRoleplay: () => implRef.current.stopRoleplay(),
+    }),
+  )
 
   return (
-    <div className="mx-auto flex min-h-[calc(100vh-140px)] max-w-[720px] flex-col">
-      {/* progress spine — pinned under the app header */}
-      <div className="sticky top-[calc(54px+env(safe-area-inset-top)+8px)] z-20">
-        <ProgressCard />
+    // -mb cancels <main>'s page bottom padding so the dock's natural flow
+    // position is the page end — at max scroll it stays flush on the tab bar
+    // instead of lifting off and exposing a bare strip.
+    <div className="mx-auto -mb-24 flex min-h-[calc(100dvh-126px-env(safe-area-inset-top)-env(safe-area-inset-bottom))] max-w-[720px] flex-col md:-mb-16">
+      {/* progress spine — pinned FLUSH under the app header (§7). The scrim is
+          a full-bleed gradient + blur veil (part of this card's glass
+          allowance): scrolling messages only ever pass under one unified
+          blur layer — never raw through corner notches or a seam. */}
+      <div className="sticky top-[calc(54px+env(safe-area-inset-top))] z-20">
+        <div className="progress-scrim pointer-events-none absolute -inset-x-4 -top-4 -bottom-3 md:-inset-x-6" aria-hidden="true" />
+        <div className="relative pt-1">
+          <ProgressCard />
+        </div>
       </div>
 
-      {/* message feed — bottom padding clears the sticky input dock + mobile tab
-          bar (~160px / ~116px on md) so autoscrolled messages never park behind them */}
-      <div className="flex-1 space-y-2.5 pt-4 pb-40 md:pb-28">
-        {entries.map(renderEntry)}
+      {/* message feed — bottom-anchored (justify-end): a short history sits
+          just above the dock, like every messenger. The dock is IN-FLOW right
+          below this feed, so the bottom padding only needs to cover the
+          dock's sticky lift at max scroll (tab-bar clearance, 56px) + air. */}
+      <div className="flex flex-1 flex-col justify-end pb-16 pt-4 md:pb-6">
+        <MessageFeed entries={entries} state={state} lesson={lessonCtx} actions={actions} />
         {onboarding && (
-          <Onboarding
-            stats={stats}
-            lesson={lessonCtx}
-            append={(role, text) => push({ role, kind: 'text', payload: text })}
-            onDone={() => setOnboarding(false)}
-          />
+          <div className="mt-2.5">
+            <Onboarding
+              stats={stats}
+              lesson={lessonCtx}
+              append={(role, text) => push({ role, kind: 'text', payload: text })}
+              onDone={() => setOnboarding(false)}
+            />
+          </div>
         )}
         {busy && (
-          <div className="flex">
-            <div className="bubble-ai flex items-center gap-1 px-3.5 py-3">
-              {[0, 1, 2].map((i) => (
-                <span key={i} className="h-1.5 w-1.5 animate-pulse rounded-full bg-fg-muted" style={{ animationDelay: `${i * 150}ms` }} />
-              ))}
+          <div className="mt-2.5 flex">
+            <div className="bubble-ai bubble-tail flex items-center gap-1" style={{ padding: '11px 13px' }}>
+              <span className="typing-dot" />
+              <span className="typing-dot" />
+              <span className="typing-dot" />
             </div>
           </div>
         )}
         <div ref={endRef} className="scroll-mb-40 md:scroll-mb-28" />
       </div>
 
-      {/* input dock — quick scenarios + iMessage bar */}
-      <div className="sticky bottom-[calc(3.75rem+env(safe-area-inset-bottom))] z-20 pb-1 md:bottom-4">
-        {roleplay && (
-          <div className="mb-2 flex justify-center">
-            <button
-              onClick={() => setRoleplay(null)}
-              className="press flex items-center gap-1.5 rounded-full bg-accent-soft px-3 py-1 text-meta font-medium text-brand"
-            >
-              演练中 · {roleplay.split(' — ')[0]} <X size={12} />
-            </button>
-          </div>
-        )}
-        {features.ai && (
-          <div className="mb-2 flex gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {PRESETS.map((p) => (
-              <button
-                key={p}
-                onClick={() => runScenario(p)}
-                disabled={busy}
-                className="press glass shrink-0 rounded-full px-3 py-1.5 text-sm font-medium text-fg-secondary disabled:opacity-45"
-              >
-                {p}
-              </button>
-            ))}
-            <button
-              onClick={() => setScenarioMode((m) => !m)}
-              className={cn(
-                'press shrink-0 flex items-center gap-1 rounded-full px-3 py-1.5 text-sm font-medium',
-                scenarioMode ? 'bg-brand text-brand-fg' : 'glass text-fg-secondary',
-              )}
-            >
-              <Sparkles size={13} /> 自定义
-            </button>
-          </div>
-        )}
-        <div className="glass-strong flex items-center gap-1.5 rounded-[22px] p-1.5">
-          <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && !e.nativeEvent.isComposing && send()}
-            disabled={!features.ai}
-            placeholder={!features.ai ? 'AI 未配置 · 任务照常打卡' : scenarioMode ? '描述场景,如:和房东谈租房' : '给在在发消息…'}
-            className="h-9 min-w-0 flex-1 bg-transparent px-2.5 text-body text-fg outline-none placeholder:text-fg-dim disabled:opacity-50"
-          />
-          <button
-            onClick={() => startCall(undefined)}
-            aria-label="语音通话"
-            className="press grid h-9 w-9 shrink-0 place-items-center rounded-full text-fg-secondary transition-colors hover:bg-hover hover:text-fg"
-          >
-            <Mic size={18} />
-          </button>
-          <button
-            onClick={send}
-            disabled={!input.trim() || busy || !features.ai}
-            aria-label="发送"
-            className="press grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand text-brand-fg transition-opacity disabled:opacity-35"
-          >
-            <ArrowUp size={17} strokeWidth={2.5} />
-          </button>
-        </div>
-      </div>
+      <Composer
+        busy={busy}
+        aiOn={features.ai}
+        scenarioMode={scenarioMode}
+        roleplay={roleplay}
+        onSend={actions.send}
+        onPreset={actions.preset}
+        onCall={actions.call}
+        onScenarioMode={setScenarioMode}
+        onStopRoleplay={actions.stopRoleplay}
+      />
 
       <CallSheet open={callOpen} onOpenChange={setCallOpen} lesson={lessonCtx} scenario={callScenario} />
     </div>

@@ -1,8 +1,6 @@
 # Local secrets for `wrangler dev`. Copy to .dev.vars and fill in.
 # In production set these with `wrangler secret put <NAME>` instead.
-
-# Anthropic API key — powers all AI features (draws from your Anthropic credits).
-ANTHROPIC_API_KEY=sk-ant-REPLACE_ME
+# (AI text/speech runs on the Workers AI binding — no key needed.)
 
 # Azure Speech resource key (region is set in wrangler.toml [vars]).
 AZURE_SPEECH_KEY=REPLACE_ME

@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties } from 'react'
+import { lazy, Suspense, useEffect, useState, type CSSProperties } from 'react'
 import { AlertCircle, Mic, Sparkles, Loader2 } from 'lucide-react'
 import type { DayLesson } from '../../types'
 import { prefetchSpeak, recognizeOnce, scorePronunciation, sttSupported } from '../../lib/speech'
@@ -8,12 +8,15 @@ import { aiCoach, AIError, type LessonCtx } from '../../lib/ai'
 import { realtimeAvailable, voiceAgentAvailable, grokRealtimeAvailable } from '../../lib/caps'
 import { SpeakButton, BlockHead, DialoguePlayer } from '../shared'
 import { AiGate, ConversationPanel } from '../ai'
-import CFLiveTutor from '../CFLiveTutor'
-import GrokLiveTutor from '../GrokLiveTutor'
-import LiveTutor from '../LiveTutor'
-import VoiceLoop from '../VoiceLoop'
-import { Button, Callout, Collapse, Stepper } from '../ui'
+import { Button, Callout, Collapse, Skeleton, Stepper } from '../ui'
 import { cn } from '../../lib/utils'
+
+// Realtime tutors load on demand (only when the Speaking block renders the AI
+// partner) — keeps the heavy voice stacks out of the main bundle.
+const CFLiveTutor = lazy(() => import('../CFLiveTutor'))
+const GrokLiveTutor = lazy(() => import('../GrokLiveTutor'))
+const LiveTutor = lazy(() => import('../LiveTutor'))
+const VoiceLoop = lazy(() => import('../VoiceLoop'))
 
 function ctxOf(l: DayLesson): LessonCtx {
   return { day: l.day, theme: l.theme, title_en: l.title_en, grammar: l.grammarNote?.point_en, level: 'A2-B1' }
@@ -52,7 +55,21 @@ function ShadowHero({ text, tip, sttOk, lesson }: { text: string; tip: string; s
       else if (cfVoiceAvailable()) { const t = await cfRecordAndTranscribe(); setHeard(t); setScore(scorePronunciation(text, t)) }
       else { const { transcript } = await recognizeOnce(); setHeard(transcript); setScore(scorePronunciation(text, transcript)) }
     } catch (e) {
-      setError(e instanceof Error && e.message.includes('登录') ? '请先登录以使用发音评测' : '没听清，请再试一次')
+      // Triage by DOMException name first (getUserMedia surfaces these), then
+      // by message — a permission problem must not read as "没听清".
+      const name = e instanceof Error ? e.name : ''
+      const msg = e instanceof Error ? e.message : ''
+      setError(
+        name === 'NotAllowedError' || name === 'SecurityError'
+          ? '需要麦克风权限：请在 设置 > 浏览器 > 麦克风 中允许后重试'
+          : name === 'NotFoundError'
+          ? '未检测到麦克风'
+          : msg.includes('登录')
+          ? '请先登录以使用发音评测'
+          : msg.includes('额度')
+          ? msg // 429 quota message from the worker — show it verbatim, not "没听清"
+          : '没听清，请再试一次',
+      )
     } finally { setRec(false) }
   }
 
@@ -84,7 +101,7 @@ function ShadowHero({ text, tip, sttOk, lesson }: { text: string; tip: string; s
           <button
             onClick={orbTap}
             disabled={!canRecord || (rec && !cfPath)}
-            aria-label={rec ? (cfPath ? '结束录音' : '录音中') : '跟读'}
+            aria-label={rec ? (cfPath ? '结束录音' : '录音中') : '开始跟读录音'}
             className={cn(
               'press absolute inset-0 grid place-items-center rounded-full border-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:opacity-45',
               rec ? 'border-red bg-red-soft text-red' : 'border-border-strong bg-surface text-fg hover:border-fg',
@@ -238,5 +255,10 @@ export function AiPartner({ lesson, scenario }: { lesson: LessonCtx; scenario?: 
     : cfVoice ? <VoiceLoop lesson={lesson} scenario={scenario} />
     : <AiGate><ConversationPanel lesson={lesson} scenario={scenario} /></AiGate>
 
-  return <div>{toggle}{panel}</div>
+  return (
+    <div>
+      {toggle}
+      <Suspense fallback={<Skeleton className="h-24 rounded-xl" />}>{panel}</Suspense>
+    </div>
+  )
 }

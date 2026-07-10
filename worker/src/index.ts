@@ -24,7 +24,7 @@ import {
   isScenarioPack,
   SCENARIO_SCHEMA,
 } from './zaizai'
-import { handleNews } from './news'
+import { handleNews, prefetchNews } from './news'
 import {
   pushEnabled,
   handleVapid,
@@ -62,6 +62,7 @@ export interface Env {
   AZURE_VOICE: string
   DAILY_AI_QUOTA: string
   DAILY_SPEECH_QUOTA: string
+  DAILY_CF_SPEECH_QUOTA?: string // member daily cap for Workers AI TTS/STT ('cf' pool, default 200)
   // Membership (Cloudflare D1) — OPTIONAL. Absent DB → everything runs as before
   // and the /auth/* + /progress endpoints answer 503.
   DB?: D1Database
@@ -405,13 +406,15 @@ function b64(buf: ArrayBuffer): string {
   return btoa(s)
 }
 
-/** Text-to-speech via Cloudflare Workers AI (Deepgram Aura). Returns audio/mpeg. */
+/** Text-to-speech via Cloudflare Workers AI (Deepgram Aura). Returns audio/mpeg.
+ *  Own 'cf' quota pool — Workers AI calls are cheap/free, so they must not eat
+ *  the (scarcer) Azure token mints in 'sp'. */
 async function handleTts(req: Request, env: Env): Promise<Response> {
   const ident = await identify(req, env)
   if (!ident) return json({ error: '需要登录' }, env, 401)
   const uid = ident.uid
-  const spCap = ident.member ? Number(env.DAILY_SPEECH_QUOTA || '200') : Number(env.FREE_SPEECH_QUOTA || '20')
-  if (!(await underQuota(env, 'sp', uid, spCap))) {
+  const cfCap = ident.member ? Number(env.DAILY_CF_SPEECH_QUOTA || '200') : Number(env.FREE_SPEECH_QUOTA || '20')
+  if (!(await underQuota(env, 'cf', uid, cfCap))) {
     return json({ error: ident.member ? '今日语音额度已用完' : FREE_QUOTA_MSG }, env, 429)
   }
   const body = (await req.json().catch(() => ({}))) as { text?: string; voice?: string }
@@ -424,7 +427,7 @@ async function handleTts(req: Request, env: Env): Promise<Response> {
     const speaker = /aura/.test(String(model)) && AURA_VOICES.has(String(body.voice || '')) ? String(body.voice) : ''
     const input = speaker ? { text, speaker } : { text }
     const r = (await env.AI.run(model, input as never)) as unknown
-    await bump(env, 'sp', uid)
+    await bump(env, 'cf', uid)
     // Aura returns an audio ReadableStream; MeloTTS returns { audio: base64 }.
     let audio: BodyInit | null = null
     if (r instanceof ReadableStream) audio = r
@@ -441,13 +444,14 @@ async function handleTts(req: Request, env: Env): Promise<Response> {
   }
 }
 
-/** Speech-to-text via Cloudflare Workers AI (Whisper). Body = raw audio bytes. */
+/** Speech-to-text via Cloudflare Workers AI (Whisper). Body = raw audio bytes.
+ *  Shares the 'cf' pool with handleTts (Workers AI speech, separate from Azure). */
 async function handleStt(req: Request, env: Env): Promise<Response> {
   const ident = await identify(req, env)
   if (!ident) return json({ error: '需要登录' }, env, 401)
   const uid = ident.uid
-  const spCap = ident.member ? Number(env.DAILY_SPEECH_QUOTA || '200') : Number(env.FREE_SPEECH_QUOTA || '20')
-  if (!(await underQuota(env, 'sp', uid, spCap))) {
+  const cfCap = ident.member ? Number(env.DAILY_CF_SPEECH_QUOTA || '200') : Number(env.FREE_SPEECH_QUOTA || '20')
+  if (!(await underQuota(env, 'cf', uid, cfCap))) {
     return json({ error: ident.member ? '今日语音额度已用完' : FREE_QUOTA_MSG }, env, 429)
   }
   const buf = await req.arrayBuffer()
@@ -460,11 +464,23 @@ async function handleStt(req: Request, env: Env): Promise<Response> {
       ? { audio: b64(buf) }
       : { audio: [...new Uint8Array(buf)] }
     const r = (await env.AI.run(model, input as never)) as { text?: string }
-    await bump(env, 'sp', uid)
+    await bump(env, 'cf', uid)
     return json({ text: (r?.text || '').trim() }, env)
   } catch {
     return json({ error: '识别失败，请重试' }, env, 502)
   }
+}
+
+/** Did the caller present ANY credential (session cookie, passcode, Access JWT)?
+ *  Distinguishes a plain anonymous visitor (nothing presented → /me answers 200
+ *  email:null, no console red) from a BAD credential (presented → still 401). */
+function credentialPresented(req: Request): boolean {
+  const cookie = req.headers.get('cookie') || ''
+  return (
+    !!req.headers.get('x-app-passcode') ||
+    !!req.headers.get('Cf-Access-Jwt-Assertion') ||
+    /(?:^|;\s*)(sid|app_pc|CF_Authorization)=/.test(cookie)
+  )
 }
 
 /** Whoami — the frontend polls this to learn if AI is usable / who is signed in.
@@ -491,28 +507,44 @@ async function handleMe(req: Request, env: Env): Promise<Response> {
     if (ident?.member) {
       return json({ email: ident.name, member: true, memberUntil: null, account: false, mode: 'account' }, env, 200, req)
     }
-    return json({ email: null, mode: 'account' }, env, 401, req)
+    // A plain anonymous visitor (nothing presented, or the open-mode IP/free
+    // identity) is a normal signed-out state, not an error → 200 with
+    // email:null so the guest landing never paints a console red. A PRESENTED
+    // credential that failed (wrong passcode, bad Access JWT, stale session
+    // cookie) keeps 401. Frontend contract stays: res.ok && data.email.
+    if (!ident && credentialPresented(req)) return json({ email: null, mode: 'account' }, env, 401, req)
+    return json({ email: null, mode: 'account' }, env, 200, req)
   }
   const uid = await verifyUser(req, env)
   // mode tells the frontend how to log in: Access redirect, passcode prompt, or open.
   const mode = env.CF_ACCESS_TEAM_DOMAIN ? 'access' : env.APP_PASSCODE ? 'passcode' : 'open'
-  if (!uid) return json({ email: null, mode }, env, 401)
+  if (!uid) {
+    // Same anonymous-vs-bad-credential split as the account branch above.
+    if (!credentialPresented(req)) return json({ email: null, mode }, env, 200)
+    return json({ email: null, mode }, env, 401)
+  }
   const email = mode === 'access' ? uid : mode === 'passcode' ? 'member' : '访客'
   return json({ email, mode }, env)
+}
+
+/** Open-redirect guard for /login /logout: only a same-site path is honored.
+ *  '/' must lead; '//host' (scheme-relative) and '/\host' (backslash trick,
+ *  browsers normalize to '//') both escape the origin → rejected. */
+function safeBack(raw: string | null): string {
+  const back = raw || '/'
+  return back.startsWith('/') && !back.startsWith('//') && !back.startsWith('/\\') ? back : '/'
 }
 
 /** Access-protected redirect target. Reaching it means Access has authenticated
  *  the user (or DEV_BYPASS); bounce back to the app's `redirect` param. */
 function handleLogin(req: Request): Response {
-  const url = new URL(req.url)
-  const back = url.searchParams.get('redirect') || '/'
+  const back = safeBack(new URL(req.url).searchParams.get('redirect'))
   return new Response(null, { status: 302, headers: { location: back } })
 }
 
 /** Clear the Access session on the team domain, then bounce back to the app. */
 function handleLogout(req: Request, env: Env): Response {
-  const url = new URL(req.url)
-  const back = url.searchParams.get('redirect') || '/'
+  const back = safeBack(new URL(req.url).searchParams.get('redirect'))
   const dest = env.CF_ACCESS_TEAM_DOMAIN
     ? `https://${env.CF_ACCESS_TEAM_DOMAIN}/cdn-cgi/access/logout?returnTo=${encodeURIComponent(back)}`
     : back
@@ -529,6 +561,7 @@ function withCors(resp: Response, env: Env, req: Request): Response {
 // ---------------------------------------------------------------- entry
 export default {
   async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    try {
     const { pathname } = new URL(req.url)
 
     // Cloudflare Agents voice tutor — WebSocket routing (/agents/voice-tutor/*).
@@ -542,6 +575,16 @@ export default {
     if (segs[0] === 'agents' && req.method !== 'OPTIONS') {
       const ident = await identify(req, env)
       if (!ident || !ident.uid) return json({ error: '需要登录' }, env, 401, req)
+      // Each WS session runs the full STT+LLM+TTS pipeline — cap sessions per
+      // user/day ('va' pool). Only the upgrade itself is charged; non-upgrade
+      // /agents traffic (if any) passes free.
+      if ((req.headers.get('upgrade') || '').toLowerCase() === 'websocket') {
+        const vaCap = ident.member ? 10 : 2
+        if (!(await underQuota(env, 'va', ident.uid, vaCap))) {
+          return json({ error: ident.member ? '今日语音陪练额度已用完，明天再来～' : FREE_QUOTA_MSG }, env, 429, req)
+        }
+        await bump(env, 'va', ident.uid)
+      }
     }
     const agentResp = await routeAgentRequest(req, env)
     if (agentResp) return agentResp
@@ -605,11 +648,19 @@ export default {
     }
 
     return withCors(await route(), env, req)
+    } catch (e) {
+      // Last-resort guard: an unexpected throw anywhere above must never surface
+      // as a raw 1101/500 page — always answer JSON with CORS headers intact.
+      console.error('unhandled fetch error:', e)
+      return withCors(json({ error: '服务器开小差了,请稍后再试' }, env, 500, req), env, req)
+    }
   },
 
   // Crons: `0 23 * * *` UTC = 北京 07:00 morning tickle to every subscriber;
   // `0 12 * * *` UTC = 北京 20:00 evening rescue (stale-progress subs only).
+  // Both runs also prefetch today's news card into KV so users never wait on it.
   async scheduled(ctrl: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
     ctx.waitUntil(ctrl.cron === '0 12 * * *' ? sendEveningTickles(env) : sendMorningTickles(env))
+    ctx.waitUntil(prefetchNews(env).catch((e) => console.error('news prefetch failed:', e)))
   },
 }

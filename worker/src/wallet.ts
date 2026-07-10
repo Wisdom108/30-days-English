@@ -245,34 +245,38 @@ export async function handleEarn(req: Request, env: Env): Promise<Response> {
   // ref is rebuilt in SQL as scenario:{day}:{claimedCount+1} from the same
   // count the guard uses — a rare concurrent dupe lands on the unique index.
   const guard = '(SELECT COUNT(*) FROM wallet_ledger WHERE user_id = ?1 AND reason = ?3 AND day = ?4)'
-  const ins =
+  const ledgerIns =
     event === 'scenario_complete'
-      ? await db
+      ? db
           .prepare(
             'INSERT OR IGNORE INTO wallet_ledger (user_id, delta_seconds, reason, ref, day, created_at) ' +
               `SELECT ?1, ?2, ?3, 'scenario:' || ?4 || ':' || (${guard} + 1), ?4, ?5 ` +
               `WHERE ${guard} < ?6`,
           )
           .bind(userId, rule.seconds, reason, day, now, rule.dailyCap)
-          .run()
-      : await db
+      : db
           .prepare(
             'INSERT OR IGNORE INTO wallet_ledger (user_id, delta_seconds, reason, ref, day, created_at) ' +
               `SELECT ?1, ?2, ?3, ?5, ?4, ?6 WHERE ${guard} < ?7`,
           )
           .bind(userId, rule.seconds, reason, day, ref, now, rule.dailyCap)
-          .run()
-  let earned = 0
-  if (ins.meta.changes) {
-    earned = rule.seconds
-    await db
+  // Ledger insert + balance credit in ONE db.batch() transaction (grantFreezes
+  // pattern): the wallet UPSERT only fires when THIS call's ledger row landed
+  // (reason + day + this call's created_at — identifies the SQL-rebuilt scenario
+  // ref too), so a replayed ref / hit cap mutates nothing and the pair can never
+  // land half-applied (ledger row without the seconds, or vice versa).
+  const [ins] = await db.batch([
+    ledgerIns,
+    db
       .prepare(
-        'INSERT INTO wallet (user_id, balance_seconds, updated_at) VALUES (?1, ?2, ?3) ' +
+        'INSERT INTO wallet (user_id, balance_seconds, updated_at) ' +
+          'SELECT ?1, ?2, ?3 ' +
+          'WHERE EXISTS (SELECT 1 FROM wallet_ledger WHERE user_id = ?1 AND reason = ?4 AND day = ?5 AND created_at = ?3) ' +
           'ON CONFLICT(user_id) DO UPDATE SET balance_seconds = balance_seconds + ?2, updated_at = ?3',
       )
-      .bind(userId, rule.seconds, now)
-      .run()
-  }
+      .bind(userId, rule.seconds, now, reason, day),
+  ])
+  const earned = ins.meta.changes ? rule.seconds : 0
 
   // Badge judgement — INSERT OR IGNORE keeps this idempotent, so it also runs on
   // replays (covers a badge write that failed on the original claim).

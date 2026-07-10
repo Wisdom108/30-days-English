@@ -40,7 +40,7 @@ export default function ListenCard({ data }: { data: ListenCardPayload }) {
   }
 
   return (
-    <div className="glass w-full max-w-[88%] rounded-xl p-4">
+    <div className="card-solid w-full max-w-[88%] rounded-xl p-4">
       <div className="label-nd">{data.label || '磨耳朵'} · 听完再看</div>
       <div className="mt-3 flex items-center gap-3">
         <button

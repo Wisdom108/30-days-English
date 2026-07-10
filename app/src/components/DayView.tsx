@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, Check, ArrowRight, PartyPopper } from 'lucide-react'
+import { Check, ArrowRight, PartyPopper } from 'lucide-react'
 import { BlockIcon } from './blockicons'
 import { useApp } from '../state'
 import { getLesson, TOTAL_DAYS } from '../data/curriculum'
@@ -214,19 +214,10 @@ export default function DayView() {
 
   return (
     <div className="mx-auto max-w-[560px] pb-28">
-      {/* compact header */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={() => nav('/')}
-          aria-label="返回首页"
-          className="press grid h-10 w-10 shrink-0 place-items-center rounded-lg text-fg-muted transition-colors hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
-        >
-          <ArrowLeft size={18} />
-        </button>
-        <div className="min-w-0 flex-1">
-          <div className="label-nd">Day {lesson.day} · 阶段 {lesson.phase}</div>
-          <div className="truncate text-[18px] font-semibold tracking-[-0.015em] text-fg">{lesson.title_en}</div>
-        </div>
+      {/* compact title — back navigation lives in the global sub-page header */}
+      <div className="min-w-0">
+        <div className="label-nd">Day {lesson.day} · 阶段 {lesson.phase}</div>
+        <div className="truncate text-[18px] font-semibold tracking-[-0.015em] text-fg">{lesson.title_en}</div>
       </div>
 
       {/* step rail — navigation + progress in one */}
@@ -248,7 +239,7 @@ export default function DayView() {
                 className={cn(
                   'relative grid h-10 w-full place-items-center rounded-lg border transition-all',
                   isActive
-                    ? 'border-fg text-fg shadow-[0_0_0_1px_var(--color-fg)]'
+                    ? 'border-brand bg-accent-soft text-brand shadow-[0_0_0_1px_var(--color-brand)]'
                     : isDone
                     ? 'border-border-strong text-fg-secondary'
                     : 'border-border text-fg-dim group-hover:text-fg-muted',
@@ -261,7 +252,7 @@ export default function DayView() {
                   </span>
                 )}
               </span>
-              <span className={cn('font-mono text-[8.5px] uppercase tracking-[0.06em]', isActive ? 'text-fg' : 'text-fg-dim')}>
+              <span className={cn('text-[10px] font-medium', isActive ? 'text-fg' : 'text-fg-dim')}>
                 {SHORT[b.key]}
               </span>
               <span className="sr-only">{i + 1}</span>

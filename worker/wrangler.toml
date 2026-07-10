@@ -40,9 +40,9 @@ crons = ["0 23 * * *", "0 12 * * *"]
 # API key). Swap to a lighter model to save "neurons" quota, e.g.
 # "@cf/meta/llama-3.1-8b-instruct" (faster/cheaper) or a Qwen model for Chinese.
 CF_AI_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
-# CORS: set to your deployed frontend origin in production (e.g. https://30days.pages.dev).
-# Must be the exact origin (not "*") once auth cookies are used.
-ALLOWED_ORIGIN = "*"
+# CORS: the exact deployed origin (not "*") — auth cookies need credentialed
+# CORS, and the Worker serves the frontend from this same origin anyway.
+ALLOWED_ORIGIN = "https://thirty-days-en.thinkuniverse.workers.dev"
 # Cloudflare Access (Zero Trust) — OPTIONAL per-user login. Leave blank to run in
 # open mode (no login; endpoints rate-limited per IP). Fill both to require login:
 # team domain like "myteam.cloudflareaccess.com" + the Access app's Audience (AUD) tag.
@@ -59,6 +59,9 @@ AZURE_VOICE = "en-US-AvaMultilingualNeural"
 DAILY_AI_QUOTA = "80"
 # Daily Azure-speech-token mints per user (each grants ~10 min of Azure access).
 DAILY_SPEECH_QUOTA = "60"
+# Daily Workers-AI speech calls (TTS/STT, own 'cf' pool) per member — separate
+# from the Azure token pool so cheap CF calls never eat the scarcer Azure mints.
+DAILY_CF_SPEECH_QUOTA = "200"
 # Free-tier daily caps for non-members — only take effect once the D1 membership
 # system (below) is enabled; without D1 everyone gets the full quotas as before.
 FREE_AI_QUOTA = "5"

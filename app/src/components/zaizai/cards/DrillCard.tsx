@@ -58,7 +58,9 @@ export default function DrillCard({ data, lesson }: { data: DrillCardPayload; le
           ? '请先登录以使用录音评分'
           : msg === 'recording-busy'
             ? '上一段录音还没结束,稍等一下'
-            : '没听清,再试一次?',
+            : msg.includes('额度')
+              ? msg // 429 quota message from the worker — show it verbatim
+              : '没听清,再试一次?',
       )
     } finally {
       takeRef.current = false
@@ -67,7 +69,7 @@ export default function DrillCard({ data, lesson }: { data: DrillCardPayload; le
   }
 
   return (
-    <div className="glass w-full max-w-[88%] rounded-xl p-4">
+    <div className="card-solid w-full max-w-[88%] rounded-xl p-4">
       <div className="label-nd">跟读挑战</div>
       <button onClick={() => speak(data.text)} className="press group mt-2 flex w-full items-start gap-2 text-left">
         <Volume2 size={14} className="mt-1 shrink-0 text-fg-dim transition-colors group-hover:text-brand" />

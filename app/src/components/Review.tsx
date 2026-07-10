@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Layers, PartyPopper } from 'lucide-react'
+import { Layers, PartyPopper } from 'lucide-react'
 import { useApp } from '../state'
 import { dueCards, reviewCard } from '../lib/srs'
 import { SpeakButton } from './shared'
@@ -72,16 +72,11 @@ export default function Review() {
 
   return (
     <div className="mx-auto max-w-[460px] space-y-4">
-      <div className="flex items-center justify-between">
-        <button
-          className="press inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm text-fg-muted transition-colors hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
-          onClick={() => nav('/')}
-        >
-          <ArrowLeft size={15} /> 首页
-        </button>
-        <Badge variant="accent">剩余 {remaining.length} 张</Badge>
+      {/* back navigation lives in the global sub-page header — one progress row here */}
+      <div className="flex items-center gap-3">
+        <Progress value={total ? (reviewed / total) * 100 : 0} className="min-w-0 flex-1" />
+        <Badge variant="accent" className="shrink-0">剩余 {remaining.length} 张</Badge>
       </div>
-      <Progress value={total ? (reviewed / total) * 100 : 0} />
 
       {/* 3D flip card — keyed by card id so the next card mounts fresh at the
           front face（否则回翻过渡会先闪出下一张卡的背面）。 */}
@@ -97,8 +92,14 @@ export default function Review() {
           className={cardFlipCls(flip)}
           style={{ minHeight: 340 }}
         >
-          {/* front */}
-          <div className="flip-face absolute inset-0 flex flex-col overflow-hidden rounded-xl border border-border-strong bg-surface">
+          {/* front — hidden while flipped: aria-hidden + inert (tabIndex 兜底)
+              keep the invisible face's buttons out of AT + tab order */}
+          <div
+            aria-hidden={flip}
+            tabIndex={-1}
+            {...(flip ? { inert: '' } : {})}
+            className="flip-face absolute inset-0 flex flex-col overflow-hidden rounded-xl border border-border-strong bg-surface"
+          >
             <div className="flex items-center justify-between border-b border-border px-5 py-3">
               <span className="label-nd">Word · <span className="t-tab text-fg-secondary">{reviewed + 1}/{total}</span></span>
               <span className="label-nd hidden md:inline">Tap · Space</span>
@@ -109,8 +110,13 @@ export default function Review() {
               <SpeakButton text={card.word} />
             </div>
           </div>
-          {/* back */}
-          <div className="flip-face flip-back absolute inset-0 flex flex-col overflow-hidden rounded-xl border border-border-strong bg-surface">
+          {/* back — hidden until flipped (same treatment) */}
+          <div
+            aria-hidden={!flip}
+            tabIndex={-1}
+            {...(flip ? {} : { inert: '' })}
+            className="flip-face flip-back absolute inset-0 flex flex-col overflow-hidden rounded-xl border border-border-strong bg-surface"
+          >
             <div className="flex items-center justify-between border-b border-border px-5 py-3">
               <span className="label-nd">Meaning</span>
               <SpeakButton text={card.example_en} />

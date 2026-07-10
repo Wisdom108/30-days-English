@@ -1,5 +1,5 @@
 import { jwtVerify, createRemoteJWKSet } from 'jose'
-import type { Env } from './index'
+import { underQuota, bump, type Env } from './index'
 import { readSession } from './session'
 
 // Verify a Cloudflare Access identity. When the Worker route is protected by a
@@ -63,7 +63,15 @@ export async function identify(request: Request, env: Env): Promise<Identity | n
           given = raw // malformed encoding → compare as-is
         }
       }
-      return given && given === env.APP_PASSCODE ? { uid: 'member', member: true, name: 'owner' } : null
+      if (!given) return null // nothing presented → no KV spent, plain anonymous
+      // Brute-force brake: cap WRONG passcodes per IP per day ('pc' pool). Once
+      // over the cap the IP is locked out for the day — the correct passcode is
+      // rejected too, so an attacker can't confirm a late lucky guess.
+      const ip = request.headers.get('CF-Connecting-IP') || 'anon'
+      if (!(await underQuota(env, 'pc', ip, 30))) return null
+      if (given === env.APP_PASSCODE) return { uid: 'member', member: true, name: 'owner' }
+      await bump(env, 'pc', ip) // only failures count — normal members ride free
+      return null
     }
     // Fully open: identify by IP so the per-IP daily quota still bounds abuse.
     // Without D1 this is the only tier → keep today's full quota (member). Once

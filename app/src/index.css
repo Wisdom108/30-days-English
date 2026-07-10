@@ -48,6 +48,9 @@
   /* LIVE indicator (status green — heartbeat) */
   --color-live: #30d158;
 
+  /* iMessage receive-bubble gray */
+  --color-bubble-ai: #e9e9eb;
+
   --color-success: #34c759;
   --color-success-soft: rgba(52, 199, 89, 0.12);
   --color-warning: #ff9f0a;
@@ -88,6 +91,8 @@
   --text-meta: 12px;      --text-meta--line-height: 1.5;
   --text-label: 11px;     --text-label--line-height: 1.4;      --text-label--letter-spacing: 0.14em;
   --text-read: 16px;      --text-read--line-height: 1.85;
+  /* chat bubble body + chat input (iMessage metrics) */
+  --text-chat: 17px;      --text-chat--line-height: 22px;      --text-chat--letter-spacing: -0.4px;
 
   /* ---- Radius ramp: sm=segment · md · lg=control · xl=card ---- */
   --radius-sm: 4px;    /* sharp inner segments, badges */
@@ -107,25 +112,36 @@
   }
   body {
     margin: 0;
+    /* flat base — the iOS backdrop gradient lives on the fixed .ambient layer
+       (background-attachment:fixed is broken/slow on iOS Safari) */
     background-color: var(--color-bg);
-    /* iOS light backdrop — a barely-there cool gradient so glass surfaces
-       have something to refract; no texture. */
-    background-image: linear-gradient(180deg, #f7f7fb 0%, #f2f2f7 45%, #edeff4 100%);
-    background-attachment: fixed;
     color: var(--color-fg);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     letter-spacing: -0.004em;
-    overscroll-behavior-y: none;
+    overscroll-behavior-y: contain; /* keep the rubber-band, stop pull-to-refresh/nav */
   }
   #root { min-height: 100%; }
   h1, h2, h3, h4 { font-weight: 600; color: var(--color-fg); }
-  ::selection { background: var(--color-brand); color: #fff; }
+  ::selection { background: var(--color-brand); color: var(--color-brand-fg); }
 
-  ::-webkit-scrollbar { width: 8px; height: 8px; }
-  ::-webkit-scrollbar-thumb { background: var(--color-border-strong); border-radius: 999px; }
-  ::-webkit-scrollbar-thumb:hover { background: var(--color-fg-muted); }
+  /* native-feel controls: no text selection / long-press callout on buttons
+     (bubble/content text stays selectable) */
+  button, [role='button'] {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  @media (pointer: fine) {
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-thumb { background: var(--color-border-strong); border-radius: 999px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--color-fg-muted); }
+  }
+
+  /* B's useKeyboardOpen hook toggles .kb-open on <html>; A2 tags the tab bar */
+  html.kb-open .tabbar { display: none; }
 }
 
 @layer utilities {
@@ -153,12 +169,15 @@
   .t-num,
   .t-tab { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-feature-settings: 'tnum'; letter-spacing: -0.01em; }
 
-  /* Nothing-style uppercase mono micro-label */
+  /* iOS section header (downgraded from the mono uppercase micro-label —
+     name kept so all call sites restyle automatically) */
   .label-nd {
-    font-family: var(--font-mono);
-    text-transform: uppercase;
-    letter-spacing: 0.14em;
-    font-size: 10.5px;
+    font-family: var(--font-sans);
+    text-transform: none;
+    letter-spacing: normal;
+    font-size: 13px;
+    line-height: 1.4;
+    font-weight: 400;
     color: var(--color-fg-muted);
   }
 
@@ -177,17 +196,20 @@
      FILL  Cells stagger   sequential transition-delay inside the Cells primitive. */
   /* `backwards` (not `both`): holds the from-state during any stagger delay, then
      RELEASES transform when done — so an entrance can't pin transform and block a
-     later .press scale or a card's rotateY flip. Final state == natural state. */
-  .animate-in-up { animation: inUp 0.22s var(--ease-out) backwards; }
+     later .press scale or a card's rotateY flip. Final state == natural state.
+     (animate-in-up / animate-out / fade-in / fade-out are defined with @utility
+     below the layer so data-[state=…]: variants compile under Tailwind v4.) */
   @keyframes inUp {
     from { opacity: 0; transform: translateY(8px); }
     to { opacity: 1; transform: translateY(0); }
   }
-  .animate-out { animation: outDown 0.16s var(--ease-out) both; }
   @keyframes outDown {
     from { opacity: 1; transform: translateY(0); }
     to { opacity: 0; transform: translateY(6px); }
   }
+  /* scrim / overlay backdrop: pure fade, no vertical drift */
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
   .press { transition: transform 0.1s var(--ease-out); }
   .press:active { transform: scale(0.97); }
   .animate-slam { animation: slam 0.28s var(--ease-back) both; }
@@ -211,10 +233,16 @@
   /* ---- Ambient life: slow-drifting soft glows behind the glass so the
      surface breathes (iOS home-screen backdrop feel). GPU transform/opacity
      only; disabled under reduced-motion. ---- */
-  .ambient { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
+  .ambient {
+    position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none;
+    /* iOS light backdrop — barely-there cool gradient (moved off <body> so it
+       stays fixed without background-attachment) */
+    background: linear-gradient(180deg, #f7f7fb 0%, #f2f2f7 45%, #edeff4 100%);
+  }
   .ambient-blob {
     position: absolute; width: 62vmax; height: 62vmax; border-radius: 9999px;
-    filter: blur(70px); opacity: 0.5; will-change: transform;
+    /* no filter:blur — the radial-gradient's own falloff is the soft edge */
+    opacity: 0.5; will-change: transform;
   }
   .ambient-blob.a { background: radial-gradient(circle, rgba(10,124,255,0.20), transparent 66%); top: -18%; left: -12%; animation: drift1 34s ease-in-out infinite; }
   .ambient-blob.b { background: radial-gradient(circle, rgba(175,82,222,0.17), transparent 66%); bottom: -22%; right: -14%; animation: drift2 46s ease-in-out infinite; }
@@ -232,11 +260,33 @@
   @keyframes livePing { 0% { transform: scale(1); opacity: 0.7; } 70%,100% { transform: scale(2.6); opacity: 0; } }
 
   /* shared hero-card surface (listening orb / shadowing / vocab front) —
-     white glass */
+     solid white: scrolling content stays out of the backdrop-filter budget */
   .hero-card {
-    background: radial-gradient(120% 90% at 50% 0%, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.68) 72%);
-    backdrop-filter: blur(20px) saturate(1.8);
-    -webkit-backdrop-filter: blur(20px) saturate(1.8);
+    background: radial-gradient(120% 90% at 50% 0%, rgba(255,255,255,0.98) 0%, rgba(255,255,255,0.94) 72%);
+  }
+
+  /* ---- Solid card surface — the default for SCROLLING content. Glass
+     (backdrop-filter) is reserved for 4 fixed chrome pieces app-wide:
+     header, .tabbar, chat input dock, chat sticky progress card. ---- */
+  .card-solid {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border-soft);
+    box-shadow: var(--shadow-card);
+  }
+
+  /* sheet grab handle */
+  .grabber {
+    width: 36px; height: 5px; border-radius: 9999px;
+    background: rgba(60, 60, 67, 0.3);
+    margin-left: auto; margin-right: auto;
+  }
+
+  /* insetGrouped hairline dividers (CellGroup/Cell primitives in ui/index.tsx):
+     0.5px separator inset 16px from the left, between adjacent rows */
+  .cell-group > * { position: relative; }
+  .cell-group > * + *::before {
+    content: ''; position: absolute; top: 0; left: 16px; right: 0;
+    height: 0.5px; background: var(--color-border);
   }
 
   /* ---- Liquid Glass surfaces ---- */
@@ -255,18 +305,80 @@
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 8px 24px -12px rgba(0, 0, 0, 0.10);
   }
 
-  /* iMessage bubbles */
+  /* ---- iMessage bubbles ----
+     Flat fills (no gradient) so .bubble-tail can background:inherit.
+     Base = fully rounded standalone bubble; .grp-top/.grp-mid/.grp-bot pinch the
+     adjacent same-side corners to 4px (me = right side, ai = left side). */
   .bubble-me {
-    background: linear-gradient(180deg, #0a7cff 0%, #0064e1 100%);
-    color: #ffffff;
-    border-radius: 18px 18px 4px 18px;
+    background: var(--color-brand);
+    color: var(--color-brand-fg);
+    border-radius: 18px;
+    padding: 7px 12px;
     overflow-wrap: anywhere;
   }
   .bubble-ai {
-    background: #e9e9eb;
+    background: var(--color-bubble-ai);
     color: var(--color-fg);
-    border-radius: 18px 18px 18px 4px;
+    border-radius: 18px;
+    padding: 7px 12px;
     overflow-wrap: anywhere;
+  }
+  .bubble-me.grp-top { border-bottom-right-radius: 4px; }
+  .bubble-me.grp-mid { border-top-right-radius: 4px; border-bottom-right-radius: 4px; }
+  .bubble-me.grp-bot { border-top-right-radius: 4px; }
+  .bubble-ai.grp-top { border-bottom-left-radius: 4px; }
+  .bubble-ai.grp-mid { border-top-left-radius: 4px; border-bottom-left-radius: 4px; }
+  .bubble-ai.grp-bot { border-top-left-radius: 4px; }
+
+  /* Group-tail hook (last bubble of a group / standalone): ::before paints the
+     tail in the bubble's own color (background:inherit), ::after carves the
+     concave outer curve in the page background color. */
+  .bubble-tail { position: relative; }
+  .bubble-tail::before,
+  .bubble-tail::after { content: ''; position: absolute; bottom: 0; height: 16px; }
+  .bubble-me.bubble-tail::before {
+    right: -6px; width: 16px;
+    background: inherit;
+    border-bottom-left-radius: 12px;
+  }
+  .bubble-me.bubble-tail::after {
+    right: -8px; width: 8px;
+    background: var(--color-bg);
+    border-bottom-left-radius: 8px;
+  }
+  .bubble-ai.bubble-tail::before {
+    left: -6px; width: 16px;
+    background: inherit;
+    border-bottom-right-radius: 12px;
+  }
+  .bubble-ai.bubble-tail::after {
+    left: -8px; width: 8px;
+    background: var(--color-bg);
+    border-bottom-right-radius: 8px;
+  }
+
+  /* timestamp separator row between message groups */
+  .msg-ts {
+    display: block;
+    text-align: center;
+    font-size: 11px;
+    line-height: 1.4;
+    color: var(--color-fg-muted);
+  }
+  .msg-ts span { font-weight: 600; }
+
+  /* typing indicator — three dots, staggered rise + opacity wave */
+  .typing-dot {
+    display: inline-block;
+    width: 8px; height: 8px; border-radius: 9999px;
+    background: var(--color-fg-muted);
+    animation: typing-wave 1.3s var(--ease-out) infinite;
+  }
+  .typing-dot:nth-child(2) { animation-delay: 0.16s; }
+  .typing-dot:nth-child(3) { animation-delay: 0.32s; }
+  @keyframes typing-wave {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.35; }
+    30% { transform: translateY(-4px); opacity: 1; }
   }
 
   /* audio waveform bars (animate only while playing) */
@@ -308,6 +420,14 @@
   @keyframes inkGrow { from { transform: scaleX(0); opacity: 0; } to { transform: scaleX(1); opacity: 1; } }
 }
 
+/* Motion utilities defined via @utility (NOT plain @layer classes) so Tailwind v4
+   generates data-[state=open]:/data-[state=closed]: variants for Radix overlays.
+   Keyframes live in @layer utilities above. */
+@utility animate-in-up { animation: inUp 0.22s var(--ease-out) backwards; }
+@utility animate-out { animation: outDown 0.16s var(--ease-out) both; }
+@utility fade-in { animation: fadeIn 0.2s var(--ease-out) both; }
+@utility fade-out { animation: fadeOut 0.16s var(--ease-out) both; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.001ms !important;
@@ -318,4 +438,40 @@
   .flip-3d { transition: none; }
   .pulse-red, .pulse-live { animation: none; }
 }
+
+/* ============================================================================
+   v3.2 B — ChatHome iMessage 化 (appended section; do not merge into blocks
+   above). Two pieces of chrome the chat screen owns:
+   ============================================================================ */
+
+/* §7 sticky ProgressCard scrim — full-bleed gradient + blur veil behind/around
+   the pinned card, fading out downward (mask), so scrolling messages pass
+   under ONE unified blur layer: no raw text in the header seam or the card's
+   corner notches. Counts as part of the "chat sticky progress card" glass
+   allowance (backdrop-filter budget: header / .tabbar / chat dock / this). */
+.progress-scrim {
+  background: linear-gradient(
+    to bottom,
+    var(--color-bg) 20%,
+    rgba(242, 242, 247, 0.62) 55%,
+    rgba(242, 242, 247, 0.30) calc(100% - 14px),
+    transparent 100%
+  );
+  /* blur stays FULL-strength past the card's bottom edge and only releases in
+     the 12px overhang below it — no sharp glyphs at the edge / corner notches */
+  backdrop-filter: blur(16px) saturate(1.6);
+  -webkit-backdrop-filter: blur(16px) saturate(1.6);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 16px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 16px), transparent 100%);
+}
+
+/* §11 keyboard ↔ dock glue — while the on-screen keyboard is up (kb-open set
+   by lib/useKeyboard.ts) the .tabbar is display:none (rule in @layer base), so
+   the dock drops its tab-bar clearance and rides the keyboard top via the
+   translateY that useKeyboard writes on the same element. */
+html.kb-open .chat-dock { bottom: 0; }
+/* A1's base-layer `html.kb-open .tabbar` rule loses to the tab bar's `flex`
+   utility (utilities layer > base layer) — restate it UN-layered here so it
+   actually wins and the tab bar hides while the keyboard is up. */
+html.kb-open .tabbar { display: none; }
 
