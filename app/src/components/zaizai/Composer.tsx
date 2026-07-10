@@ -54,8 +54,13 @@ export default memo(function Composer({
 
   return (
     <div ref={dockRef} className="chat-dock sticky bottom-[calc(3.5rem+env(safe-area-inset-bottom))] z-20 -mx-4 md:bottom-4 md:mx-0">
-      {/* 12px fade above the bar so raw text never peeks under its top edge */}
-      <div className="pointer-events-none absolute inset-x-0 -top-3 h-3 bg-gradient-to-t from-bg/85 to-transparent" aria-hidden="true" />
+      {/* 12px fade above the bar so raw text never peeks under its top edge.
+          Plain-CSS gradient (.dock-fade), NOT a Tailwind gradient utility:
+          v4 interpolates `in oklab` where any transparent endpoint is
+          zero-alpha BLACK, and WebKit doesn't premultiply — renders as a
+          dark band on iOS (Tailwind's /0 alpha modifier collapses to
+          transparent black too, so same-hue endpoints must be hand-written). */}
+      <div className="dock-fade pointer-events-none absolute inset-x-0 -top-3 h-3" aria-hidden="true" />
       <div className="border-t-[0.5px] border-[rgba(60,60,67,0.29)] bg-white/75 px-3 pb-2 pt-2 backdrop-blur-xl md:rounded-2xl md:border-[0.5px]">
         {(roleplay || scenarioMode) && (
           <div className="flex justify-center pb-2">

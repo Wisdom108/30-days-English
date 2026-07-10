@@ -280,7 +280,7 @@ export default function DayView() {
           container: its mostly-transparent gradient box otherwise swallows taps
           on content scrolled beneath it (same pattern as toast.tsx). */}
       <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 mx-auto max-w-[560px] px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-4"
-        style={{ background: 'linear-gradient(to top, var(--color-bg) 55%, transparent)' }}>
+        style={{ background: 'linear-gradient(to top, var(--color-bg) 55%, rgba(242, 242, 247, 0))' }}>
         {/* pointer-events-auto lives on a wrapper, NOT the Button — the Button
             base has disabled:pointer-events-none, which would let clicks fall
             through to content under the dock while `completing` is true */}

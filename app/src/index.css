@@ -455,7 +455,7 @@
     var(--color-bg) 20%,
     rgba(242, 242, 247, 0.62) 55%,
     rgba(242, 242, 247, 0.30) calc(100% - 14px),
-    transparent 100%
+    rgba(242, 242, 247, 0) 100%
   );
   /* blur stays FULL-strength past the card's bottom edge and only releases in
      the 12px overhang below it — no sharp glyphs at the edge / corner notches */
@@ -470,6 +470,13 @@
    the dock drops its tab-bar clearance and rides the keyboard top via the
    translateY that useKeyboard writes on the same element. */
 html.kb-open .chat-dock { bottom: 0; }
+
+/* Composer top fade — plain sRGB gradient with SAME-HUE endpoints (see
+   Composer.tsx: Tailwind v4 gradient utilities interpolate in oklab where
+   `transparent` endpoints read as black on WebKit). Values mirror --color-bg. */
+.dock-fade {
+  background: linear-gradient(to top, rgba(242, 242, 247, 0.85), rgba(242, 242, 247, 0));
+}
 /* A1's base-layer `html.kb-open .tabbar` rule loses to the tab bar's `flex`
    utility (utilities layer > base layer) — restate it UN-layered here so it
    actually wins and the tab bar hides while the keyboard is up. */
