@@ -23,18 +23,29 @@ proxy['/agents'] = { target: WORKER, changeOrigin: true, secure: true, ws: true 
 export default defineConfig({
   base: './',
   server: { host: true, proxy },
+  build: {
+    rollupOptions: {
+      output: {
+        // lessons.json is the single biggest static payload — isolate it so
+        // shell-code changes don't invalidate the (rarely-changing) data chunk.
+        manualChunks(id) {
+          if (id.includes('src/data/lessons.json')) return 'lessons'
+        },
+      },
+    },
+  },
   plugins: [
     react(),
     tailwindcss(),
     VitePWA({
       // v3.1: custom SW (src/sw.ts) via injectManifest — Web Push needs push/
-      // notificationclick handlers, which generateSW can't express. The instant
-      // -update semantics (skipWaiting/clientsClaim/cleanupOutdatedCaches) and
-      // the dictionary runtime cache moved verbatim into sw.ts.
+      // notificationclick handlers, which generateSW can't express.
+      // v3.2: prompt-mode updates — the page toasts "有新版本" and the SW only
+      // activates after the user accepts (SKIP_WAITING message from the page).
       strategies: 'injectManifest',
       srcDir: 'src',
       filename: 'sw.ts',
-      registerType: 'autoUpdate',
+      registerType: 'prompt',
       includeAssets: ['apple-touch-icon.png', 'favicon.svg', 'favicon-32.png'],
       manifest: {
         name: '语自在 · 30 Days English 英语听说',
@@ -54,7 +65,16 @@ export default defineConfig({
         ],
       },
       injectManifest: {
-        globPatterns: ['**/*.{js,css,html,png,svg,woff2}'],
+        globPatterns: ['**/*.{js,css,html,png,svg,woff,woff2}'],
+        // Keep the install payload lean: the Azure speech SDK chunk and the
+        // never-used font subsets are served on demand instead (sw.ts has a
+        // CacheFirst runtime route for /assets/ so they still cache on use).
+        globIgnores: [
+          '**/microsoft.cognitiveservices*',
+          '**/*cyrillic*',
+          '**/*vietnamese*',
+          '**/*symbols2*',
+        ],
       },
     }),
   ],

@@ -15,6 +15,7 @@ import {
 const USERNAME_RE = /^[a-zA-Z0-9_一-龥]{3,20}$/ // letters/digits/_/CJK, 3-20 chars
 const MAX_PROGRESS_CHARS = 200_000 // serialized progress blob cap
 const LOGIN_FAIL_CAP = 30 // failed password attempts per IP per day
+const REGISTER_CAP = 5 // successful registrations per IP per day (mass-signup brake)
 // Fixed decoy salt+hash so a login for a NON-existent user still spends one
 // PBKDF2 — equalizes timing so latency can't enumerate usernames.
 const DUMMY_SALT = '00000000000000000000000000000000'
@@ -47,6 +48,12 @@ const parseBody = (req: Request) =>
 export async function handleRegister(req: Request, env: Env): Promise<Response> {
   const db = env.DB
   if (!db || !env.SESSION_SECRET) return json({ error: '会员系统未启用' }, env, 503, req)
+  // Rate-limit account creation per IP (same KV pattern as the login throttle) —
+  // otherwise one script can mint unlimited free-tier identities in a day.
+  const ip = req.headers.get('CF-Connecting-IP') || 'anon'
+  if (!(await underQuota(env, 'rg', ip, REGISTER_CAP))) {
+    return json({ error: '注册过于频繁,请明天再试' }, env, 429, req)
+  }
   const body = await parseBody(req)
   const username = String(body.username || '').trim()
   const password = String(body.password || '')
@@ -69,6 +76,7 @@ export async function handleRegister(req: Request, env: Env): Promise<Response> 
     if (String(e).includes('UNIQUE')) return json({ error: '用户名已被占用' }, env, 409, req)
     return json({ error: '注册失败，请稍后再试' }, env, 500, req)
   }
+  await bump(env, 'rg', ip) // only a SUCCESSFUL registration spends the IP's daily slot
   const resp = json({ user: userShape({ username, member_until: null }) }, env, 200, req)
   return withCookie(resp, await makeSessionCookie(env, id))
 }
@@ -129,22 +137,28 @@ export async function handleActivate(req: Request, env: Env): Promise<Response> 
   if (!found) return json({ error: '激活码无效' }, env, 404, req)
   if (found.used_by !== null) return json({ error: '激活码已被使用' }, env, 409, req)
   const now = Date.now()
-  // Claim atomically — the `used_by IS NULL` guard loses a concurrent race cleanly.
-  const claim = await db
-    .prepare('UPDATE codes SET used_by = ?, used_at = ? WHERE code = ? AND used_by IS NULL')
-    .bind(uid, now, code)
-    .run()
-  if (!claim.meta.changes) return json({ error: '激活码已被使用' }, env, 409, req)
-  // Accumulate in ONE statement — MAX(now, current expiry) + days — so two
-  // concurrent redemptions can't lose a code's days via read-modify-write.
   const add = found.days * 86_400_000
-  const updated = await db
-    .prepare(
-      'UPDATE users SET member_until = MAX(?1, COALESCE(member_until, 0)) + ?2 WHERE id = ?3 ' +
-        'RETURNING username, member_until',
-    )
-    .bind(now, add, uid)
-    .first<{ username: string; member_until: number }>()
+  // Claim + grant in ONE db.batch() transaction (the wallet.ts grantFreezes
+  // pattern): the codes UPDATE's `used_by IS NULL` guard loses a concurrent race
+  // cleanly, and the users UPDATE only fires when THIS call's claim landed
+  // (EXISTS on used_by + this call's used_at) — so the pair commits together or
+  // not at all: a code can never be burned without the membership landing.
+  // Accumulation stays single-statement — MAX(now, current expiry) + days — so
+  // two concurrent redemptions can't lose days via read-modify-write.
+  const [claim, granted] = await db.batch<{ username: string; member_until: number }>([
+    db
+      .prepare('UPDATE codes SET used_by = ?1, used_at = ?2 WHERE code = ?3 AND used_by IS NULL')
+      .bind(uid, now, code),
+    db
+      .prepare(
+        'UPDATE users SET member_until = MAX(?1, COALESCE(member_until, 0)) + ?2 ' +
+          'WHERE id = ?3 AND EXISTS (SELECT 1 FROM codes WHERE code = ?4 AND used_by = ?3 AND used_at = ?1) ' +
+          'RETURNING username, member_until',
+      )
+      .bind(now, add, uid, code),
+  ])
+  if (!claim.meta.changes) return json({ error: '激活码已被使用' }, env, 409, req)
+  const updated = granted.results?.[0]
   if (!updated) return json({ error: '需要登录' }, env, 401, req)
   return json({ user: userShape(updated) }, env, 200, req)
 }

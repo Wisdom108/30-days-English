@@ -91,22 +91,35 @@ export async function handleStripeWebhook(req: Request, env: Env): Promise<Respo
     // Only fulfill a PAID session — delayed-notification methods (SEPA/ACH/…)
     // can fire 'completed' with payment_status:'unpaid' before funds settle.
     if (s.payment_status && s.payment_status !== 'paid') return new Response('ok (unpaid)', { status: 200 })
-    // Idempotency: claim the Stripe event id ONCE. Stripe delivers at-least-once
-    // (retries up to ~3 days); a redelivery finds changes===0 and skips the
-    // additive grant, so a single payment can never stack N× the days.
     const eventId = String(event.id || s.id || '')
-    if (eventId) {
-      const claim = await env.DB.prepare('INSERT OR IGNORE INTO stripe_events (id, at) VALUES (?, ?)')
-        .bind(eventId, Date.now())
-        .run()
-      if (!claim.meta.changes) return new Response('ok (duplicate)', { status: 200 })
-    }
     const uid = Number(s.client_reference_id || s.metadata?.uid || '')
     const days = Number(s.metadata?.days || '0')
-    if (Number.isFinite(uid) && uid > 0 && days > 0) {
-      const now = Date.now()
-      const add = days * 86_400_000
-      // Same accumulation rule as activation-code redemption.
+    const valid = Number.isFinite(uid) && uid > 0 && days > 0
+    const now = Date.now()
+    const add = days * 86_400_000
+    // Same accumulation rule as activation-code redemption (membership.ts).
+    if (eventId) {
+      // Idempotency claim + grant in ONE db.batch() transaction: the users
+      // UPDATE only fires when THIS delivery inserted the event row (EXISTS on
+      // id + this call's timestamp). Stripe delivers at-least-once (retries up
+      // to ~3 days); a redelivery finds changes===0 on the claim and the guarded
+      // grant self-skips — a single payment can never stack N× the days, and a
+      // crash between the two writes can't leave the event claimed but ungranted.
+      const stmts = [
+        env.DB.prepare('INSERT OR IGNORE INTO stripe_events (id, at) VALUES (?, ?)').bind(eventId, now),
+      ]
+      if (valid) {
+        stmts.push(
+          env.DB.prepare(
+            'UPDATE users SET member_until = MAX(?1, COALESCE(member_until, 0)) + ?2 ' +
+              'WHERE id = ?3 AND EXISTS (SELECT 1 FROM stripe_events WHERE id = ?4 AND at = ?1)',
+          ).bind(now, add, uid, eventId),
+        )
+      }
+      const [claim] = await env.DB.batch(stmts)
+      if (!claim.meta.changes) return new Response('ok (duplicate)', { status: 200 })
+    } else if (valid) {
+      // No event id to claim → grant unguarded (same behavior as before).
       await env.DB.prepare('UPDATE users SET member_until = MAX(?1, COALESCE(member_until, 0)) + ?2 WHERE id = ?3')
         .bind(now, add, uid)
         .run()

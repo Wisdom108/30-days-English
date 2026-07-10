@@ -53,6 +53,14 @@ if (typeof window !== 'undefined') {
 const ttsCache = new Map<string, string>()
 const MAX_CACHE = 60
 
+// Surface the worker's own error message (e.g. 429 「今日语音额度已用完」) instead
+// of a generic failure — error paths respond with {error: string} JSON. Falls back
+// to the generic wording when the body isn't parseable (HTML error page, network cut).
+async function serverError(res: Response, fallback: string): Promise<Error> {
+  const data = (await res.json().catch(() => null)) as { error?: unknown } | null
+  return new Error(typeof data?.error === 'string' && data.error ? data.error : fallback)
+}
+
 async function ttsUrl(text: string, voice?: string): Promise<string> {
   // Cache/dedupe per (voice, text): speaker A and B saying the same words must
   // NOT collide onto one voice, and a warmed entry must return the right voice.
@@ -79,7 +87,7 @@ async function ttsUrl(text: string, voice?: string): Promise<string> {
   }
   if (!res) throw new Error('语音合成失败')
   if (res.status === 401) throw new Error('请先登录')
-  if (!res.ok) throw new Error('语音合成失败')
+  if (!res.ok) throw await serverError(res, '语音合成失败')
   const url = URL.createObjectURL(await res.blob())
   ttsCache.set(cacheKey, url)
   if (ttsCache.size > MAX_CACHE) {
@@ -193,7 +201,7 @@ export async function cfTranscribe(blob: Blob): Promise<string> {
     throw new Error('识别失败')
   }
   if (res.status === 401) throw new Error('请先登录')
-  if (!res.ok) throw new Error('识别失败')
+  if (!res.ok) throw await serverError(res, '识别失败')
   // signal 也可能在读 body 时触发 abort — 同样收敛
   const data = (await res.json().catch(() => null)) as { text?: string } | null
   if (!data) throw new Error('识别失败')

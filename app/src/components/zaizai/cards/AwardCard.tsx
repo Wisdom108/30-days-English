@@ -18,7 +18,7 @@ const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, 
 export default function AwardCard({ data }: { data: AwardCardPayload }) {
   const badge = data.badge ? BADGE_NAMES[data.badge] || data.badge : null
   return (
-    <div className="animate-slam glass inline-flex items-center gap-2.5 rounded-xl px-4 py-2.5">
+    <div className="animate-slam card-solid inline-flex items-center gap-2.5 rounded-xl px-4 py-2.5">
       {badge ? (
         <>
           <Award size={17} className="shrink-0 text-warning" />
@@ -27,7 +27,17 @@ export default function AwardCard({ data }: { data: AwardCardPayload }) {
       ) : (
         <>
           <PhoneCall size={16} className="shrink-0 text-success" />
-          <span className="t-doto text-[22px] font-semibold leading-none text-success">+{mmss(data.seconds || 0)}</span>
+          <span className="text-[22px] font-semibold leading-none text-success">
+            <span className="t-tab">+</span>
+            {mmss(data.seconds || 0)
+              .split(':')
+              .map((part, i) => (
+                <span key={i}>
+                  {i > 0 && <span className="t-tab">:</span>}
+                  <span className="t-doto">{part}</span>
+                </span>
+              ))}
+          </span>
           <span className="text-meta text-fg-muted">通话时长到账</span>
         </>
       )}

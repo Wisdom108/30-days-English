@@ -49,11 +49,13 @@ async function vapidJwt(env: Env, aud: string): Promise<string> {
   return `${data}.${b64url(new Uint8Array(sig))}`
 }
 
-/** POST an empty tickle to one endpoint. Returns the push service's status. */
+/** POST an empty tickle to one endpoint. Returns the push service's status.
+ *  Hard 10s cap — a hanging push service must not dangle the whole cron batch. */
 async function sendTickle(env: Env, endpoint: string, jwt: string): Promise<number> {
   const r = await fetch(endpoint, {
     method: 'POST',
     headers: { Authorization: `vapid t=${jwt}, k=${env.VAPID_PUBLIC_KEY}`, TTL: '86400' },
+    signal: AbortSignal.timeout(10000),
   })
   r.body?.cancel().catch(() => {}) // response text is irrelevant — free the connection
   return r.status
@@ -187,7 +189,8 @@ export async function sendEveningTickles(env: Env): Promise<void> {
 }
 
 /** Shared tickle loop. Per-sub errors are swallowed (one dead endpoint must not
- *  stop the batch); dead-sub responses prune the row. JWTs are cached per
+ *  stop the batch); dead subs are collected and pruned in ONE DELETE afterwards
+ *  (a per-sub DELETE would burn a D1 subrequest each). JWTs are cached per
  *  push-service origin. */
 async function tickleAll(env: Env, db: D1Database, subs: { endpoint: string }[]): Promise<void> {
   if (subs.length >= CRON_MAX_TICKLES) {
@@ -197,6 +200,7 @@ async function tickleAll(env: Env, db: D1Database, subs: { endpoint: string }[])
     console.log(`tickleAll: recipient set hit the ${CRON_MAX_TICKLES}-sub cron cap — remainder skipped this run`)
   }
   const jwts = new Map<string, string>()
+  const dead: string[] = []
   const BATCH = 20 // modest bursts — stays far from the subrequest ceiling
   for (let i = 0; i < subs.length; i += BATCH) {
     await Promise.all(
@@ -213,13 +217,23 @@ async function tickleAll(env: Env, db: D1Database, subs: { endpoint: string }[])
           // our VAPID auth for this sub (created against a different key pair)
           // — permanently undeliverable, prune it too.
           if (status === 401 || status === 403 || status === 404 || status === 410) {
-            await db.prepare('DELETE FROM push_subs WHERE endpoint = ?').bind(endpoint).run()
+            dead.push(endpoint)
           }
         } catch {
           /* swallowed by design */
         }
       }),
     )
+  }
+  if (dead.length) {
+    try {
+      await db
+        .prepare(`DELETE FROM push_subs WHERE endpoint IN (${dead.map(() => '?').join(',')})`)
+        .bind(...dead)
+        .run()
+    } catch {
+      /* prune is housekeeping — a failure just retries on the next cron */
+    }
   }
 }
 

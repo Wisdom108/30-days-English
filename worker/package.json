@@ -2,7 +2,7 @@
   "name": "thirty-days-english-worker",
   "private": true,
   "version": "1.0.0",
-  "description": "Cloudflare Worker backend: Claude AI proxy + Azure Speech token + Supabase auth + quota",
+  "description": "Cloudflare Worker backend: Workers AI (chat/writing/tutor/zaizai/news) + speech (CF TTS/STT, Azure token, realtime voice) + D1 membership/wallet/progress + Web Push crons",
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
@@ -20,6 +20,6 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250101.0",
     "typescript": "^5.5.4",
-    "wrangler": "^3.90.0"
+    "wrangler": "~4.107.1"
   }
 }

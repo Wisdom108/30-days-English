@@ -55,8 +55,14 @@ export default function VocabBlock({ lesson }: { lesson: DayLesson }) {
               its `both` fill can't pin transform and block the rotateY flip */}
           <div key={i} className="animate-in-up">
           <div className={cn('flip-3d grid min-h-[320px] w-full', flip && 'flipped')}>
-            {/* front */}
-            <div className="hero-card flip-face col-start-1 row-start-1 flex flex-col overflow-hidden rounded-xl border border-border-strong">
+            {/* front — hidden while flipped: aria-hidden + inert (tabIndex 兜底)
+                keep the invisible face's buttons out of AT + tab order */}
+            <div
+              aria-hidden={flip}
+              tabIndex={-1}
+              {...(flip ? { inert: '' } : {})}
+              className="hero-card flip-face col-start-1 row-start-1 flex flex-col overflow-hidden rounded-xl border border-border-strong"
+            >
               <div className="flex items-center justify-between border-b border-border px-5 py-3">
                 <span className="label-nd">词汇 · <span className="t-tab text-fg-secondary">{i + 1}/{words.length}</span></span>
                 <SpeakButton text={card.word} />
@@ -67,11 +73,16 @@ export default function VocabBlock({ lesson }: { lesson: DayLesson }) {
                   <span className="t-ipa text-h2">{card.ipa}</span>
                   <span className="text-sm italic text-fg-dim">{card.pos}</span>
                 </div>
-                <div className="mt-2 font-mono text-[10px] uppercase tracking-[0.12em] text-fg-dim">点击翻面看释义</div>
+                <div className="mt-2 text-[12px] text-fg-dim">点击翻面看释义</div>
               </div>
             </div>
-            {/* back */}
-            <div className="flip-face flip-back col-start-1 row-start-1 flex flex-col overflow-hidden rounded-xl border border-border-strong bg-surface">
+            {/* back — hidden until flipped (same treatment) */}
+            <div
+              aria-hidden={!flip}
+              tabIndex={-1}
+              {...(flip ? {} : { inert: '' })}
+              className="flip-face flip-back col-start-1 row-start-1 flex flex-col overflow-hidden rounded-xl border border-border-strong bg-surface"
+            >
               <div className="flex items-center justify-between border-b border-border px-5 py-3">
                 <span className="label-nd">释义</span>
                 <SpeakButton text={card.example_en} />

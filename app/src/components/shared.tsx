@@ -30,7 +30,7 @@ export function BlockHead({
       <div className="flex min-w-0 items-baseline gap-2.5">
         <span className="shrink-0 text-body font-semibold text-fg">{tag}</span>
         {t && (
-          <span className="min-w-0 truncate font-mono text-[11px] uppercase tracking-[0.12em] text-fg-muted">
+          <span className="min-w-0 truncate text-[13px] text-fg-muted">
             {t}
           </span>
         )}
@@ -319,7 +319,7 @@ export function DialoguePlayer({ lines }: { lines: { speaker: string; line: stri
               active === i ? 'bg-accent-soft' : 'hover:bg-hover',
             )}
           >
-            <span className={cn('mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full text-[10px] font-bold', keyOf(d.speaker) === 'a' ? 'bg-fg text-bg' : 'bg-red-deep text-white')}>
+            <span className={cn('mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full text-[10px] font-bold', keyOf(d.speaker) === 'a' ? 'bg-fg text-bg' : 'bg-red-deep text-brand-fg')}>
               {d.speaker}
             </span>
             <span className="flex-1 text-body text-fg-secondary">{d.line}</span>

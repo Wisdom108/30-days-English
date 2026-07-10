@@ -46,10 +46,10 @@ export default function ProgressCard() {
   }, [showWallet, user])
 
   return (
-    <button onClick={() => nav('/course')} aria-label="查看课程" className="press glass block w-full rounded-xl px-4 py-3 text-left">
+    <button onClick={() => nav('/course')} aria-label="查看课程" className="press glass-strong block w-full rounded-xl px-4 py-3 text-left">
       <div className="flex items-center gap-3.5">
         <div className="shrink-0 text-center">
-          <div className="font-mono text-[9px] uppercase tracking-[0.24em] text-fg-dim">Day</div>
+          <div className="text-[11px] leading-none text-fg-muted">Day</div>
           <div className="t-doto mt-0.5 text-[34px] font-semibold leading-none text-fg sm:text-[38px]">
             {String(current).padStart(2, '0')}
           </div>

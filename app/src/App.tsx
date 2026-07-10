@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
-import { MessageCircle, RotateCcw, BookOpen, User } from 'lucide-react'
+import { MessageCircle, RotateCcw, BookOpen, User, ChevronLeft } from 'lucide-react'
 import Dashboard from './components/Dashboard'
 import DayView from './components/DayView'
 import Review from './components/Review'
@@ -9,11 +9,12 @@ import Me from './components/Me'
 import ChatHome from './components/zaizai/ChatHome'
 import { useApp } from './state'
 import { useAuth } from './auth'
-import { TOTAL_DAYS } from './data/curriculum'
+import { TOTAL_DAYS } from './constants'
 import { dueCards } from './lib/srs'
 import { LogoMark } from './components/ui/brand'
 import { AuthControls } from './components/ai'
 import { CloudSync } from './components/CloudSync'
+import { useToast } from './components/ui/toast'
 import { cn } from './lib/utils'
 
 function useNav() {
@@ -43,12 +44,48 @@ function useScrolled() {
   return scrolled
 }
 
+// PWA prompt-mode updates: main.tsx dispatches 'sw-need-refresh' with the
+// updater in detail; we toast「有新版本 · 点击更新」and run the updater when
+// the user taps the toast (capture-phase click — the toast's own handler only
+// dismisses it).
+function useSwUpdateToast() {
+  const { toast } = useToast()
+  const toastRef = useRef(toast)
+  toastRef.current = toast
+  const pending = useRef<(() => void) | null>(null)
+  useEffect(() => {
+    const onNeed = (e: Event) => {
+      pending.current = (e as CustomEvent<{ update?: () => void }>).detail?.update ?? null
+      toastRef.current({ title: '有新版本 · 点击更新', duration: 60000 })
+    }
+    const onClick = (e: MouseEvent) => {
+      if (!pending.current) return
+      const el = (e.target as HTMLElement | null)?.closest?.('[role="status"]')
+      if (el && el.textContent?.includes('有新版本')) pending.current()
+    }
+    window.addEventListener('sw-need-refresh', onNeed)
+    document.addEventListener('click', onClick, true)
+    return () => {
+      window.removeEventListener('sw-need-refresh', onNeed)
+      document.removeEventListener('click', onClick, true)
+    }
+  }, [])
+}
+
 const NAV = [
-  { to: '/', end: true, icon: MessageCircle, label: '在在' },
-  { to: '/course', icon: BookOpen, label: '课程' },
-  { to: '/review', icon: RotateCcw, label: '复习', badge: true },
-  { to: '/me', icon: User, label: '我的' },
+  { to: '/', end: true, icon: MessageCircle, label: '在在', fill: true },
+  { to: '/course', icon: BookOpen, label: '课程', fill: true },
+  { to: '/review', icon: RotateCcw, label: '复习', badge: true, fill: false },
+  { to: '/me', icon: User, label: '我的', fill: true },
 ]
+
+// Mobile sub-page titles (iOS navigation-bar style, centered 17px semibold).
+const PAGE_TITLES: Record<string, string> = {
+  '/course': '课程',
+  '/review': '复习',
+  '/me': '我的',
+  '/progress': '数据',
+}
 
 export default function App() {
   const { current, due } = useNav()
@@ -58,6 +95,7 @@ export default function App() {
   const onDayRoute = loc.pathname.startsWith('/day/')
   const scrolled = useScrolled()
   useScrollTop()
+  useSwUpdateToast()
 
   // Returning from Stripe Checkout (success_url=/?pay=success): membership is
   // granted asynchronously by the webhook, which may land a beat after the
@@ -78,6 +116,16 @@ export default function App() {
   const isActiveFor = (it: (typeof NAV)[number], linkActive: boolean) =>
     it.to === '/course' ? onDayRoute || linkActive : linkActive
 
+  // ---- mobile header (per-route, iOS navigation-bar language) ----
+  const dayMatch = loc.pathname.match(/^\/day\/(\d+)/)
+  const mobileTitle = dayMatch ? `Day ${dayMatch[1]}` : PAGE_TITLES[loc.pathname]
+  const goBack = () => {
+    // In-app history to pop? (React Router stamps an idx on history.state.)
+    const idx = (window.history.state as { idx?: number } | null)?.idx ?? 0
+    if (idx > 0) return nav(-1)
+    nav(onDayRoute ? '/course' : '/', { replace: true })
+  }
+
   return (
     <div className="min-h-screen">
       {/* ambient life behind the dot-grid — slow-drifting glows */}
@@ -93,9 +141,35 @@ export default function App() {
           scrolled ? 'border-border-strong bg-bg/95' : 'border-border',
         )}
       >
-        <div className="mx-auto flex h-[54px] max-w-[1120px] items-center gap-3 px-4 md:px-6">
-          {/* brand */}
-          <button onClick={() => nav('/')} className="press flex items-center gap-2.5" aria-label="首页">
+        <div className="relative mx-auto flex h-[54px] max-w-[1120px] items-center gap-3 px-4 md:px-6">
+          {/* —— mobile chrome (per route) —— */}
+          {mobileTitle ? (
+            <>
+              <button
+                onClick={goBack}
+                aria-label="返回"
+                className="press -ml-2.5 grid h-11 w-11 shrink-0 place-items-center text-brand md:hidden"
+              >
+                <ChevronLeft size={26} strokeWidth={2.2} />
+              </button>
+              <span className="pointer-events-none absolute inset-x-12 text-center text-[17px] font-semibold text-fg md:hidden">
+                {mobileTitle}
+              </span>
+            </>
+          ) : (
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-[3px] md:hidden"
+            >
+              <span className="grid h-7 w-7 place-items-center rounded-full bg-[linear-gradient(180deg,#54a9ff,var(--color-brand))] text-[13px] font-semibold leading-none text-white">
+                在
+              </span>
+              <span className="text-[11px] leading-none text-fg-secondary">在在</span>
+            </div>
+          )}
+
+          {/* —— desktop chrome (unchanged layout, md+) —— */}
+          <button onClick={() => nav('/')} className="press hidden items-center gap-2.5 md:flex" aria-label="首页">
             <LogoMark size={28} />
             <span className="hidden font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-fg-secondary sm:block">30&nbsp;Days</span>
           </button>
@@ -136,13 +210,16 @@ export default function App() {
           <div className="flex-1" />
 
           {/* system-online readout — telemetry vibe, one quiet chip */}
-          <span className="mr-1 hidden items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-fg-dim sm:flex">
-            <span className="live-dot h-1.5 w-1.5 rounded-full bg-[#30d158]" />
+          <span className="mr-1 hidden items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-fg-dim md:flex">
+            <span className="live-dot h-1.5 w-1.5 rounded-full bg-live" />
             <span>Day {String(current).padStart(2, '0')}/{TOTAL_DAYS}</span>
           </span>
 
-          {/* auth (account / passcode) — unlocks AI + neural voice + cloud sync */}
-          <AuthControls />
+          {/* auth (account / passcode) — desktop only; sheets (Account/Plan)
+              stay mounted so openPlans()/open-account still work on mobile */}
+          <div className="hidden items-center md:flex">
+            <AuthControls />
+          </div>
         </div>
       </header>
 
@@ -157,33 +234,44 @@ export default function App() {
             <Route path="/review" element={<Review />} />
             <Route path="/me" element={<Me />} />
             <Route path="/progress" element={<Progress />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </div>
       </main>
 
       {/* Mobile bottom tab bar (hidden on study routes — the lesson dock owns that space) */}
       {!onDayRoute && (
-        <nav className="fixed inset-x-0 bottom-0 z-30 flex justify-around border-t border-border bg-bg/90 px-4 pb-[calc(0.375rem+env(safe-area-inset-bottom))] pt-1.5 backdrop-blur-md md:hidden">
+        <nav className="tabbar fixed inset-x-0 bottom-0 z-30 flex justify-around border-t-[0.5px] border-[rgba(60,60,67,0.29)] bg-white/75 px-4 pb-[calc(0.375rem+env(safe-area-inset-bottom))] pt-1.5 backdrop-blur-xl md:hidden">
           {NAV.map((t) => (
             <NavLink
               key={t.label}
               to={t.to}
               end={t.end}
-              className="press relative flex min-h-11 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1 font-mono text-[9px] uppercase tracking-[0.1em]"
+              className="press relative flex min-h-11 min-w-0 flex-1 flex-col items-center justify-center rounded-lg px-1 py-1"
             >
               {({ isActive }) => {
                 const active = isActiveFor(t, isActive)
                 const Icon = t.icon
                 return (
-                  <span className={cn('flex flex-col items-center gap-0.5 transition-colors', active ? 'text-fg' : 'text-fg-muted')}>
-                    <Icon size={18} strokeWidth={2} />
-                    {t.label}
-                    <span
-                      className={cn(
-                        'h-[2px] w-5 origin-center rounded-full bg-red transition-transform duration-200',
-                        active ? 'scale-x-100' : 'scale-x-0',
+                  <span
+                    className={cn(
+                      'flex flex-col items-center gap-0.5 font-sans text-[10px] font-medium normal-case tracking-normal transition-colors',
+                      active ? 'text-brand' : 'text-fg-muted',
+                    )}
+                  >
+                    <span className="relative">
+                      <Icon
+                        size={22}
+                        strokeWidth={active ? 2 : 1.8}
+                        fill={active && t.fill ? 'currentColor' : 'none'}
+                      />
+                      {t.badge && due > 0 && (
+                        <span className="absolute -right-2.5 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red px-1 text-[10px] font-semibold leading-none text-brand-fg">
+                          {due}
+                        </span>
                       )}
-                    />
+                    </span>
+                    {t.label}
                   </span>
                 )
               }}

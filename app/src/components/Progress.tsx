@@ -12,7 +12,7 @@ import { BLOCKS } from '../blocks'
 import { todayISO } from '../lib/srs'
 import { buildIcs, downloadFile, downloadIcs } from '../lib/calendar'
 import { getVoiceMode, setVoiceMode, hdVoiceAvailable, type VoiceMode } from '../lib/speech'
-import { Button, Cells, SectionLabel, ConfirmDialog, Select, Collapse } from './ui'
+import { Button, Cells, SectionLabel, ConfirmDialog, Select, Collapse, SCRIM } from './ui'
 import { useToast } from './ui/toast'
 import { cn } from '../lib/utils'
 
@@ -39,7 +39,7 @@ function VoiceSetting() {
             onClick={() => pick(o.v)}
             className={cn(
               'press rounded-xl border p-3 text-left transition-colors disabled:opacity-45',
-              active ? 'border-fg bg-surface-2' : 'border-border hover:border-border-strong',
+              active ? 'border-brand bg-accent-soft' : 'border-border hover:border-border-strong',
             )}
           >
             <div className="flex items-center gap-1.5">
@@ -115,7 +115,8 @@ export default function Progress() {
 
   return (
     <div className="space-y-2 animate-in-up">
-      <h1 className="text-title font-semibold">数据</h1>
+      {/* mobile title lives in the global nav bar — desktop keeps the page h1 */}
+      <h1 className="hidden text-title font-semibold md:block">数据</h1>
       <p className="text-meta text-fg-muted">每日打卡明细 · 提醒 · 备份</p>
       <div className="border-b border-border pb-1" />
 
@@ -215,7 +216,7 @@ export default function Progress() {
       {/* Import confirmation (controlled) */}
       <AlertDialogPrimitive.Root open={!!pendingImport} onOpenChange={(o) => !o && setPendingImport(null)}>
         <AlertDialogPrimitive.Portal>
-          <AlertDialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px] data-[state=open]:animate-in-up" />
+          <AlertDialogPrimitive.Overlay className={SCRIM} />
           <AlertDialogPrimitive.Content className="fixed left-1/2 top-1/2 z-50 w-[92vw] max-w-[400px] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow-popover)] data-[state=open]:animate-in-up">
             <AlertDialogPrimitive.Title className="text-h2 font-semibold text-fg">导入备份？</AlertDialogPrimitive.Title>
             <AlertDialogPrimitive.Description className="mt-1.5 text-sm leading-relaxed text-fg-secondary">

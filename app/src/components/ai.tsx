@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
-import { Sparkles, LogIn, LogOut, Send, Bot, Loader2, KeyRound, X, Ticket } from 'lucide-react'
+import { Sparkles, LogIn, LogOut, Send, Loader2, KeyRound, ChevronDown, Ticket } from 'lucide-react'
 import { useAuth } from '../auth'
 import { features } from '../config'
 import { accessLogin, getIdentity, logout, setPasscode } from '../lib/access'
@@ -9,7 +9,7 @@ import { paymentAvailable, walletAvailable } from '../lib/caps'
 import { invalidateWallet } from '../lib/zaizai'
 import { useApp } from '../state'
 import { defaultState } from '../lib/storage'
-import { aiChat, aiTutor, AIError, type ChatMsg, type LessonCtx } from '../lib/ai'
+import { aiChat, AIError, type ChatMsg, type LessonCtx } from '../lib/ai'
 import { Button, Callout, IconButton, Input, Skeleton, Badge, Sheet, SCRIM } from './ui'
 import PlanSheet from './zaizai/PlanSheet'
 import { cn } from '../lib/utils'
@@ -66,7 +66,7 @@ function PasscodeForm({ onDone }: { onDone?: () => void }) {
           placeholder="访问口令"
           value={pc}
           onChange={(e) => setPc(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && submit()}
+          onKeyDown={(e) => e.key === 'Enter' && !e.nativeEvent.isComposing && submit()}
           className="min-w-0 flex-1"
         />
         <Button onClick={submit} disabled={busy}>{busy ? <Loader2 size={14} className="animate-spin" /> : '进入'}</Button>
@@ -89,6 +89,7 @@ function AccountSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o:
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [codeMsg, setCodeMsg] = useState<string | null>(null)
+  const [pcOpen, setPcOpen] = useState(false) // 「我有访问口令」fold
 
   const submit = async () => {
     if (!name.trim() || !pw || busy) return
@@ -162,7 +163,7 @@ function AccountSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o:
               </span>
               <div className="min-w-0 flex-1">
                 <div className="truncate text-body-lg font-semibold text-fg">{user.email}</div>
-                <div className="mt-0.5 font-mono text-[10px] uppercase tracking-[0.1em] text-fg-muted">
+                <div className="mt-0.5 text-meta text-fg-muted">
                   {user.member
                     ? `会员 · 至 ${user.memberUntil ? new Date(user.memberUntil).toLocaleDateString('zh-CN') : '—'}`
                     : '免费版 · 每日体验额度'}
@@ -212,7 +213,11 @@ function AccountSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o:
                   placeholder="EN30-XXXX-XXXX"
                   value={code}
                   onChange={(e) => setCode(e.target.value.toUpperCase())}
-                  onKeyDown={(e) => e.key === 'Enter' && activate()}
+                  onKeyDown={(e) => e.key === 'Enter' && !e.nativeEvent.isComposing && activate()}
+                  autoCapitalize="characters"
+                  autoComplete="one-time-code"
+                  autoCorrect="off"
+                  spellCheck={false}
                   className="min-w-0 flex-1 font-mono uppercase"
                 />
                 <Button onClick={activate} disabled={busy || !code.trim()}>
@@ -255,6 +260,9 @@ function AccountSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o:
               <Input
                 placeholder="用户名（3-20 位）"
                 autoComplete="username"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />
@@ -264,7 +272,7 @@ function AccountSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o:
                 autoComplete={tab === 'register' ? 'new-password' : 'current-password'}
                 value={pw}
                 onChange={(e) => setPw(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && submit()}
+                onKeyDown={(e) => e.key === 'Enter' && !e.nativeEvent.isComposing && submit()}
               />
               {err && <p role="alert" className="text-sm text-danger">{err}</p>}
               <Button className="w-full" size="lg" onClick={submit} disabled={busy || !name.trim() || !pw}>
@@ -272,6 +280,23 @@ function AccountSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o:
               </Button>
             </div>
             <p className="text-center text-sm text-fg-muted">注册即可云同步学习进度 · {UNLOCK_COPY}</p>
+
+            {/* 已有访问口令的老用户 — 折叠行,展开即现成的口令表单 */}
+            <div className="border-t border-border-soft">
+              <button
+                onClick={() => setPcOpen((o) => !o)}
+                aria-expanded={pcOpen}
+                className="flex min-h-11 w-full items-center justify-between text-sm text-fg-secondary transition-colors hover:text-fg"
+              >
+                <span className="flex items-center gap-1.5"><KeyRound size={14} /> 我有访问口令</span>
+                <ChevronDown size={15} className={cn('transition-transform duration-200', pcOpen && 'rotate-180')} />
+              </button>
+              {pcOpen && (
+                <div className="animate-in-up pb-1">
+                  <PasscodeForm onDone={() => onOpenChange(false)} />
+                </div>
+              )}
+            </div>
           </>
         )}
       </div>
@@ -450,22 +475,18 @@ export function ChatThread({
         )}
         {messages.map((m, i) => (
           <div key={i} className={cn('animate-in-up flex', m.role === 'user' ? 'justify-end' : 'justify-start')}>
-            <div
-              className={cn(
-                'max-w-[85%] whitespace-pre-wrap rounded-lg px-3 py-2 text-body leading-relaxed',
-                m.role === 'user'
-                  ? 'bg-brand text-brand-fg'
-                  : 'border border-border bg-surface-2 text-fg',
-              )}
-            >
+            {/* same bubble language as the 在在 chat (iMessage flat fills) */}
+            <div className={cn('max-w-[85%] whitespace-pre-wrap text-chat', m.role === 'user' ? 'bubble-me' : 'bubble-ai')}>
               {m.content}
             </div>
           </div>
         ))}
         {busy && (
           <div className="flex justify-start">
-            <div className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-fg-muted">
-              <Loader2 size={13} className="animate-spin" /> 思考中…
+            <div className="bubble-ai flex items-center gap-1 px-3.5 py-3" aria-label="思考中">
+              <span className="typing-dot" />
+              <span className="typing-dot" />
+              <span className="typing-dot" />
             </div>
           </div>
         )}
@@ -479,13 +500,13 @@ export function ChatThread({
           onChange={(e) => setDraft(e.target.value)}
           onInput={grow}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
+            if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
               e.preventDefault()
               send()
             }
           }}
           placeholder={placeholder}
-          className="max-h-28 min-h-[44px] flex-1 resize-none rounded-lg border border-border bg-surface px-3.5 py-2.5 text-body text-fg outline-none placeholder:text-fg-dim focus:border-brand focus:ring-2 focus:ring-brand/30"
+          className="text-chat max-h-28 min-h-[44px] flex-1 resize-none rounded-lg border border-border bg-surface px-3.5 py-2.5 text-fg outline-none placeholder:text-fg-dim focus:border-brand focus:ring-2 focus:ring-brand/30"
         />
         <Button size="icon" className="h-11 w-11 shrink-0" disabled={busy || !draft.trim()} onClick={send} aria-label="发送">
           <Send size={16} />
@@ -538,74 +559,4 @@ export function ConversationPanel({ lesson, scenario }: { lesson: LessonCtx; sce
   )
 }
 
-// ============================================================================
-// Floating private tutor (私教答疑) — mounted globally, context = current day
-// ============================================================================
-export function TutorFab({ lesson, hidden }: { lesson: LessonCtx; hidden?: boolean }) {
-  const { user, authEnabled } = useAuth()
-  const [open, setOpen] = useState(false)
-  const [messages, setMessages] = useState<ChatMsg[]>([])
-  const [busy, setBusy] = useState(false)
-  const [err, setErr] = useState<string | null>(null)
-
-  // Opened from the command palette (⌘K → Ask AI tutor).
-  useEffect(() => {
-    const openIt = () => setOpen(true)
-    window.addEventListener('open-tutor', openIt)
-    return () => window.removeEventListener('open-tutor', openIt)
-  }, [])
-
-  // Only for signed-in users — signed-out access is via the top-bar login entry.
-  if (!features.ai || !authEnabled || !user || hidden) return null
-
-  const ask = async (text: string) => {
-    const next = [...messages, { role: 'user' as const, content: text }]
-    setMessages(next)
-    setBusy(true)
-    setErr(null)
-    try {
-      const { reply } = await aiTutor(text, lesson, messages.slice(-8))
-      setMessages((m) => [...m, { role: 'assistant', content: reply }])
-    } catch (e) {
-      setErr(e instanceof AIError ? e.message : '出错了，请重试')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <>
-      <button
-        onClick={() => setOpen(true)}
-        aria-label="问 AI 私教"
-        className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] right-4 z-40 grid h-12 w-12 place-items-center rounded-full border border-border-strong bg-elevated text-fg shadow-[var(--shadow-popover)] transition-transform hover:-translate-y-0.5 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 md:bottom-6 md:right-6"
-      >
-        <Bot size={20} />
-      </button>
-      <Sheet open={open} onOpenChange={setOpen} side="bottom" className="flex flex-col">
-        <div className="flex items-center justify-between border-b border-border px-4 py-3.5">
-          <div className="flex items-center gap-2">
-            <Bot size={17} className="text-fg" />
-            <span className="label-nd">AI Tutor</span>
-            {lesson.day ? <Badge variant="accent"><span className="t-tab">Day {lesson.day}</span></Badge> : null}
-          </div>
-          <Dialog.Close asChild>
-            <IconButton label="关闭"><X size={16} /></IconButton>
-          </Dialog.Close>
-        </div>
-        <div className="flex min-h-0 flex-1 flex-col p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
-          <div className="min-h-0 flex-1">
-            <ChatThread
-              messages={messages}
-              busy={busy}
-              onSend={ask}
-              placeholder="问语法、用法、为什么这么说…"
-              emptyHint="随时问我英语问题 —— 我会用中文讲清楚，配上英文例句，结合今天的课。"
-            />
-          </div>
-          {err && <Callout tone="red" role="alert" className="mt-2">{err}</Callout>}
-        </div>
-      </Sheet>
-    </>
-  )
-}
+// (TutorFab 已删除 — 全仓无挂载点的死码;私教入口统一走 AiPartner / 在在聊天。)

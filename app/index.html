@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta
       name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+      content="width=device-width, initial-scale=1.0, maximum-scale=5, viewport-fit=cover, interactive-widget=resizes-content"
     />
     <meta name="theme-color" content="#f2f2f7" />
     <meta name="color-scheme" content="light" />
@@ -12,7 +12,7 @@
     <!-- iOS PWA (add to Home Screen) -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="语自在 · 30天英语" />
     <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
 
@@ -25,9 +25,29 @@
       name="description"
       content="30 天英语听说强化：科学间隔重复、影子跟读、精听听写、点词查义，离线可用。为有基础、想系统提升听说的学习者设计。"
     />
+    <style>
+      /* Pre-mount splash — lives inside #root; React's first render replaces it. */
+      #splash {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #f2f2f7;
+      }
+      #splash svg {
+        width: 84px;
+        height: 84px;
+        animation: splash-breathe 1.6s ease-in-out infinite;
+      }
+      @keyframes splash-breathe {
+        0%, 100% { opacity: 0.35; transform: scale(0.97); }
+        50% { opacity: 1; transform: scale(1); }
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root"><div id="splash" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="1.64" cy="5.78" r="0.83" fill="#0a0a0f"/><circle cx="3.71" cy="5.78" r="0.83" fill="#0a0a0f"/><circle cx="5.78" cy="5.78" r="0.83" fill="#0a0a0f"/><circle cx="7.85" cy="5.78" r="0.83" fill="#0a0a0f"/><circle cx="9.93" cy="7.85" r="0.83" fill="#0a0a0f"/><circle cx="9.93" cy="9.93" r="0.83" fill="#0a0a0f"/><circle cx="3.71" cy="12.00" r="0.83" fill="#0a0a0f"/><circle cx="5.78" cy="12.00" r="0.83" fill="#0a0a0f"/><circle cx="7.85" cy="12.00" r="0.83" fill="#0a0a0f"/><circle cx="9.93" cy="14.07" r="0.83" fill="#0a0a0f"/><circle cx="9.93" cy="16.15" r="0.83" fill="#0a0a0f"/><circle cx="1.64" cy="18.22" r="0.83" fill="#0a0a0f"/><circle cx="3.71" cy="18.22" r="0.83" fill="#0a0a0f"/><circle cx="5.78" cy="18.22" r="0.83" fill="#0a0a0f"/><circle cx="7.85" cy="18.22" r="0.83" fill="#0a0a0f"/><circle cx="16.15" cy="5.78" r="0.83" fill="#0a0a0f"/><circle cx="18.22" cy="5.78" r="0.83" fill="#0a0a0f"/><circle cx="20.29" cy="5.78" r="0.83" fill="#0a0a0f"/><circle cx="14.07" cy="7.85" r="0.83" fill="#0a0a0f"/><circle cx="22.36" cy="7.85" r="0.83" fill="#0a0a0f"/><circle cx="14.07" cy="9.93" r="0.83" fill="#0a0a0f"/><circle cx="20.29" cy="9.93" r="0.83" fill="#0a0a0f"/><circle cx="22.36" cy="9.93" r="0.83" fill="#0a0a0f"/><circle cx="14.07" cy="12.00" r="0.83" fill="#0a0a0f"/><circle cx="18.22" cy="12.00" r="0.83" fill="#0a0a0f"/><circle cx="22.36" cy="12.00" r="0.83" fill="#0a0a0f"/><circle cx="14.07" cy="14.07" r="0.83" fill="#0a0a0f"/><circle cx="16.15" cy="14.07" r="0.83" fill="#0a0a0f"/><circle cx="22.36" cy="14.07" r="0.83" fill="#0a0a0f"/><circle cx="14.07" cy="16.15" r="0.83" fill="#0a0a0f"/><circle cx="22.36" cy="16.15" r="0.83" fill="#0a0a0f"/><circle cx="16.15" cy="18.22" r="0.83" fill="#0a0a0f"/><circle cx="18.22" cy="18.22" r="0.83" fill="#0a0a0f"/><circle cx="20.29" cy="18.22" r="0.83" fill="#0a0a0f"/><circle cx="22.26" cy="20.39" r="1.14" fill="#ff3b30"/></svg></div></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { AppState, BlockKey, SrsCard } from './types'
 import {
@@ -30,9 +30,51 @@ const AppCtx = createContext<Ctx | null>(null)
 export function AppStateProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AppState>(() => loadState())
 
+  // Debounced persistence (300ms): coalesces mutation bursts (rapid card reviews,
+  // block toggles) into one localStorage write. pendingRef always holds the latest
+  // UNSAVED state; flush() writes it synchronously so nothing is lost when the
+  // page hides/unloads or the provider unmounts mid-window.
+  const pendingRef = useRef<AppState | null>(null)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const flush = useCallback(() => {
+    if (timerRef.current !== null) {
+      clearTimeout(timerRef.current)
+      timerRef.current = null
+    }
+    if (pendingRef.current !== null) {
+      saveState(pendingRef.current)
+      pendingRef.current = null
+    }
+  }, [])
+
   useEffect(() => {
-    saveState(state)
+    pendingRef.current = state
+    if (timerRef.current !== null) clearTimeout(timerRef.current)
+    timerRef.current = setTimeout(() => {
+      timerRef.current = null
+      if (pendingRef.current !== null) {
+        saveState(pendingRef.current)
+        pendingRef.current = null
+      }
+    }, 300)
   }, [state])
+
+  // Sync flush on tab hide / bfcache eviction / navigation (visibilitychange is
+  // the reliable "last chance" signal on mobile Safari; pagehide covers desktop
+  // unload paths) and on unmount — the debounce must never eat the last write.
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') flush()
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+    window.addEventListener('pagehide', flush)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility)
+      window.removeEventListener('pagehide', flush)
+      flush()
+    }
+  }, [flush])
 
   // Every LOCAL mutation stamps updatedAt so the cloud merge can pick the newer
   // side for editable fields (writings, SRS cards). importAll/reset do NOT stamp

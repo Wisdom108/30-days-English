@@ -43,7 +43,7 @@ export default function VocabCard({ data }: { data: VocabCardPayload }) {
       >
         <div className={cn('flip-3d grid w-full', flip && 'flipped')}>
           {/* front — word */}
-          <div className="glass flip-face col-start-1 row-start-1 flex min-h-[136px] flex-col items-center justify-center gap-1.5 rounded-xl p-4 text-center">
+          <div className="card-solid flip-face col-start-1 row-start-1 flex min-h-[136px] flex-col items-center justify-center gap-1.5 rounded-xl p-4 text-center">
             <div className="label-nd">词卡 · 点击翻面</div>
             <div className="text-[28px] font-semibold leading-tight text-fg">{data.word}</div>
             <div className="flex items-center gap-1.5 text-fg-muted">
@@ -61,7 +61,7 @@ export default function VocabCard({ data }: { data: VocabCardPayload }) {
             </div>
           </div>
           {/* back — meaning + example + add-to-deck */}
-          <div className="glass flip-face flip-back col-start-1 row-start-1 flex min-h-[136px] flex-col items-center justify-center gap-1.5 rounded-xl p-4 text-center">
+          <div className="card-solid flip-face flip-back col-start-1 row-start-1 flex min-h-[136px] flex-col items-center justify-center gap-1.5 rounded-xl p-4 text-center">
             <div className="text-h2 font-semibold text-fg">{data.zh}</div>
             {data.example_en && (
               <button

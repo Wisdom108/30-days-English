@@ -1,11 +1,12 @@
+import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ChevronRight, ArrowRight, Check, Lock } from 'lucide-react'
+import { ArrowRight, Check, Lock } from 'lucide-react'
 import { useApp } from '../state'
 import { CURRICULUM, TOTAL_DAYS } from '../data/curriculum'
 import { isDayComplete, getDayProgress, displayStreak, isDayUnlocked } from '../lib/storage'
 import { dueCards } from '../lib/srs'
 import { BLOCKS, PHASE_INFO, TOTAL_MINUTES } from '../blocks'
-import { Card, CardHead, Segment, Button, Badge, Cells, Collapse } from './ui'
+import { Card, CardHead, Button, Badge, Cell, Cells, Collapse } from './ui'
 import { BlockIcon } from './blockicons'
 import { useCountUp } from '../lib/useCountUp'
 import { cn } from '../lib/utils'
@@ -17,7 +18,6 @@ const MOD: Record<string, string> = {
   reading: 'Reading',
   writing: 'Writing',
 }
-const PHASE_EN: Record<number, string> = { 1: 'Survival', 2: 'Daily Life', 3: 'Fluency' }
 
 const PRINCIPLES = [
   ['先听后说', '先盲听 2–3 遍再看原文'],
@@ -30,12 +30,22 @@ const PRINCIPLES = [
 
 function greeting() {
   const h = new Date().getHours()
-  return h < 11 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening'
+  return h < 11 ? '早上好' : h < 18 ? '下午好' : '晚上好'
+}
+
+// Count-up readout — isolates the per-frame ticks so only the DIGITS re-render,
+// not the whole Dashboard tree.
+function CountUpNumeral({ target, pad }: { target: number; pad?: number }) {
+  const v = useCountUp(target)
+  return <>{pad ? String(v).padStart(pad, '0') : v}</>
 }
 
 export default function Dashboard() {
   const { state, unlockAllDays } = useApp()
   const nav = useNavigate()
+
+  // day → lesson lookup built ONCE (the 30-grid used to re-scan CURRICULUM per cell)
+  const lessonByDay = useMemo(() => new Map(CURRICULUM.map((l) => [l.day, l])), [])
 
   const completedDays = Array.from({ length: TOTAL_DAYS }, (_, i) => i + 1).filter((d) =>
     isDayComplete(state, d),
@@ -44,19 +54,13 @@ export default function Dashboard() {
   const current = Math.min(state.currentDay, TOTAL_DAYS)
   const streak = displayStreak(state)
 
-  // count-up readouts (hooks — must run before any early return)
-  const dayN = useCountUp(current)
-  const doneN = useCountUp(completedDays.length)
-  const streakN = useCountUp(streak)
-  const dueN = useCountUp(due)
-
   if (CURRICULUM.length === 0) {
     return <div className="py-16 text-center text-fg-muted">课程内容正在生成中…</div>
   }
 
-  const lesson = CURRICULUM.find((l) => l.day === current)
+  const lesson = lessonByDay.get(current)
   const phase = lesson?.phase ?? 1
-  const dd = String(dayN).padStart(2, '0')
+  const todayProg = getDayProgress(state, current).completedBlocks
 
   return (
     <div className="space-y-4">
@@ -67,7 +71,7 @@ export default function Dashboard() {
           right={
             <Badge>
               <span className="h-1.5 w-1.5 rounded-full" style={{ background: PHASE_INFO[phase]?.color }} />
-              {PHASE_EN[phase]}
+              {PHASE_INFO[phase]?.name_zh}
             </Badge>
           }
         />
@@ -76,82 +80,83 @@ export default function Dashboard() {
             <h1 className="text-[25px] font-semibold leading-[1.15] tracking-[-0.025em] sm:text-[29px]">
               {lesson?.title_en ?? lesson?.title_zh}
             </h1>
-            <div className="mt-2 font-mono text-[11px] uppercase tracking-[0.1em] text-fg-muted">
-              {TOTAL_DAYS - completedDays.length} days left
+            <div className="mt-2 text-[13px] text-fg-muted">
+              还剩 {TOTAL_DAYS - completedDays.length} 天
             </div>
           </div>
           {/* DAY readout — the ONE Doto hero numeral on this screen */}
           <div className="shrink-0 rounded-lg border border-border-strong bg-surface-2 px-3.5 py-2 text-center">
-            <div className="font-mono text-[9px] uppercase tracking-[0.24em] text-fg-dim">Day</div>
-            <div className="t-doto mt-0.5 text-[44px] font-semibold leading-none text-fg sm:text-[52px]">{dd}</div>
+            <div className="text-[11px] leading-none text-fg-muted">Day</div>
+            <div className="t-doto mt-0.5 text-[44px] font-semibold leading-none text-fg sm:text-[52px]">
+              <CountUpNumeral target={current} pad={2} />
+            </div>
           </div>
         </div>
         {/* whole-journey progress as segmented cells */}
         <div className="flex items-center gap-3 border-t border-border px-5 py-3">
           <Cells value={completedDays.length} max={TOTAL_DAYS} height={8} className="flex-1" />
-          <span className="t-tab shrink-0 text-meta text-fg-muted">{doneN}/{TOTAL_DAYS}</span>
+          <span className="t-tab shrink-0 text-meta text-fg-muted">
+            <CountUpNumeral target={completedDays.length} />/{TOTAL_DAYS}
+          </span>
         </div>
         {/* the single primary action, above the fold */}
         <div className="px-5 pb-5">
           <Button className="w-full" size="lg" onClick={() => nav(`/day/${current}`)}>
-            START DAY {current} <ArrowRight size={16} />
+            开始 Day {current} <ArrowRight size={16} />
           </Button>
         </div>
       </Card>
 
       {/* ===== the two numbers that change daily ===== */}
       <div className="grid grid-cols-2 overflow-hidden rounded-xl border border-border">
-        <MCell label="Streak" value={streakN} unit="天"
+        <MCell label="连胜" value={<CountUpNumeral target={streak} />} unit="天"
           bar={<Cells value={Math.min(streak, 10)} max={10} height={7} accent={streak > 0 ? 'var(--color-red)' : undefined} />} />
-        <MCell label="Due" value={dueN} unit="卡" red={due > 0} onClick={() => nav('/review')} cls="border-l border-border"
+        <MCell label="待复习" value={<CountUpNumeral target={due} />} unit="卡" red={due > 0} onClick={() => nav('/review')} cls="border-l border-border"
           bar={<Cells value={Math.min(due, 10)} max={10} height={7} accent={due > 0 ? 'var(--color-red)' : undefined} />} />
       </div>
 
-      {/* ===== TODAY — the five blocks ===== */}
-      <Card>
+      {/* ===== TODAY — the five blocks as iOS cells with circular checks ===== */}
+      <Card className="overflow-hidden">
         <CardHead
-          title={`Today · Day ${current}`}
-          right={<span className="label-nd">~{TOTAL_MINUTES} min</span>}
+          title={`今天 · Day ${current}`}
+          right={<span className="label-nd">约 {TOTAL_MINUTES} 分钟</span>}
         />
-        <div className="p-3">
-          <Segment>
-            {BLOCKS.map((b, i) => {
-              const done = getDayProgress(state, current).completedBlocks[b.key]
-              return (
-                <button
-                  key={b.key}
-                  onClick={() => nav(`/day/${current}?b=${b.key}`)}
+        <div className="cell-group">
+          {BLOCKS.map((b) => {
+            const done = todayProg[b.key]
+            return (
+              <Cell key={b.key} onClick={() => nav(`/day/${current}?b=${b.key}`)} chevron className="py-2">
+                {/* circular check — brand fill when done */}
+                <span
                   className={cn(
-                    'press group grid w-full grid-cols-[24px_24px_1fr_44px_16px] items-center gap-2.5 px-3.5 py-3 text-left transition-colors hover:bg-hover sm:gap-3',
-                    i > 0 && 'border-t border-border',
-                    done && 'opacity-70',
+                    'grid h-[22px] w-[22px] shrink-0 place-items-center rounded-full border transition-colors',
+                    done ? 'border-brand bg-brand text-white' : 'border-[#c7c7cc]',
                   )}
                 >
-                  <span className={cn('grid h-[22px] w-[22px] place-items-center rounded-sm border', done ? 'border-fg bg-fg text-bg' : 'border-border-strong')}>
-                    {done && <Check size={13} strokeWidth={3} />}
-                  </span>
-                  <BlockIcon k={b.key} size={18} className="text-fg-secondary" />
-                  <span className={cn('min-w-0 truncate text-body font-medium', done ? 'text-fg-muted' : 'text-fg')}>{MOD[b.key] ?? b.title_zh}</span>
-                  <span className="t-tab text-right text-body font-medium text-fg-secondary">{b.minutes}′</span>
-                  <ChevronRight size={15} className="text-fg-dim opacity-40 transition-all group-hover:translate-x-0.5 group-hover:opacity-100" />
-                </button>
-              )
-            })}
-          </Segment>
+                  {done && <Check size={13} strokeWidth={3} />}
+                </span>
+                <BlockIcon k={b.key} size={18} className={cn('shrink-0', done ? 'text-fg-muted' : 'text-fg-secondary')} />
+                <span className={cn('min-w-0 flex-1 truncate text-body font-medium', done ? 'text-fg-muted' : 'text-fg')}>
+                  {MOD[b.key] ?? b.title_zh}
+                </span>
+                <span className="t-tab shrink-0 text-body font-medium text-fg-secondary">{b.minutes}′</span>
+              </Cell>
+            )
+          })}
         </div>
       </Card>
 
       {/* ===== CURRICULUM — 30-day grid ===== */}
       <Card>
         <CardHead
-          title="Curriculum · 30D"
+          title="30 天课程表"
           right={<span className="label-nd">{completedDays.length}/{TOTAL_DAYS}</span>}
         />
         {/* phase legend */}
         <div className="flex flex-wrap gap-1.5 border-b border-border px-[18px] py-3">
           {Object.entries(PHASE_INFO).map(([k, v]) => (
-            <span key={k} className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.1em]" style={{ background: v.softBg, color: v.text }}>
-              <span className="h-1.5 w-1.5 rounded-full" style={{ background: v.color }} />{PHASE_EN[Number(k)]}
+            <span key={k} className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium" style={{ background: v.softBg, color: v.text }}>
+              <span className="h-1.5 w-1.5 rounded-full" style={{ background: v.color }} />{v.name_zh}
             </span>
           ))}
         </div>
@@ -161,7 +166,7 @@ export default function Dashboard() {
               const done = isDayComplete(state, d)
               const locked = !isDayUnlocked(state, d)
               const isCurrent = d === current
-              const p = CURRICULUM.find((l) => l.day === d)?.phase ?? 1
+              const p = lessonByDay.get(d)?.phase ?? 1
               const v = PHASE_INFO[p]
               return (
                 <button
@@ -170,8 +175,8 @@ export default function Dashboard() {
                   onClick={() => !locked && nav(`/day/${d}`)}
                   aria-label={`Day ${d}${done ? ' 已完成' : locked ? ' 未解锁' : ''}`}
                   className={cn(
-                    'press relative grid aspect-square place-items-center rounded-sm border text-center transition-all duration-200',
-                    isCurrent && 'border-fg shadow-[0_0_0_1px_var(--color-fg)]',
+                    'press relative grid aspect-square place-items-center rounded-sm border text-center transition-[transform,border-color,box-shadow,background-color] duration-200',
+                    isCurrent && 'border-brand shadow-[0_0_0_1px_var(--color-brand)]',
                     locked ? 'cursor-not-allowed border-border bg-surface-2 opacity-45' : 'hover:border-border-strong hover:shadow-[0_0_14px_-3px_var(--color-fg)] hover:-translate-y-0.5',
                   )}
                   style={done ? { background: v.softBg, borderColor: v.color + '66' } : !locked ? { borderColor: v.color + '40' } : {}}
@@ -221,7 +226,7 @@ function MCell({
 }: {
   label: string
   value: React.ReactNode // the big Doto DIGITS
-  unit?: string // separator/unit — kept in mono, out of the dot-matrix
+  unit?: string // separator/unit — kept out of the dot-matrix
   red?: boolean
   onClick?: () => void
   cls?: string
