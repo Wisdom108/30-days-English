@@ -237,9 +237,10 @@ async function handleAI(path: string, req: Request, env: Env, ctx: ExecutionCont
     return json({ error: ident.member ? '今日 AI 额度已用完，明天再来～' : FREE_QUOTA_MSG }, env, 429)
   }
 
-  // GET /ai/news lives here to inherit the identify + q-quota gate; its daily
-  // KV cache makes it ~free (only a fresh generation bumps the quota).
-  if (path === '/ai/news') return handleNews(req, env, uid)
+  // GET /ai/news lives here to inherit the identify + q-quota gate. It answers
+  // from the daily KV cache (or a static card) and refills in the background —
+  // never charges the caller's quota, never generates on the request path.
+  if (path === '/ai/news') return handleNews(req, env, ctx)
 
   const bodyIn = (await req.json().catch(() => ({}))) as Record<string, unknown>
   const lesson = lessonFrom(bodyIn.lesson)

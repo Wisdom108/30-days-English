@@ -1,4 +1,4 @@
-import { json, callAI, parseJson, bump, type Env } from './index'
+import { json, callAI, parseJson, type Env } from './index'
 import { GUARD } from './prompts'
 
 // GET /ai/news (v3.2) — today's study-news card. Three layers, so the endpoint
@@ -215,14 +215,23 @@ const STATIC_CARDS: NewsCard[] = [
 async function generateNews(env: Env): Promise<{ card: NewsCard; fromAI: boolean }> {
   let item: { title: string; description: string } | null = null
   for (const url of FEEDS) {
-    // VOA hangs from some CF colos (connection opens, response never comes) —
-    // an unbounded fetch here dangles the client request. 5s per feed, hard.
-    const r = await fetch(url, {
-      headers: { accept: 'application/rss+xml, text/xml', 'user-agent': FEED_UA },
-      signal: AbortSignal.timeout(5000),
-    }).catch(() => null)
+    // VOA hangs from some CF colos (connection opens, response never comes).
+    // Belt and braces: AbortSignal cancels the request, and a Promise.race
+    // guarantees we move on even if the abort itself never fires (observed in
+    // production 2026-07-10 — requests dangled past 90s despite the signal).
+    const r = await Promise.race([
+      fetch(url, {
+        headers: { accept: 'application/rss+xml, text/xml', 'user-agent': FEED_UA },
+        signal: AbortSignal.timeout(5000),
+      }).catch(() => null),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 6000)),
+    ])
     if (!r?.ok) continue
-    item = firstItem(await r.text())
+    const xml = await Promise.race([
+      r.text().catch(() => ''),
+      new Promise<string>((resolve) => setTimeout(() => resolve(''), 4000)),
+    ])
+    item = firstItem(xml)
     if (item) break
   }
   // No reachable feed → self-contained daily topic (varied by weekday) so the
@@ -275,25 +284,17 @@ export async function prefetchNews(env: Env): Promise<void> {
 }
 
 /** Hosted inside handleAI (identify + q-quota already applied). Reads the KV
- *  cache; a miss generates in-request and writes back. The quota is only bumped
- *  on a fresh AI generation — cache hits and the static fallback cost nothing.
- *  ALWAYS answers a 200 card. */
-export async function handleNews(req: Request, env: Env, uid: string): Promise<Response> {
+ *  cache; a miss answers the static weekday card IMMEDIATELY and refills the
+ *  cache in the background — feed + model latency (40s+ observed) must never
+ *  sit on the user's request. Costs no user quota. ALWAYS answers a 200 card. */
+export async function handleNews(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
   const key = newsKey()
   try {
     const cached = await env.QUOTA.get(key)
     if (cached) return json(JSON.parse(cached), env, 200, req)
   } catch {
-    /* corrupt cache entry → regenerate */
+    /* corrupt cache entry → fall through to the static card + background refill */
   }
-  const { card, fromAI } = await generateNews(env)
-  if (fromAI) {
-    try {
-      await bump(env, 'q', uid) // charge on a successful model call
-      await env.QUOTA.put(key, JSON.stringify(card), { expirationTtl: NEWS_TTL })
-    } catch {
-      /* quota/cache bookkeeping is best-effort — never blocks the card */
-    }
-  }
-  return json(card, env, 200, req)
+  ctx.waitUntil(prefetchNews(env).catch((e) => console.error('news refill:', e)))
+  return json(STATIC_CARDS[new Date().getUTCDay()], env, 200, req)
 }
