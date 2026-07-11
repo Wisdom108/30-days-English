@@ -8,7 +8,9 @@ import { VitePWA } from 'vite-plugin-pwa'
 // Dev: proxy the API routes to the deployed Cloudflare Worker so `npm run dev`
 // has working AI + neural voice (the Vite server has no backend of its own).
 // Same-origin from the browser's view → no CORS, passcode header flows through.
-const WORKER = 'https://thirty-days-en.thinkuniverse.workers.dev'
+// VITE_DEV_WORKER overrides the proxy target — e.g. a local `wrangler dev` on
+// :8787 when previewing worker changes that are not deployed yet.
+const WORKER = process.env.VITE_DEV_WORKER || 'https://thirty-days-en.thinkuniverse.workers.dev'
 type Fwd = { target: string; changeOrigin: boolean; secure: boolean; ws?: boolean }
 const proxy: Record<string, Fwd> = Object.fromEntries(
   ['/health', '/me', '/login', '/logout', '/auth', '/progress', '/ai', '/speech', '/realtime', '/grok', '/wallet', '/earn', '/streak', '/push', '/memories', '/zaizai'].map((p) => [
