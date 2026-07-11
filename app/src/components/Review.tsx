@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Layers, PartyPopper } from 'lucide-react'
+import { ChevronDown, Flame, Layers, PartyPopper } from 'lucide-react'
 import { useApp } from '../state'
 import { dueCards, reviewCard } from '../lib/srs'
-import { SpeakButton } from './shared'
+import { dueLessonReviews, ladderLabel, TOTAL_REVIEW_ROUNDS } from '../lib/lessonReview'
+import { getLesson } from '../data/curriculum'
+import { SpeakButton, titleEn } from './shared'
+import RetellPanel from './RetellPanel'
 import { Badge, Button, Progress, Kbd, EmptyState } from './ui'
 import { cn } from '../lib/utils'
 
@@ -16,6 +19,81 @@ const GRADES = [
 ]
 
 export default function Review() {
+  const { state } = useApp()
+  const dueLessons = useMemo(() => dueLessonReviews(state.lessonReviews), [state.lessonReviews])
+  // Round-complete feedback lives HERE, not in the section — finishing the last
+  // due round unmounts the section in the same render, and the message must
+  // survive that to actually be seen.
+  const [justDone, setJustDone] = useState<string | null>(null)
+  return (
+    <div className="mx-auto max-w-[460px] space-y-6">
+      {(dueLessons.length > 0 || justDone) && (
+        <section className="space-y-2.5">
+          <div className="flex items-baseline justify-between">
+            <span className="label-nd flex items-center gap-1.5"><Flame size={12} /> 课程回炉</span>
+            <span className="text-meta text-fg-muted">趁没忘重练，最划算</span>
+          </div>
+          {justDone && <div className="animate-in-up text-sm text-success">{justDone}</div>}
+          {dueLessons.length > 0 && <LessonReviewList due={dueLessons} onDone={setJustDone} />}
+        </section>
+      )}
+      <VocabReview standalone={dueLessons.length === 0 && !justDone} />
+    </div>
+  )
+}
+
+// ===== 课程回炉：到期的整课复习（重听 + 复述），固定间隔阶梯 6h→14d =====
+function LessonReviewList({ due, onDone }: { due: ReturnType<typeof dueLessonReviews>; onDone: (msg: string) => void }) {
+  const { state, finishLessonReview } = useApp()
+  const [open, setOpen] = useState<number | null>(due[0]?.day ?? null)
+
+  const finish = (day: number) => {
+    const stage = (state.lessonReviews?.[day]?.stage ?? 0) + 1
+    finishLessonReview(day)
+    setOpen(null)
+    onDone(
+      stage >= TOTAL_REVIEW_ROUNDS
+        ? `Day ${day} 六轮回炉全部完成，毕业了 🎓`
+        : `Day ${day} 第 ${stage} 轮完成，下次回炉 ${ladderLabel(stage)}`,
+    )
+  }
+
+  return (
+    <div className="space-y-2.5">
+      {due.map(({ day, review }) => {
+        const lesson = getLesson(day)
+        if (!lesson) return null
+        const expanded = open === day
+        return (
+          <div key={day} className="card-solid overflow-hidden rounded-xl">
+            <button
+              onClick={() => setOpen(expanded ? null : day)}
+              className="press flex w-full items-center gap-3 px-4 py-3 text-left"
+            >
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-body-lg font-medium text-fg">
+                  Day {day} · {titleEn(lesson.title_en)}
+                </div>
+                <div className="mt-0.5 text-meta text-fg-muted">
+                  第 {review.stage + 1}/{TOTAL_REVIEW_ROUNDS} 轮 · 听一遍 + 用自己的话复述
+                </div>
+              </div>
+              <ChevronDown size={16} className={cn('shrink-0 text-fg-muted transition-transform', expanded && 'rotate-180')} />
+            </button>
+            {expanded && (
+              <div className="border-t border-border-soft p-4">
+                <RetellPanel lesson={lesson} onRoundDone={() => finish(day)} />
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ===== 词卡复习（SM-2 翻卡）=====
+function VocabReview({ standalone }: { standalone: boolean }) {
   const { state, reviewOne } = useApp()
   const nav = useNavigate()
   const [flip, setFlip] = useState(false)
@@ -43,6 +121,8 @@ export default function Review() {
   }, [card, flip])
 
   if (Object.keys(state.cards).length === 0) {
+    // With due lesson rounds above, an empty flashcard deck needs no billboard.
+    if (!standalone) return null
     return (
       <EmptyState
         icon={<Layers size={22} />}
@@ -54,6 +134,13 @@ export default function Review() {
   }
 
   if (!card) {
+    if (!standalone) {
+      return (
+        <div className="text-center text-sm text-fg-muted">
+          {reviewed > 0 ? `词卡复习完成，共 ${reviewed} 张。` : '现在没有到期的词卡。'}
+        </div>
+      )
+    }
     return (
       <EmptyState
         icon={<PartyPopper size={22} className="text-fg" />}
@@ -71,7 +158,7 @@ export default function Review() {
   }
 
   return (
-    <div className="mx-auto max-w-[460px] space-y-4">
+    <div className="space-y-4">
       {/* back navigation lives in the global sub-page header — one progress row here */}
       <div className="flex items-center gap-3">
         <Progress value={total ? (reviewed / total) * 100 : 0} className="min-w-0 flex-1" />

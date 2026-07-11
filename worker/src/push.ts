@@ -147,7 +147,13 @@ const PROGRESS_FRESH_MS = 14 * 3_600_000
 // days instead of starving a fixed tail of subscribers.
 const CRON_MAX_TICKLES = 40
 
-/** Cron `0 23 * * *` UTC (= 北京 07:00): tickle every subscription. */
+// Subscribers with a lesson review due sort ahead of the random remainder in
+// both crons — a due 6h round (learn in the morning → first reheat the same
+// evening) must not lose its slot to the cap lottery.
+const DUE_FIRST_ORDER =
+  'ORDER BY (CASE WHEN p.next_review_at IS NOT NULL AND p.next_review_at <= ?1 THEN 0 ELSE 1 END), RANDOM()'
+
+/** Cron `0 23 * * *` UTC (= 北京 07:00): tickle every subscription, review-due first. */
 export async function sendMorningTickles(env: Env): Promise<void> {
   const db = env.DB
   if (!db || !pushEnabled(env)) return
@@ -155,8 +161,10 @@ export async function sendMorningTickles(env: Env): Promise<void> {
   try {
     subs = (
       await db
-        .prepare('SELECT endpoint FROM push_subs ORDER BY RANDOM() LIMIT ?')
-        .bind(CRON_MAX_TICKLES)
+        .prepare(
+          `SELECT s.endpoint FROM push_subs s LEFT JOIN progress p ON p.user_id = s.user_id ${DUE_FIRST_ORDER} LIMIT ?2`,
+        )
+        .bind(Date.now(), CRON_MAX_TICKLES)
         .all<{ endpoint: string }>()
     ).results
   } catch {
@@ -165,9 +173,11 @@ export async function sendMorningTickles(env: Env): Promise<void> {
   await tickleAll(env, db, subs)
 }
 
-/** Cron `0 12 * * *` UTC (= 北京 20:00): evening rescue — only subscribers whose
+/** Cron `0 12 * * *` UTC (= 北京 20:00): evening rescue — subscribers whose
  *  synced progress blob has NOT moved in the last 14h (no progress row counts
- *  as stale too: they have never synced, exactly who needs the nudge). */
+ *  as stale too: they have never synced, exactly who needs the nudge), PLUS
+ *  anyone with a lesson review due (they may have studied today AND still owe
+ *  tonight's 6h reheat round). */
 export async function sendEveningTickles(env: Env): Promise<void> {
   const db = env.DB
   if (!db || !pushEnabled(env)) return
@@ -177,9 +187,10 @@ export async function sendEveningTickles(env: Env): Promise<void> {
       await db
         .prepare(
           'SELECT s.endpoint FROM push_subs s LEFT JOIN progress p ON p.user_id = s.user_id ' +
-            'WHERE p.updated_at IS NULL OR p.updated_at < ? ORDER BY RANDOM() LIMIT ?',
+            'WHERE p.updated_at IS NULL OR p.updated_at < ?3 ' +
+            `OR (p.next_review_at IS NOT NULL AND p.next_review_at <= ?1) ${DUE_FIRST_ORDER} LIMIT ?2`,
         )
-        .bind(Date.now() - PROGRESS_FRESH_MS, CRON_MAX_TICKLES)
+        .bind(Date.now(), CRON_MAX_TICKLES, Date.now() - PROGRESS_FRESH_MS)
         .all<{ endpoint: string }>()
     ).results
   } catch {
@@ -264,10 +275,20 @@ export async function handlePushPreview(req: Request, env: Env): Promise<Respons
   const day = nowDate.toISOString().slice(0, 10) // UTC on purpose: cache key only, never user-facing
   const key = `pv:${userId}:${day}:${evening ? 'pm' : 'am'}`
   const cached = await env.QUOTA.get(key)
-  if (cached) return json({ text: cached }, env, 200, req)
+  if (cached) {
+    // Cache holds JSON {t, u?} (legacy entries were bare text — serve as-is).
+    try {
+      const c = JSON.parse(cached) as { t?: string; u?: string }
+      if (c && typeof c.t === 'string') return json(c.u ? { text: c.t, url: c.u } : { text: c.t }, env, 200, req)
+    } catch {
+      /* pre-deeplink cache entry */
+    }
+    return json({ text: cached }, env, 200, req)
+  }
 
   const facts: string[] = []
   let progressFresh = false // moved within PROGRESS_FRESH_MS — mirrors the evening cron filter
+  let reviewDue: { day: number; round: number } | null = null // earliest due lesson-review round
   try {
     const { results } = await db
       .prepare('SELECT text FROM memories WHERE user_id = ? ORDER BY weight DESC, updated_at DESC LIMIT 3')
@@ -284,7 +305,20 @@ export async function handlePushPreview(req: Request, env: Env): Promise<Respons
         days?: Record<string, unknown>
         streak?: number
         lastStudyDate?: string
+        lessonReviews?: Record<string, { stage?: number; nextAt?: number | null }>
       } | null
+      // Earliest due lesson-review round → the notification's concrete hook
+      // ("Day N 到了回炉时间") + the /#/review deep link.
+      if (blob?.lessonReviews && typeof blob.lessonReviews === 'object') {
+        const nowMs = Date.now()
+        let bestAt = Infinity
+        for (const [d, r] of Object.entries(blob.lessonReviews)) {
+          if (typeof r?.nextAt !== 'number' || r.nextAt > nowMs || r.nextAt >= bestAt) continue
+          bestAt = r.nextAt
+          reviewDue = { day: Number(d), round: (typeof r.stage === 'number' ? r.stage : 0) + 1 }
+        }
+        if (reviewDue) facts.push(`Day ${reviewDue.day} 的内容到了间隔复习时间(第 ${reviewDue.round} 轮回炉)`)
+      }
       const dayCount = blob?.days && typeof blob.days === 'object' ? Object.keys(blob.days).length : 0
       if (dayCount > 0) facts.push(`学员已学到 Day ${Math.min(dayCount, 30)}/30`)
       // The streak number is only quotable while it is actually alive:
@@ -306,12 +340,18 @@ export async function handlePushPreview(req: Request, env: Env): Promise<Respons
     /* stats are garnish — a bare line still works */
   }
   const fallback = evening && !progressFresh ? PREVIEW_FALLBACK_PM : PREVIEW_FALLBACK
-  const task = evening
-    ? progressFresh
-      ? '任务:晚间复盘——学员今天已经练过了。夸一个具体的点,再轻轻带一句明天继续。'
-      : '任务:连胜挽救——学员今天还没来练。语气是牵挂,不是指责,绝不羞辱;' +
-        '若事实里有连续学习天数,点出这个数字值得守住;邀请学员现在回来练一句。'
-    : '任务:晨呼——把学员拉回来今天练英语。'
+  // A due review round is the most concrete hook available — it beats the
+  // generic morning call / evening recap whenever present.
+  const task = reviewDue
+    ? '任务:复习召回——学员学过的某天内容到了间隔复习点(事实里有具体 Day 和轮次)。' +
+      '点名那一天,说明趁没忘重练一遍最划算,邀请学员回来回炉几分钟。'
+    : evening
+      ? progressFresh
+        ? '任务:晚间复盘——学员今天已经练过了。夸一个具体的点,再轻轻带一句明天继续。'
+        : '任务:连胜挽救——学员今天还没来练。语气是牵挂,不是指责,绝不羞辱;' +
+          '若事实里有连续学习天数,点出这个数字值得守住;邀请学员现在回来练一句。'
+      : '任务:晨呼——把学员拉回来今天练英语。'
+  const url = reviewDue ? '/#/review' : undefined
   try {
     const raw = await callAI(env, {
       system:
@@ -329,12 +369,14 @@ export async function handlePushPreview(req: Request, env: Env): Promise<Respons
     const text = String(raw).trim().replace(/\s+/g, ' ').slice(0, 80)
     // Empty model output → serve the static fallback UNCACHED (same rule as the
     // catch below): caching it would pin a generic line for the whole half-day.
-    if (!text) return json({ text: fallback }, env, 200, req)
-    await env.QUOTA.put(key, text, { expirationTtl: 26 * 3600 })
-    return json({ text }, env, 200, req)
+    // The deep link is independent of the AI text — a due review keeps its
+    // /#/review target even on the fallback copy.
+    if (!text) return json(url ? { text: fallback, url } : { text: fallback }, env, 200, req)
+    await env.QUOTA.put(key, JSON.stringify(url ? { t: text, u: url } : { t: text }), { expirationTtl: 26 * 3600 })
+    return json(url ? { text, url } : { text }, env, 200, req)
   } catch {
     // Never fail the notification path; the fallback is not cached so a later
     // wake the same half-day can still get a personalized line.
-    return json({ text: fallback }, env, 200, req)
+    return json(url ? { text: fallback, url } : { text: fallback }, env, 200, req)
   }
 }

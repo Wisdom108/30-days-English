@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Volume2, Loader2, Rabbit, ChevronDown, Play, Square } from 'lucide-react'
 import { speak, stopSpeaking, ttsSupported, type VoiceKey } from '../lib/speech'
+import type { ShadowGrade, ShadowResult } from '../lib/shadowScore'
 import { lookupWord, type LookupResult } from '../lib/dictionary'
 import type { GlossaryItem } from '../types'
 import { cn } from '../lib/utils'
@@ -333,6 +334,55 @@ export function DialoguePlayer({ lines }: { lines: { speaker: string; line: stri
       >
         {playing ? <><Square size={13} /> 停止</> : <><Play size={14} /> 播放对话 · 双人配音</>}
       </button>
+    </div>
+  )
+}
+
+// ===== Shadow-reading readout: per-word hit highlight over the reference =====
+// Rendered after an LCS alignment of the ASR transcript against the target
+// sentence (lib/shadowScore.ts): matched words stay quiet, missed words get the
+// danger wash — the learner sees exactly WHICH words the recognizer never heard.
+const GRADE_LABEL: Record<ShadowGrade, string> = {
+  great: '很棒',
+  pass: '通过',
+  retry: '再来一次',
+}
+const GRADE_CLS: Record<ShadowGrade, string> = {
+  great: 'text-success',
+  pass: 'text-fg-secondary',
+  retry: 'text-danger',
+}
+
+export function ShadowReadout({ result, size = 'lg' }: { result: ShadowResult; size?: 'lg' | 'sm' }) {
+  const pct = Math.round(result.score * 100)
+  if (result.noSpeech) {
+    return <div className={cn('text-sm', GRADE_CLS.retry)}>没听到英语，靠近麦克风再试一次？</div>
+  }
+  const lg = size === 'lg'
+  // Hit counts shown word-level (what the learner sees), not token-level — a
+  // contraction expands to several matching tokens but is still ONE word.
+  const words = result.reference.filter((s) => s.word)
+  const hitWords = words.filter((s) => s.hit).length
+  return (
+    <div className={lg ? 'w-full text-center' : 'min-w-0 text-left'}>
+      <div className={cn('flex items-baseline gap-2', lg ? 'justify-center' : 'justify-start')}>
+        <span className={cn('t-doto animate-slam font-semibold leading-none text-fg', lg ? 'text-[44px]' : 'text-[30px]')}>
+          {pct}
+        </span>
+        <span className={cn('text-sm font-semibold', GRADE_CLS[result.grade])}>{GRADE_LABEL[result.grade]}</span>
+      </div>
+      <div className="label-nd mt-1.5">命中 {hitWords}/{words.length} 词</div>
+      <div className={cn('leading-relaxed', lg ? 'mt-3 text-body-lg' : 'mt-1.5 text-body')}>
+        {result.reference.map((seg, i) =>
+          seg.word ? (
+            <span key={i} className={cn('rounded-sm', seg.hit ? 'text-fg' : 'bg-danger-soft px-0.5 text-danger')}>
+              {seg.text}
+            </span>
+          ) : (
+            <span key={i} className="text-fg-muted">{seg.text}</span>
+          ),
+        )}
+      </div>
     </div>
   )
 }

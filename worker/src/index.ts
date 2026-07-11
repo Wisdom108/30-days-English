@@ -41,6 +41,7 @@ import {
   writingSystem,
   tutorSystem,
   coachSystem,
+  retellSystem,
   WRITING_SCHEMA,
   type LessonCtx,
 } from './prompts'
@@ -289,6 +290,21 @@ async function handleAI(path: string, req: Request, env: Env, ctx: ExecutionCont
         system: tutorSystem(lesson),
         messages: [...history, { role: 'user', content: question }],
         max_tokens: 1200,
+      })
+      await bump(env, 'q', uid)
+      return json({ reply }, env)
+    }
+    if (path === '/ai/retell') {
+      const transcript = String(bodyIn.transcript || '').slice(0, 2000)
+      if (!transcript.trim()) return json({ error: '没有听到复述内容' }, env, 400)
+      // Client-supplied script rides in the user turn (never system authority).
+      const script = cap(bodyIn.script, 2500) || ''
+      const reply = await callAIText(env, {
+        system: retellSystem(lesson),
+        messages: [
+          { role: 'user', content: `Source script:\n${script}\n\n---\nMy retelling (ASR transcript):\n${transcript}` },
+        ],
+        max_tokens: 700,
       })
       await bump(env, 'q', uid)
       return json({ reply }, env)

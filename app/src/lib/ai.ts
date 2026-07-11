@@ -58,3 +58,8 @@ export function aiTutor(question: string, lesson: LessonCtx, history?: ChatMsg[]
 export function aiCoach(target: string, assessment: unknown, lesson: LessonCtx): Promise<{ reply: string }> {
   return post('/ai/coach', { target, assessment, lesson })
 }
+
+/** Retell feedback: the learner's ASR transcript vs the lesson's source script. */
+export function aiRetell(transcript: string, script: string, lesson: LessonCtx): Promise<{ reply: string }> {
+  return post('/ai/retell', { transcript, script, lesson })
+}

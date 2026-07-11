@@ -11,6 +11,7 @@ import { useApp } from './state'
 import { useAuth } from './auth'
 import { TOTAL_DAYS } from './constants'
 import { dueCards } from './lib/srs'
+import { dueLessonReviews } from './lib/lessonReview'
 import { LogoMark } from './components/ui/brand'
 import { AuthControls } from './components/ai'
 import { CloudSync } from './components/CloudSync'
@@ -20,7 +21,8 @@ import { cn } from './lib/utils'
 function useNav() {
   const { state } = useApp()
   const current = Math.min(state.currentDay, TOTAL_DAYS)
-  const due = dueCards(state.cards).length
+  // The review badge counts BOTH queues: due flashcards + due lesson-review rounds.
+  const due = dueCards(state.cards).length + dueLessonReviews(state.lessonReviews).length
   return { current, due }
 }
 

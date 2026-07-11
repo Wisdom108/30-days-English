@@ -351,39 +351,5 @@ export function recognizeOnce(timeoutMs = 12000): Promise<RecognitionResult> {
   })
 }
 
-// ---- Pronunciation similarity scoring ----
-// Normalizes both strings and computes a word-overlap + edit-distance score 0-100.
-export function scorePronunciation(target: string, spoken: string): number {
-  const norm = (s: string) =>
-    s
-      .toLowerCase()
-      .replace(/[^a-z0-9\s']/g, '')
-      .replace(/\s+/g, ' ')
-      .trim()
-  const t = norm(target)
-  const s = norm(spoken)
-  if (!t || !s) return 0
-  const tWords = t.split(' ')
-  const sWords = new Set(s.split(' '))
-  const matched = tWords.filter((w) => sWords.has(w)).length
-  const overlap = matched / tWords.length
-  const dist = levenshtein(t, s)
-  const editScore = 1 - dist / Math.max(t.length, s.length)
-  const score = Math.round((overlap * 0.6 + Math.max(0, editScore) * 0.4) * 100)
-  return Math.max(0, Math.min(100, score))
-}
-
-function levenshtein(a: string, b: string): number {
-  const m = a.length
-  const n = b.length
-  const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0))
-  for (let i = 0; i <= m; i++) dp[i][0] = i
-  for (let j = 0; j <= n; j++) dp[0][j] = j
-  for (let i = 1; i <= m; i++) {
-    for (let j = 1; j <= n; j++) {
-      const cost = a[i - 1] === b[j - 1] ? 0 : 1
-      dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost)
-    }
-  }
-  return dp[m][n]
-}
+// Pronunciation similarity scoring moved to lib/shadowScore.ts (word-level LCS
+// alignment with per-word hit marks, replacing the old overlap+edit-distance blend).

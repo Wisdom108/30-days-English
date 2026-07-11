@@ -1,12 +1,14 @@
 import { lazy, Suspense, useEffect, useState, type CSSProperties } from 'react'
 import { AlertCircle, Mic, Sparkles, Loader2 } from 'lucide-react'
 import type { DayLesson } from '../../types'
-import { prefetchSpeak, recognizeOnce, scorePronunciation, sttSupported } from '../../lib/speech'
+import { prefetchSpeak } from '../../lib/speech'
+import { scoreShadow, type ShadowResult } from '../../lib/shadowScore'
 import { azureAvailable, azureAssess, type PronScore } from '../../lib/azureSpeech'
-import { cfVoiceAvailable, cfRecordAndTranscribe, stopCfRecording } from '../../lib/cfSpeech'
+import { cfVoiceAvailable, stopCfRecording } from '../../lib/cfSpeech'
+import { recorderErrorMessage, useRecorder } from '../../lib/useRecorder'
 import { aiCoach, AIError, type LessonCtx } from '../../lib/ai'
 import { realtimeAvailable, voiceAgentAvailable, grokRealtimeAvailable } from '../../lib/caps'
-import { SpeakButton, BlockHead, DialoguePlayer } from '../shared'
+import { SpeakButton, BlockHead, DialoguePlayer, ShadowReadout } from '../shared'
 import { AiGate, ConversationPanel } from '../ai'
 import { Button, Callout, Collapse, Skeleton, Stepper } from '../ui'
 import { cn } from '../../lib/utils'
@@ -33,13 +35,15 @@ function ScoreChip({ label, score, style }: { label: string; score: number; styl
 }
 
 // ===== Shadowing hero — one line at a time, big record orb, big score =====
-function ShadowHero({ text, tip, sttOk, lesson }: { text: string; tip: string; sttOk: boolean; lesson: DayLesson }) {
+function ShadowHero({ text, tip, lesson }: { text: string; tip: string; lesson: DayLesson }) {
   const premium = azureAvailable()
-  const cfPath = !premium && cfVoiceAvailable() // only the CF recorder can be stopped mid-take
-  const canRecord = premium || cfVoiceAvailable() || sttOk
-  const [rec, setRec] = useState(false)
+  const recorder = useRecorder() // CF/browser takes; Azure records via its own SDK below
+  const stoppable = !premium && recorder.cfPath // only the CF recorder can be stopped mid-take
+  const canRecord = premium || recorder.canRecord
+  const [azRec, setAzRec] = useState(false)
+  const rec = azRec || recorder.rec
   const [error, setError] = useState<string | null>(null)
-  const [score, setScore] = useState<number | null>(null)
+  const [shadow, setShadow] = useState<ShadowResult | null>(null)
   const [heard, setHeard] = useState<string | null>(null)
   const [azure, setAzure] = useState<PronScore | null>(null)
   const [coach, setCoach] = useState<string | null>(null)
@@ -49,33 +53,25 @@ function ShadowHero({ text, tip, sttOk, lesson }: { text: string; tip: string; s
   useEffect(() => { prefetchSpeak(text) }, [text])
 
   const record = async () => {
-    setRec(true); setError(null); setScore(null); setHeard(null); setAzure(null); setCoach(null)
+    setError(null); setShadow(null); setHeard(null); setAzure(null); setCoach(null)
     try {
-      if (premium) setAzure(await azureAssess(text))
-      else if (cfVoiceAvailable()) { const t = await cfRecordAndTranscribe(); setHeard(t); setScore(scorePronunciation(text, t)) }
-      else { const { transcript } = await recognizeOnce(); setHeard(transcript); setScore(scorePronunciation(text, transcript)) }
+      if (premium) {
+        setAzRec(true)
+        try { setAzure(await azureAssess(text)) } finally { setAzRec(false) }
+      } else {
+        const t = await recorder.take()
+        if (!t) return
+        setHeard(t)
+        setShadow(scoreShadow(text, t))
+      }
     } catch (e) {
-      // Triage by DOMException name first (getUserMedia surfaces these), then
-      // by message — a permission problem must not read as "没听清".
-      const name = e instanceof Error ? e.name : ''
-      const msg = e instanceof Error ? e.message : ''
-      setError(
-        name === 'NotAllowedError' || name === 'SecurityError'
-          ? '需要麦克风权限：请在 设置 > 浏览器 > 麦克风 中允许后重试'
-          : name === 'NotFoundError'
-          ? '未检测到麦克风'
-          : msg.includes('登录')
-          ? '请先登录以使用发音评测'
-          : msg.includes('额度')
-          ? msg // 429 quota message from the worker — show it verbatim, not "没听清"
-          : '没听清，请再试一次',
-      )
-    } finally { setRec(false) }
+      setError(recorderErrorMessage(e))
+    }
   }
 
   // Tap while recording = finish the take early (CF path); otherwise start.
   const orbTap = () => {
-    if (rec) { if (cfPath) stopCfRecording(); return }
+    if (rec) { if (stoppable) stopCfRecording(); return }
     record()
   }
 
@@ -100,8 +96,8 @@ function ShadowHero({ text, tip, sttOk, lesson }: { text: string; tip: string; s
           {rec && <span className="pulse-red absolute -inset-2.5 rounded-full border border-red/40" />}
           <button
             onClick={orbTap}
-            disabled={!canRecord || (rec && !cfPath)}
-            aria-label={rec ? (cfPath ? '结束录音' : '录音中') : '开始跟读录音'}
+            disabled={!canRecord || (rec && !stoppable)}
+            aria-label={rec ? (stoppable ? '结束录音' : '录音中') : '开始跟读录音'}
             className={cn(
               'press absolute inset-0 grid place-items-center rounded-full border-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:opacity-45',
               rec ? 'border-red bg-red-soft text-red' : 'border-border-strong bg-surface text-fg hover:border-fg',
@@ -114,12 +110,11 @@ function ShadowHero({ text, tip, sttOk, lesson }: { text: string; tip: string; s
           {!canRecord ? '此浏览器不支持录音 · 建议 Chrome/Edge' : rec ? '听着… 点击结束' : '点击跟读'}
         </div>
 
-        {/* score — big */}
-        {score !== null && !azure && (
+        {/* score — per-word LCS alignment: missed words light up on the reference */}
+        {shadow !== null && !azure && (
           <div className="animate-in-up mt-5 w-full">
-            <div className="t-doto animate-slam text-[44px] font-semibold leading-none text-fg">{score}</div>
-            <div className="label-nd mt-1.5">匹配度</div>
-            {heard && <div className="mt-2 text-sm text-fg-muted">听到：{heard}</div>}
+            <ShadowReadout result={shadow} />
+            {heard && !shadow.noSpeech && <div className="mt-2 text-sm text-fg-muted">听到：{heard}</div>}
           </div>
         )}
         {azure && (
@@ -166,7 +161,6 @@ function ShadowHero({ text, tip, sttOk, lesson }: { text: string; tip: string; s
 
 export default function SpeakingBlock({ lesson }: { lesson: DayLesson }) {
   const s = lesson.speaking
-  const sttOk = sttSupported()
   const [si, setSi] = useState(0)
   const shadow = s.shadowing
   const cur = shadow[si]
@@ -177,7 +171,7 @@ export default function SpeakingBlock({ lesson }: { lesson: DayLesson }) {
   return (
     <div className="space-y-4">
       {/* ===== HERO shadowing ===== */}
-      {cur && <ShadowHero key={si} text={cur.text} tip={cur.tip} sttOk={sttOk} lesson={lesson} />}
+      {cur && <ShadowHero key={si} text={cur.text} tip={cur.tip} lesson={lesson} />}
 
       <Stepper idx={si} total={shadow.length} onStep={(d) => setSi((p) => p + d)} />
 

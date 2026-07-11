@@ -54,13 +54,16 @@ registerRoute(
 self.addEventListener('push', (event) => {
   event.waitUntil(
     fetch('/zaizai/push-preview', { credentials: 'include' })
-      .then((r) => (r.ok ? (r.json() as Promise<{ text?: string }>) : null))
+      .then((r) => (r.ok ? (r.json() as Promise<{ text?: string; url?: string }>) : null))
       .catch(() => null)
       .then((d) =>
         self.registration.showNotification('在在', {
           body: d?.text || '今天的计划好了,来看看',
           icon: '/pwa-192.png',
-          data: { url: '/' },
+          // Deep link from the preview (e.g. /#/review when a lesson review is
+          // due) — same-origin paths only. '//host' is protocol-relative (an
+          // OFF-origin absolute URL), so require exactly one leading slash.
+          data: { url: d?.url && d.url.startsWith('/') && !d.url.startsWith('//') ? d.url : '/' },
         }),
       ),
   )

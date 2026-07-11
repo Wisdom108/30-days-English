@@ -131,6 +131,14 @@ export interface SrsCard {
   dueDate: string // ISO date (yyyy-mm-dd)
 }
 
+// Lesson-level spaced review: after a day is fully completed it re-surfaces on
+// a fixed interval ladder (see lib/lessonReview.ts). One entry per lesson day.
+export interface LessonReview {
+  stage: number // rounds completed so far — indexes the ladder for the NEXT round
+  nextAt: number | null // ms timestamp the next round is due; null once graduated
+  lastAt: number // ms timestamp of first completion / latest finished round
+}
+
 export interface AppState {
   startDate: string | null // ISO date the learner started day 1
   currentDay: number
@@ -144,4 +152,5 @@ export interface AppState {
   updatedAt?: number // last local mutation (ms) — drives last-writer-wins cloud merge
   studyDates?: string[] // LOCAL YYYY-MM-DD dates with ≥1 block completed, capped last 60 — drives the week strip
   frozenDates?: string[] // LOCAL YYYY-MM-DD days covered by a consumed streak freeze (❄ in the week strip), capped last 60
+  lessonReviews?: Record<number, LessonReview> // day -> spaced-review ladder state
 }

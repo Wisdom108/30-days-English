@@ -5,6 +5,7 @@
 import { config } from '../config'
 import type { AppState, DayProgress } from '../types'
 import { defaultState } from './storage'
+import { earliestReviewAt } from './lessonReview'
 
 export interface AccountUser {
   name: string
@@ -45,7 +46,9 @@ export const pullProgress = () =>
   req<{ data: AppState | null; updatedAt: number | null }>('GET', '/progress')
 
 export const pushProgress = (state: AppState) =>
-  req<{ updatedAt: number }>('PUT', '/progress', { data: state })
+  // nextReviewAt rides along as a plain queryable column so the worker's
+  // due-review push cron can filter subscribers without parsing blobs.
+  req<{ updatedAt: number }>('PUT', '/progress', { data: state, nextReviewAt: earliestReviewAt(state) })
 
 /** Merge local + cloud learning state.
  *  - Completion (days/blocks) is MONOTONIC → union (never un-completes).
@@ -93,6 +96,24 @@ export function mergeStates(a: AppState, b: AppState): AppState {
   // frozenDates — same monotonic union (a consumed freeze never un-consumes)
   const frozen = [...new Set([...(a.frozenDates ?? []), ...(b.frozenDates ?? [])])].sort()
   if (frozen.length) out.frozenDates = frozen.slice(-60)
+  // lessonReviews — ladder progress is monotonic: per day, the side with more
+  // completed rounds wins; on a stage tie the later-finished side carries the
+  // fresher nextAt (never resurrect an older, earlier-due copy).
+  const reviewDays = new Set([...Object.keys(a.lessonReviews ?? {}), ...Object.keys(b.lessonReviews ?? {})])
+  if (reviewDays.size) {
+    out.lessonReviews = {}
+    for (const k of reviewDays) {
+      const day = Number(k)
+      const ra = a.lessonReviews?.[day]
+      const rb = b.lessonReviews?.[day]
+      if (!ra || !rb) {
+        out.lessonReviews[day] = (ra || rb)!
+        continue
+      }
+      out.lessonReviews[day] =
+        ra.stage !== rb.stage ? (ra.stage > rb.stage ? ra : rb) : ra.lastAt >= rb.lastAt ? ra : rb
+    }
+  }
   out.startDate =
     a.startDate && b.startDate
       ? a.startDate < b.startDate ? a.startDate : b.startDate

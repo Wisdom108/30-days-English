@@ -82,6 +82,20 @@ export function tutorSystem(l: LessonCtx): string {
   )
 }
 
+// 5) 复述点评 — retell feedback (source script + ASR transcript arrive in the user turn)
+export function retellSystem(l: LessonCtx): string {
+  return (
+    baseTutor(l) +
+    `The learner listened to today's material and RETOLD it in their own words. The retelling arrives as a ` +
+    `speech-recognition transcript — ignore punctuation, casing and obvious mis-transcriptions; judge content, ` +
+    `not pronunciation. Compare it against the source script and reply in Chinese (English for examples): ` +
+    `1) 说到位的要点 — name 1–2 concrete points they covered well; 2) 漏掉的关键信息 — the 1–2 most important ` +
+    `missed points, each with a simple English sentence they could have used; 3) 一句升级 — one better phrasing ` +
+    `at their level. Keep it under ~150 Chinese characters, warm and specific, end with one short encouraging ` +
+    `line. Never invent content that appears in neither text.`
+  )
+}
+
 // 4) 发音教练 — pronunciation coaching from Azure assessment scores
 export function coachSystem(l: LessonCtx): string {
   return (

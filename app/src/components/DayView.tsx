@@ -8,6 +8,7 @@ import { BLOCKS } from '../blocks'
 import type { BlockKey } from '../types'
 import { addDays, makeCard, todayISO } from '../lib/srs'
 import { isDayComplete, displayStreak } from '../lib/storage'
+import { reviewStatusLabel } from '../lib/lessonReview'
 import {
   appendChatNotice, consumeFreeze, getWallet, invalidateWallet,
   postEarn, walletCap, type EarnEvent,
@@ -18,6 +19,7 @@ import VocabBlock from './blocks/VocabBlock'
 import SpeakingBlock from './blocks/SpeakingBlock'
 import ReadingBlock from './blocks/ReadingBlock'
 import WritingBlock from './blocks/WritingBlock'
+import RetellPanel from './RetellPanel'
 import { Button } from './ui'
 import { useToast } from './ui/toast'
 import { cn } from '../lib/utils'
@@ -273,6 +275,18 @@ export default function DayView() {
             <div className="text-h1 font-semibold text-fg"><span className="t-tab">Day {dayNum}</span> 全部完成</div>
             <p className="mt-1 text-sm text-fg-muted">连胜 <span className="t-tab text-fg">{displayStreak(state)}</span> 天 · 保持节奏</p>
           </div>
+        </div>
+      )}
+
+      {/* 听说收尾：学完当场复述一遍（练习，不消耗回炉轮次）。右上角报这一课
+          回炉阶梯的真实状态（刚学完=6 小时后；老课=到点/已毕业）。 */}
+      {dayComplete && (
+        <div className="mt-4 rounded-xl border border-border-strong bg-surface p-4 animate-in-up">
+          <div className="mb-3 flex items-center justify-between">
+            <span className="label-nd">收尾 · 用自己的话复述</span>
+            <span className="text-meta text-fg-muted">{reviewStatusLabel(state.lessonReviews?.[dayNum])}</span>
+          </div>
+          <RetellPanel lesson={lesson} />
         </div>
       )}
 

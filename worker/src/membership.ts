@@ -196,13 +196,28 @@ export async function handlePutProgress(req: Request, env: Env): Promise<Respons
   }
   const serialized = JSON.stringify(body.data)
   if (serialized.length > MAX_PROGRESS_CHARS) return json({ error: '进度数据过大' }, env, 413, req)
+  // Earliest due lesson-review timestamp, client-computed. Kept as a queryable
+  // column so the push crons can filter due users without parsing blobs.
+  // Only written when the key is PRESENT in the body: an up-to-date client
+  // always sends it (null = nothing scheduled), while a stale cached bundle on
+  // another device omits it entirely — and must not wipe the value a fresh
+  // device stored (that would silently kill the user's due-review pushes).
+  const hasNextReview = 'nextReviewAt' in body
+  const nextReviewAt =
+    typeof body.nextReviewAt === 'number' && Number.isFinite(body.nextReviewAt)
+      ? Math.round(body.nextReviewAt)
+      : null
   const now = Date.now()
   await db
     .prepare(
-      'INSERT INTO progress (user_id, data, updated_at) VALUES (?, ?, ?) ' +
-        'ON CONFLICT(user_id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at',
+      hasNextReview
+        ? 'INSERT INTO progress (user_id, data, updated_at, next_review_at) VALUES (?1, ?2, ?3, ?4) ' +
+            'ON CONFLICT(user_id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at, ' +
+            'next_review_at = excluded.next_review_at'
+        : 'INSERT INTO progress (user_id, data, updated_at) VALUES (?1, ?2, ?3) ' +
+            'ON CONFLICT(user_id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at',
     )
-    .bind(uid, serialized, now)
+    .bind(...(hasNextReview ? [uid, serialized, now, nextReviewAt] : [uid, serialized, now]))
     .run()
   return json({ updatedAt: now }, env, 200, req)
 }

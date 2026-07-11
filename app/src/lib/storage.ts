@@ -1,5 +1,6 @@
 import type { AppState, BlockKey, DayProgress, SrsCard } from '../types'
 import { todayISO, addDays } from './srs'
+import { backfillLessonReviews, scheduleLessonReview } from './lessonReview'
 
 export const STORAGE_KEY = 'thirty-days-english:v1'
 const KEY = STORAGE_KEY
@@ -29,7 +30,9 @@ export function loadState(): AppState {
     const raw = localStorage.getItem(KEY)
     if (!raw) return defaultState()
     const parsed = JSON.parse(raw) as AppState
-    return { ...defaultState(), ...parsed }
+    // Days completed before the review ladder shipped get seeded as due now —
+    // without this the back catalog would never enter 课程回炉.
+    return backfillLessonReviews({ ...defaultState(), ...parsed })
   } catch {
     return defaultState()
   }
@@ -114,6 +117,12 @@ export function completeBlock(
   // Unlock next day once the current day is fully complete.
   if (allDone && day === state.currentDay && day < 30) {
     next.currentDay = day + 1
+  }
+
+  // First full completion starts the lesson's spaced-review ladder (6h → 14d).
+  // Guarded on completedAt so re-toggling a block later never resets the ladder.
+  if (allDone && !prev.completedAt) {
+    next.lessonReviews = scheduleLessonReview(state.lessonReviews, day)
   }
 
   return next

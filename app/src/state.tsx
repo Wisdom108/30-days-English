@@ -11,6 +11,7 @@ import {
   updateCard,
   upsertCards,
 } from './lib/storage'
+import { completeLessonReview } from './lib/lessonReview'
 
 interface Ctx {
   state: AppState
@@ -18,6 +19,7 @@ interface Ctx {
   unmarkBlock: (day: number, block: BlockKey) => void
   addCards: (cards: SrsCard[]) => void
   reviewOne: (card: SrsCard) => void
+  finishLessonReview: (day: number) => void
   storeWriting: (day: number, text: string) => void
   importAll: (next: AppState) => void
   dismissGuide: () => void
@@ -103,6 +105,10 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     mutate((s) => updateCard(s, card))
   }, [mutate])
 
+  const finishLessonReview = useCallback((day: number) => {
+    mutate((s) => ({ ...s, lessonReviews: completeLessonReview(s.lessonReviews, day) }))
+  }, [mutate])
+
   const storeWriting = useCallback((day: number, text: string) => {
     mutate((s) => saveWriting(s, day, text))
   }, [mutate])
@@ -128,8 +134,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const value = useMemo(
-    () => ({ state, markBlock, unmarkBlock, addCards, reviewOne, storeWriting, importAll, dismissGuide, unlockAllDays, reset }),
-    [state, markBlock, unmarkBlock, addCards, reviewOne, storeWriting, importAll, dismissGuide, unlockAllDays, reset],
+    () => ({ state, markBlock, unmarkBlock, addCards, reviewOne, finishLessonReview, storeWriting, importAll, dismissGuide, unlockAllDays, reset }),
+    [state, markBlock, unmarkBlock, addCards, reviewOne, finishLessonReview, storeWriting, importAll, dismissGuide, unlockAllDays, reset],
   )
 
   return <AppCtx.Provider value={value}>{children}</AppCtx.Provider>
