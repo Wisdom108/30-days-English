@@ -10,6 +10,8 @@ import { VitePWA } from 'vite-plugin-pwa'
 // Same-origin from the browser's view → no CORS, passcode header flows through.
 // VITE_DEV_WORKER overrides the proxy target — e.g. a local `wrangler dev` on
 // :8787 when previewing worker changes that are not deployed yet.
+// (config runs under Node; typed inline so the app tsconfig needn't pull in @types/node)
+declare const process: { env: Record<string, string | undefined> }
 const WORKER = process.env.VITE_DEV_WORKER || 'https://thirty-days-en.thinkuniverse.workers.dev'
 type Fwd = { target: string; changeOrigin: boolean; secure: boolean; ws?: boolean }
 const proxy: Record<string, Fwd> = Object.fromEntries(
