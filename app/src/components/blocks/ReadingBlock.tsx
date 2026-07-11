@@ -22,7 +22,7 @@ export default function ReadingBlock({ lesson }: { lesson: DayLesson }) {
   return (
     <div className="space-y-4">
       {/* ===== HERO — immersive passage ===== */}
-      <div className="overflow-hidden rounded-xl border border-border-strong bg-surface">
+      <div className="glass-card overflow-hidden rounded-xl">
         <BlockHead
           tag="阅读"
           title={r.title}

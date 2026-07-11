@@ -61,7 +61,7 @@ export default memo(function Composer({
           dark band on iOS (Tailwind's /0 alpha modifier collapses to
           transparent black too, so same-hue endpoints must be hand-written). */}
       <div className="dock-fade pointer-events-none absolute inset-x-0 -top-3 h-3" aria-hidden="true" />
-      <div className="border-t-[0.5px] border-[rgba(60,60,67,0.29)] bg-white/75 px-3 pb-2 pt-2 backdrop-blur-xl md:rounded-2xl md:border-[0.5px]">
+      <div className="dock-glass px-3 pb-2 pt-2 md:rounded-2xl">
         {(roleplay || scenarioMode) && (
           <div className="flex justify-center pb-2">
             {roleplay ? (
@@ -89,7 +89,7 @@ export default memo(function Composer({
                 key={p}
                 onClick={() => onPreset(p)}
                 disabled={busy}
-                className="press card-solid shrink-0 rounded-full px-3 py-1.5 text-sm font-medium text-fg-secondary disabled:opacity-45"
+                className="press glass-card shrink-0 rounded-full px-3 py-1.5 text-sm font-medium text-fg-secondary disabled:opacity-45"
               >
                 {p}
               </button>
@@ -115,7 +115,7 @@ export default memo(function Composer({
                 sideOffset={10}
                 collisionPadding={12}
                 onOpenAutoFocus={(e) => e.preventDefault()}
-                className="card-solid animate-in-up z-50 w-64 overflow-hidden rounded-2xl shadow-popover"
+                className="glass-card animate-in-up z-50 w-64 overflow-hidden rounded-2xl shadow-popover"
               >
                 <CellGroup className="rounded-none">
                   <Cell
@@ -158,7 +158,7 @@ export default memo(function Composer({
           </Popover.Root>
 
           {/* capsule field — send/mic key nested at its right edge */}
-          <div className="flex min-h-9 min-w-0 flex-1 items-center rounded-[18px] border border-[rgba(60,60,67,0.2)] bg-white/90">
+          <div className="glass-pill flex min-h-9 min-w-0 flex-1 items-center rounded-[18px]">
             <input
               ref={inputRef}
               value={input}

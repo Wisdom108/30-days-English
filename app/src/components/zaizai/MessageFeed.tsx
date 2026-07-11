@@ -91,7 +91,7 @@ const FeedEntry = memo(function FeedEntry({ entry, state, lesson, actions, grp, 
     return row(
       <button
         onClick={() => actions.task(t)}
-        className={cn('press card-solid flex w-full max-w-[88%] items-center gap-3 rounded-xl px-4 py-3 text-left', done && 'opacity-60')}
+        className={cn('press glass-card flex w-full max-w-[88%] items-center gap-3 rounded-xl px-4 py-3 text-left', done && 'opacity-60')}
       >
         <BlockIcon k={t.key} size={18} className="shrink-0 text-fg-secondary" />
         <span className="min-w-0 flex-1">

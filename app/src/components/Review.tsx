@@ -65,7 +65,7 @@ function LessonReviewList({ due, onDone }: { due: ReturnType<typeof dueLessonRev
         if (!lesson) return null
         const expanded = open === day
         return (
-          <div key={day} className="card-solid overflow-hidden rounded-xl">
+          <div key={day} className="glass-card overflow-hidden rounded-xl">
             <button
               onClick={() => setOpen(expanded ? null : day)}
               className="press flex w-full items-center gap-3 px-4 py-3 text-left"
@@ -185,7 +185,7 @@ function VocabReview({ standalone }: { standalone: boolean }) {
             aria-hidden={flip}
             tabIndex={-1}
             {...(flip ? { inert: '' } : {})}
-            className="flip-face absolute inset-0 flex flex-col overflow-hidden rounded-xl border border-border-strong bg-surface"
+            className="flip-face absolute inset-0 flex flex-col glass-card overflow-hidden rounded-xl"
           >
             <div className="flex items-center justify-between border-b border-border px-5 py-3">
               <span className="label-nd">Word · <span className="t-tab text-fg-secondary">{reviewed + 1}/{total}</span></span>
@@ -202,7 +202,7 @@ function VocabReview({ standalone }: { standalone: boolean }) {
             aria-hidden={!flip}
             tabIndex={-1}
             {...(flip ? {} : { inert: '' })}
-            className="flip-face flip-back absolute inset-0 flex flex-col overflow-hidden rounded-xl border border-border-strong bg-surface"
+            className="flip-face flip-back absolute inset-0 flex flex-col glass-card overflow-hidden rounded-xl"
           >
             <div className="flex items-center justify-between border-b border-border px-5 py-3">
               <span className="label-nd">Meaning</span>

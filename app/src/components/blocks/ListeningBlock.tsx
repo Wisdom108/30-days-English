@@ -114,7 +114,7 @@ export default function ListeningBlock({ lesson }: { lesson: DayLesson }) {
   return (
     <div className="space-y-4">
       {/* ===== HERO — audio orb is the star; transcript steps one line at a time ===== */}
-      <div className="hero-card overflow-hidden rounded-xl border border-border-strong">
+      <div className="hero-card overflow-hidden rounded-xl">
         <BlockHead tag="精听" title={l.title} />
 
         <div className="px-6 pb-7 pt-6 text-center">

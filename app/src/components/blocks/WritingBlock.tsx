@@ -33,7 +33,7 @@ export default function WritingBlock({ lesson }: { lesson: DayLesson }) {
   return (
     <div className="space-y-4">
       {/* ===== HERO — the prompt + your writing surface ===== */}
-      <div className="overflow-hidden rounded-xl border border-border-strong bg-surface">
+      <div className="glass-card overflow-hidden rounded-xl">
         <div className="border-b border-border px-6 py-5">
           <div className="label-nd mb-2">今日写作 · 睡前巩固</div>
           <p className="text-body-lg leading-relaxed text-fg">{w.prompt}</p>
@@ -62,7 +62,7 @@ export default function WritingBlock({ lesson }: { lesson: DayLesson }) {
             <p className="mt-2 text-center text-meta text-fg-muted">指出语法 / 用词 / 地道度，给出润色版与打分</p>
           </div>
         ) : (
-          <div className="overflow-hidden rounded-xl border border-border-strong bg-surface animate-in-up">
+          <div className="glass-card overflow-hidden rounded-xl animate-in-up">
             <div className="flex items-center justify-between border-b border-border px-6 py-5">
               <div>
                 <div className="label-nd mb-1.5">AI 批改</div>

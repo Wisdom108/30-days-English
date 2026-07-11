@@ -108,7 +108,7 @@ export default function Dashboard() {
       </Card>
 
       {/* ===== the two numbers that change daily ===== */}
-      <div className="grid grid-cols-2 overflow-hidden rounded-xl border border-border">
+      <div className="glass-card grid grid-cols-2 overflow-hidden rounded-xl">
         <MCell label="连胜" value={<CountUpNumeral target={streak} />} unit="天"
           bar={<Cells value={Math.min(streak, 10)} max={10} height={7} accent={streak > 0 ? 'var(--color-red)' : undefined} />} />
         <MCell label="待复习" value={<CountUpNumeral target={due} />} unit="卡" red={due > 0} onClick={() => nav('/review')} cls="border-l border-border"

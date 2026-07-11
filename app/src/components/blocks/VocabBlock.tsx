@@ -61,7 +61,7 @@ export default function VocabBlock({ lesson }: { lesson: DayLesson }) {
               aria-hidden={flip}
               tabIndex={-1}
               {...(flip ? { inert: '' } : {})}
-              className="hero-card flip-face col-start-1 row-start-1 flex flex-col overflow-hidden rounded-xl border border-border-strong"
+              className="hero-card flip-face col-start-1 row-start-1 flex flex-col overflow-hidden rounded-xl"
             >
               <div className="flex items-center justify-between border-b border-border px-5 py-3">
                 <span className="label-nd">词汇 · <span className="t-tab text-fg-secondary">{i + 1}/{words.length}</span></span>
@@ -81,7 +81,7 @@ export default function VocabBlock({ lesson }: { lesson: DayLesson }) {
               aria-hidden={!flip}
               tabIndex={-1}
               {...(flip ? {} : { inert: '' })}
-              className="flip-face flip-back col-start-1 row-start-1 flex flex-col overflow-hidden rounded-xl border border-border-strong bg-surface"
+              className="hero-card flip-face flip-back col-start-1 row-start-1 flex flex-col overflow-hidden rounded-xl"
             >
               <div className="flex items-center justify-between border-b border-border px-5 py-3">
                 <span className="label-nd">释义</span>

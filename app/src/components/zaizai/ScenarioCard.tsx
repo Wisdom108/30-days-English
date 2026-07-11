@@ -25,7 +25,7 @@ export default function ScenarioCard({ pack, onPractice, onCall, onDone }: Scena
   // ChatHome stamps `done` onto the persisted pack after 完成 — no re-claim farming.
   const done = !!(pack as ScenarioPack & { done?: boolean }).done
   return (
-    <div className="card-solid w-full max-w-[88%] rounded-xl p-4">
+    <div className="glass-card w-full max-w-[88%] rounded-xl p-4">
       <div className="text-h3 font-semibold text-fg">{pack.title_zh}</div>
       <div className="mt-0.5 text-meta text-fg-muted">对方角色 · {pack.role_zh}</div>
 

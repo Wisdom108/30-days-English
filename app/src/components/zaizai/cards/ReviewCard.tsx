@@ -8,7 +8,7 @@ export default function ReviewCard({ data }: { data: ReviewCardPayload }) {
   return (
     <button
       onClick={() => nav('/review')}
-      className="press card-solid flex w-full max-w-[88%] items-center gap-3 rounded-xl px-4 py-3 text-left"
+      className="press glass-card flex w-full max-w-[88%] items-center gap-3 rounded-xl px-4 py-3 text-left"
     >
       <Layers size={18} className="shrink-0 text-fg-secondary" />
       <span className="min-w-0 flex-1">

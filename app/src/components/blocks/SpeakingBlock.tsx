@@ -84,7 +84,7 @@ function ShadowHero({ text, tip, lesson }: { text: string; tip: string; lesson: 
   }
 
   return (
-    <div className="hero-card overflow-hidden rounded-xl border border-border-strong">
+    <div className="hero-card overflow-hidden rounded-xl">
       <BlockHead tag="跟读" right={<SpeakButton text={text} />} />
 
       <div className="flex flex-col items-center px-6 pb-7 pt-6 text-center">
@@ -183,7 +183,7 @@ export default function SpeakingBlock({ lesson }: { lesson: DayLesson }) {
       </Callout>
 
       {/* AI partner — first-class, always visible (no longer buried in a fold) */}
-      <div className="rounded-xl border border-border-strong bg-surface p-4">
+      <div className="glass-card rounded-xl p-4">
         <div className="mb-3 flex items-center gap-2">
           <Sparkles size={15} className="text-fg" />
           <span className="label-nd">AI 陪练 · 实时语音</span>

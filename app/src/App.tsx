@@ -139,8 +139,10 @@ export default function App() {
       {/* Top bar */}
       <header
         className={cn(
-          'pt-safe sticky top-0 z-40 border-b bg-bg/80 backdrop-blur-md transition-colors duration-200',
-          scrolled ? 'border-border-strong bg-bg/95' : 'border-border',
+          // liquid-glass chrome: white glass + saturation lift; the hairline
+          // under it deepens once the page scrolls (glass needs the cue)
+          'pt-safe sticky top-0 z-40 border-b bg-white/60 backdrop-blur-2xl backdrop-saturate-[1.8] transition-colors duration-200',
+          scrolled ? 'border-[rgba(60,60,67,0.18)] bg-white/72' : 'border-[rgba(255,255,255,0.6)]',
         )}
       >
         <div className="relative mx-auto flex h-[54px] max-w-[1120px] items-center gap-3 px-4 md:px-6">
@@ -243,7 +245,7 @@ export default function App() {
 
       {/* Mobile bottom tab bar (hidden on study routes — the lesson dock owns that space) */}
       {!onDayRoute && (
-        <nav className="tabbar fixed inset-x-0 bottom-0 z-30 flex justify-around border-t-[0.5px] border-[rgba(60,60,67,0.29)] bg-white/75 px-4 pb-[calc(0.375rem+env(safe-area-inset-bottom))] pt-1.5 backdrop-blur-xl md:hidden">
+        <nav className="tabbar fixed inset-x-0 bottom-0 z-30 flex justify-around dock-glass px-4 pb-[calc(0.375rem+env(safe-area-inset-bottom))] pt-1.5 md:hidden">
           {NAV.map((t) => (
             <NavLink
               key={t.label}

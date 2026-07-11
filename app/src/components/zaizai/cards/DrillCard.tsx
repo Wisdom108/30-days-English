@@ -52,7 +52,7 @@ export default function DrillCard({ data, lesson }: { data: DrillCardPayload; le
   }
 
   return (
-    <div className="card-solid w-full max-w-[88%] rounded-xl p-4">
+    <div className="glass-card w-full max-w-[88%] rounded-xl p-4">
       <div className="label-nd">跟读挑战</div>
       <button onClick={() => speak(data.text)} className="press group mt-2 flex w-full items-start gap-2 text-left">
         <Volume2 size={14} className="mt-1 shrink-0 text-fg-dim transition-colors group-hover:text-brand" />

@@ -269,7 +269,7 @@ export default function DayView() {
       </div>
 
       {dayComplete && (
-        <div className="mt-5 flex flex-col items-center gap-3 rounded-xl border border-border-strong bg-surface px-5 py-6 text-center animate-in-up">
+        <div className="mt-5 flex flex-col items-center gap-3 glass-card rounded-xl px-5 py-6 text-center animate-in-up">
           <div className="grid h-11 w-11 place-items-center rounded-full bg-accent-soft"><PartyPopper size={20} className="text-fg" /></div>
           <div>
             <div className="text-h1 font-semibold text-fg"><span className="t-tab">Day {dayNum}</span> 全部完成</div>
@@ -281,7 +281,7 @@ export default function DayView() {
       {/* 听说收尾：学完当场复述一遍（练习，不消耗回炉轮次）。右上角报这一课
           回炉阶梯的真实状态（刚学完=6 小时后；老课=到点/已毕业）。 */}
       {dayComplete && (
-        <div className="mt-4 rounded-xl border border-border-strong bg-surface p-4 animate-in-up">
+        <div className="mt-4 glass-card rounded-xl p-4 animate-in-up">
           <div className="mb-3 flex items-center justify-between">
             <span className="label-nd">收尾 · 用自己的话复述</span>
             <span className="text-meta text-fg-muted">{reviewStatusLabel(state.lessonReviews?.[dayNum])}</span>

@@ -96,8 +96,8 @@ export function Card({
   return (
     <div
       className={cn(
-        'rounded-xl border border-border bg-surface shadow-card',
-        interactive && 'cursor-pointer transition-colors duration-200 hover:border-border-strong',
+        'glass-card rounded-xl',
+        interactive && 'cursor-pointer transition-shadow duration-200 hover:shadow-raised',
         className,
       )}
       {...props}
@@ -148,7 +148,7 @@ export function SectionLabel({ className, children }: { className?: string; chil
  *  rows come from the `.cell-group` CSS (0.5px, inset 16px left). */
 export function CellGroup({ className, children, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={cn('cell-group overflow-hidden rounded-[10px] bg-surface', className)} {...props}>
+    <div className={cn('cell-group glass-card overflow-hidden rounded-[14px]', className)} {...props}>
       {children}
     </div>
   )
@@ -561,7 +561,7 @@ export function Sheet({
         <DialogPrimitive.Content
           onOpenAutoFocus={(e) => e.preventDefault()}
           className={cn(
-            'fixed z-50 border-border bg-surface shadow-[var(--shadow-popover)] focus:outline-none',
+            'glass-strong fixed z-50 border-border shadow-[var(--shadow-popover)] focus:outline-none',
             pos,
             className,
           )}
